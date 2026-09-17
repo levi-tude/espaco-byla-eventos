@@ -1,0 +1,18 @@
+{
+  "id": "ORDE_FICTICIO_001",
+  "reference_id": "00000000-0000-4000-8000-000000000001",
+  "status": "ACTIVE",
+  "charges": [
+    {
+      "id": "CHAR_FICTICIO_001",
+      "status": "PAID",
+      "amount": {
+        "value": 5000,
+        "currency": "BRL"
+      },
+      "payment_method": {
+        "type": "PIX"
+      }
+    }
+  ]
+}

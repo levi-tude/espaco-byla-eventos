@@ -35,6 +35,27 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.example` documenta as chaves necessárias **sem segredos reais**.
 
+## Pagamentos
+
+O MVP usa o **Checkout PagBank com PIX**. A decisão e a comparação com o
+Mercado Pago estão em
+[`docs/superpowers/plans/payment-provider-decision.md`](docs/superpowers/plans/payment-provider-decision.md).
+
+Para testar, crie uma credencial no sandbox do PagBank e configure somente em
+`.env.local`:
+
+```dotenv
+PAYMENT_PROVIDER=pagbank
+PAGBANK_TOKEN=seu-token-de-sandbox
+PAGBANK_API_URL=https://sandbox.api.pagseguro.com
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+O webhook deve apontar para
+`https://seu-dominio/api/payments/webhook`. O adapter valida
+`x-authenticity-token` quando `PAGBANK_TOKEN` está configurado. Nunca coloque
+tokens reais no Git.
+
 ## Dados e privacidade
 
 Este repositório **não contém dados reais** (PII, dumps, credenciais ou informações de clientes). Dados de produção ficam exclusivamente no Supabase autenticado e nos serviços de pagamento configurados no ambiente — nunca no Git.
