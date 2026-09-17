@@ -64,15 +64,23 @@ export default async function EquipePage() {
                 </p>
               </div>
 
-              <span
-                className={
-                  event.sales_open
-                    ? "rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800"
-                    : "rounded-full bg-zinc-200 px-3 py-1 text-sm font-medium text-zinc-700"
-                }
-              >
-                {event.sales_open ? "Venda aberta" : "Venda fechada"}
-              </span>
+              <div className="flex items-center gap-3">
+                <span
+                  className={
+                    event.sales_open
+                      ? "rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800"
+                      : "rounded-full bg-zinc-200 px-3 py-1 text-sm font-medium text-zinc-700"
+                  }
+                >
+                  {event.sales_open ? "Venda aberta" : "Venda fechada"}
+                </span>
+                <Link
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium"
+                  href={`/equipe/eventos/${event.id}`}
+                >
+                  Gerenciar
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
