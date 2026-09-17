@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCheckIn } from "@/lib/domain/check-in";
+import { checkInMessage, evaluateCheckIn } from "@/lib/domain/check-in";
 
 describe("check-in", () => {
   it("libera ingresso pago do evento certo", () => {
@@ -46,5 +46,16 @@ describe("check-in", () => {
         status: "cancelado",
       }),
     ).toEqual({ ok: false, reason: "cancelado" });
+  });
+});
+
+describe("mensagens do check-in", () => {
+  it.each([
+    ["evento_errado", "Evento errado"],
+    ["nao_pago", "Ingresso não pago"],
+    ["cancelado", "Cancelado"],
+    ["ja_usado", "Já utilizado"],
+  ] as const)("traduz %s para português", (reason, message) => {
+    expect(checkInMessage(reason)).toBe(message);
   });
 });
