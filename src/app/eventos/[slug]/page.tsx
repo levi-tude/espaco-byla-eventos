@@ -101,7 +101,7 @@ export default async function EventoPublicoPage({
             {event.sales_open && hasAvailability ? (
               <Link
                 className="mt-6 flex justify-center rounded-lg bg-zinc-950 px-4 py-3 text-sm font-medium text-white"
-                href={`/eventos/${event.slug}/comprar`}
+                href={`/eventos/${event.slug}/checkout`}
               >
                 Comprar
               </Link>
