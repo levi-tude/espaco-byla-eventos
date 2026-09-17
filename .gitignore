@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env*.local
+!.env.example
+.DS_Store
+*.pem
+.vercel
+coverage/
+.superpowers/
