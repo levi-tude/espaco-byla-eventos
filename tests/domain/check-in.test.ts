@@ -20,4 +20,31 @@ describe("check-in", () => {
       }),
     ).toEqual({ ok: false, reason: "ja_usado" });
   });
+  it("bloqueia evento errado", () => {
+    expect(
+      evaluateCheckIn({
+        ticketEventId: "11111111-1111-4111-8111-111111111111",
+        eventId: "22222222-2222-4222-8222-222222222222",
+        status: "pago",
+      }),
+    ).toEqual({ ok: false, reason: "evento_errado" });
+  });
+  it("bloqueia não pago", () => {
+    expect(
+      evaluateCheckIn({
+        ticketEventId: "33333333-3333-4333-8333-333333333333",
+        eventId: "33333333-3333-4333-8333-333333333333",
+        status: "nao_pago",
+      }),
+    ).toEqual({ ok: false, reason: "nao_pago" });
+  });
+  it("bloqueia cancelado", () => {
+    expect(
+      evaluateCheckIn({
+        ticketEventId: "44444444-4444-4444-8444-444444444444",
+        eventId: "44444444-4444-4444-8444-444444444444",
+        status: "cancelado",
+      }),
+    ).toEqual({ ok: false, reason: "cancelado" });
+  });
 });
