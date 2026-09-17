@@ -35,6 +35,24 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.example` documenta as chaves necessárias **sem segredos reais**.
 
+## Deploy na Vercel
+
+1. Importe o repositório na Vercel e mantenha `main` como branch de produção.
+2. Cadastre no projeto todas as chaves de `.env.example`:
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER`, `PAGBANK_TOKEN`,
+   `PAGBANK_API_URL`, `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` e
+   `RESEND_FROM_EMAIL`.
+3. Em produção, defina `NEXT_PUBLIC_APP_URL` com a URL pública da aplicação e
+   use credenciais de produção do Supabase, PagBank e Resend.
+4. No PagBank, configure o webhook como
+   `https://seu-dominio/api/payments/webhook`.
+5. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
+   check-in antes de abrir as vendas.
+
+Não coloque tokens no repositório nem use os valores de produção em Preview ou
+Development. Este repositório não cria o projeto Vercel automaticamente.
+
 ## Pagamentos
 
 O MVP usa o **Checkout PagBank com PIX**. A decisão e a comparação com o

@@ -17,8 +17,8 @@ const kindLabels: Record<Enums<"ticket_kind">, string> = {
 };
 
 const statusLabels: Record<TicketQrProps["status"], string> = {
-  pago: "Válido",
-  check_in: "Entrada realizada",
+  pago: "Pago",
+  check_in: "Check-in",
 };
 
 export async function TicketQr({

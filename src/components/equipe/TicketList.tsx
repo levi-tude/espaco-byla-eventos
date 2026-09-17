@@ -32,10 +32,10 @@ const kindLabels: Record<Enums<"ticket_kind">, string> = {
 };
 
 const statusLabels: Record<Enums<"ticket_status">, string> = {
-  nao_pago: "Aguardando pagamento",
+  nao_pago: "Não pago",
   pago: "Pago",
   cancelado: "Cancelado",
-  check_in: "Check-in realizado",
+  check_in: "Check-in",
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {

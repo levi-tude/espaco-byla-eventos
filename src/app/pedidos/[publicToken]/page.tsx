@@ -34,7 +34,7 @@ export default async function PedidoPage({
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 items-center px-6 py-16">
         <section className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
-          <p className="text-sm font-medium text-amber-800">Pedido recebido</p>
+          <p className="text-sm font-medium text-amber-800">Não pago</p>
           <h1 className="mt-2 text-3xl font-semibold">Aguardando pagamento</h1>
           <p className="mt-4 leading-7 text-zinc-700">
             Assim que o pagamento for confirmado, seus ingressos aparecerão
