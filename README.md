@@ -56,6 +56,13 @@ O webhook deve apontar para
 `x-authenticity-token` quando `PAGBANK_TOKEN` está configurado. Nunca coloque
 tokens reais no Git.
 
+## E-mail dos ingressos
+
+Após a confirmação do pagamento, o sistema envia pelo Resend um link para a
+página dos ingressos. Configure `RESEND_API_KEY` e `RESEND_FROM_EMAIL`. Sem
+essas variáveis, o pagamento continua normalmente e o servidor registra um
+aviso sem tentar o envio.
+
 ## Dados e privacidade
 
 Este repositório **não contém dados reais** (PII, dumps, credenciais ou informações de clientes). Dados de produção ficam exclusivamente no Supabase autenticado e nos serviços de pagamento configurados no ambiente — nunca no Git.
