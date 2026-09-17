@@ -1,51 +1,57 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  cancelOrderIfPending,
   markOrderPaidIfPending,
   type SupabaseAdmin,
 } from "@/lib/domain/orders";
 
-function createAdminMock() {
-  const orderMaybeSingle = vi
-    .fn()
-    .mockResolvedValueOnce({ data: { id: "order-1" }, error: null })
-    .mockResolvedValueOnce({ data: null, error: null });
-  const orderSelect = vi.fn(() => ({ maybeSingle: orderMaybeSingle }));
-  const orderEqStatus = vi.fn(() => ({ select: orderSelect }));
-  const orderEqProvider = vi.fn(() => ({ eq: orderEqStatus }));
-  const orderEqExternal = vi.fn(() => ({ eq: orderEqProvider }));
-  const orderUpdate = vi.fn(() => ({ eq: orderEqExternal }));
-
-  const ticketEqStatus = vi.fn().mockResolvedValue({ error: null });
-  const ticketEqOrder = vi.fn(() => ({ eq: ticketEqStatus }));
-  const ticketUpdate = vi.fn(() => ({ eq: ticketEqOrder }));
-
-  const from = vi.fn((table: string) => {
-    if (table === "orders") return { update: orderUpdate };
-    if (table === "tickets") return { update: ticketUpdate };
-    throw new Error(`Tabela inesperada: ${table}`);
-  });
-
+function createAdminMock(results: Array<{ data: string | null; error: unknown }>) {
+  const rpc = vi.fn();
+  for (const result of results) rpc.mockResolvedValueOnce(result);
   return {
-    admin: { from } as unknown as SupabaseAdmin,
-    orderUpdate,
-    ticketUpdate,
+    admin: { rpc } as unknown as SupabaseAdmin,
+    rpc,
   };
 }
 
 describe("markOrderPaidIfPending", () => {
-  it("marca pedido e ingressos apenas na primeira confirmação", async () => {
-    const { admin, orderUpdate, ticketUpdate } = createAdminMock();
+  it.each(["updated", "repaired", "noop"] as const)(
+    "devolve o resultado transacional %s",
+    async (outcome) => {
+      const { admin, rpc } = createAdminMock([{ data: outcome, error: null }]);
+
+      await expect(
+        markOrderPaidIfPending(admin, "payment-1", "pagbank"),
+      ).resolves.toBe(outcome);
+      expect(rpc).toHaveBeenCalledWith("mark_order_paid_by_external", {
+        p_external_id: "payment-1",
+        p_provider: "pagbank",
+      });
+    },
+  );
+
+  it("propaga recusa por capacidade como erro operacional", async () => {
+    const { admin } = createAdminMock([
+      { data: "cancelled_capacity", error: null },
+    ]);
 
     await expect(
       markOrderPaidIfPending(admin, "payment-1", "pagbank"),
+    ).rejects.toThrow("capacidade");
+  });
+
+  it("cancela pedido e ingressos na mesma RPC", async () => {
+    const { admin, rpc } = createAdminMock([
+      { data: "updated", error: null },
+    ]);
+
+    await expect(
+      cancelOrderIfPending(admin, "order-1", "pagbank"),
     ).resolves.toBe("updated");
-    await expect(
-      markOrderPaidIfPending(admin, "payment-1", "pagbank"),
-    ).resolves.toBe("noop");
-
-    expect(orderUpdate).toHaveBeenCalledTimes(2);
-    expect(ticketUpdate).toHaveBeenCalledTimes(1);
-    expect(ticketUpdate).toHaveBeenCalledWith({ status: "pago" });
+    expect(rpc).toHaveBeenCalledWith("cancel_order_by_external", {
+      p_external_id: "order-1",
+      p_provider: "pagbank",
+    });
   });
 });

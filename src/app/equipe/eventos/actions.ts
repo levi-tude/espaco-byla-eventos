@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { assertCapacityAvailable } from "@/lib/domain/capacity";
-import { countsTowardCapacity } from "@/lib/domain/status";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
-import { createPublicToken, createTicketCode } from "@/lib/domain/tickets";
+import { createPublicToken } from "@/lib/domain/tickets";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 export type EventInput = {
@@ -98,6 +97,12 @@ function revalidateEventSurfaces(id: string, slug: string) {
   revalidatePath(`/eventos/${slug}`);
 }
 
+async function assertStaff(): Promise<void> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase.rpc("is_staff");
+  if (error || !data) throw new Error("Acesso restrito à equipe.");
+}
+
 export async function createEvent(input: EventInput): Promise<{ id: string }> {
   const normalized = normalizeInput(input);
   const supabase = await createServerClient();
@@ -154,53 +159,27 @@ export async function updateEvent(
   input: EventInput,
 ): Promise<void> {
   const normalized = normalizeInput(input);
-  const supabase = await createServerClient();
-
-  const { error: eventError } = await supabase
-    .from("events")
-    .update({
-      name: normalized.name,
-      starts_at: normalized.startsAt,
-      venue: normalized.venue,
-      description: normalized.description,
-      capacity: normalized.capacity,
-      cover_image_url: normalized.coverImageUrl,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  await assertStaff();
+  const admin = createAdminClient();
+  const { error: eventError } = await admin.rpc("update_event_with_capacity", {
+    p_event_id: id,
+    p_name: normalized.name,
+    p_starts_at: normalized.startsAt,
+    p_venue: normalized.venue,
+    p_description: normalized.description,
+    p_capacity: normalized.capacity,
+    p_cover_image_url: normalized.coverImageUrl ?? null,
+    p_full_price_cents: normalized.fullPriceCents,
+    p_half_price_cents: normalized.halfPriceCents,
+  });
 
   if (eventError) {
+    if (eventError.message.includes("capacidade não pode ser menor")) {
+      throw new Error(
+        "A capacidade não pode ser menor que os ingressos já reservados.",
+      );
+    }
     throw new Error("Não foi possível salvar o evento.");
-  }
-
-  const { error: ticketTypesError } = await supabase
-    .from("ticket_types")
-    .upsert(
-      [
-        {
-          event_id: id,
-          kind: "inteira",
-          price_cents: normalized.fullPriceCents,
-          active: true,
-        },
-        {
-          event_id: id,
-          kind: "meia",
-          price_cents: normalized.halfPriceCents,
-          active: true,
-        },
-        {
-          event_id: id,
-          kind: "cortesia",
-          price_cents: 0,
-          active: true,
-        },
-      ],
-      { onConflict: "event_id,kind" },
-    );
-
-  if (ticketTypesError) {
-    throw new Error("Evento salvo, mas os preços não foram atualizados.");
   }
 
   const slug = await getEventSlug(id);
@@ -237,75 +216,24 @@ export async function issueCourtesy(input: CourtesyInput): Promise<void> {
     throw new Error("Preencha nome e e-mail válidos.");
   }
 
-  const supabase = await createServerClient();
-  const [
-    { data: event, error: eventError },
-    { data: ticketType, error: typeError },
-    { data: tickets, error: ticketsError },
-  ] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, slug, capacity")
-      .eq("id", input.eventId)
-      .maybeSingle(),
-    supabase
-      .from("ticket_types")
-      .select("id")
-      .eq("event_id", input.eventId)
-      .eq("kind", "cortesia")
-      .eq("active", true)
-      .maybeSingle(),
-    supabase.from("tickets").select("status").eq("event_id", input.eventId),
-  ]);
-
-  if (eventError || !event) throw new Error("Evento não encontrado.");
-  if (typeError || !ticketType) {
-    throw new Error("Cortesia indisponível para este evento.");
-  }
-  if (ticketsError) {
-    throw new Error("Não foi possível verificar a capacidade do evento.");
-  }
-
-  const occupied = (tickets ?? []).filter(({ status }) =>
-    countsTowardCapacity(status),
-  ).length;
-  assertCapacityAvailable(occupied, event.capacity, 1);
-
-  const now = new Date().toISOString();
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      event_id: event.id,
-      buyer_name: name,
-      buyer_email: email,
-      total_cents: 0,
-      status: "pago",
-      paid_at: now,
-      public_token: createPublicToken(),
-      payment_provider: "cortesia_interna",
-    })
-    .select("id")
-    .single();
-
-  if (orderError) throw new Error("Não foi possível registrar a cortesia.");
-
-  const { error: ticketError } = await supabase.from("tickets").insert({
-    order_id: order.id,
-    event_id: event.id,
-    ticket_type_id: ticketType.id,
-    kind: "cortesia",
-    status: "pago",
-    code: createTicketCode(),
-    buyer_name: name,
-    price_cents: 0,
+  await assertStaff();
+  const slug = await getEventSlug(input.eventId);
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("issue_courtesy_ticket", {
+    p_event_id: input.eventId,
+    p_buyer_name: name,
+    p_buyer_email: email,
+    p_public_token: createPublicToken(),
   });
 
-  if (ticketError) {
-    await supabase.from("orders").delete().eq("id", order.id);
+  if (error) {
+    if (error.message.includes("Capacidade esgotada")) {
+      throw new Error("Capacidade esgotada para este evento.");
+    }
     throw new Error("Não foi possível emitir o ingresso de cortesia.");
   }
 
-  revalidateEventSurfaces(event.id, event.slug);
+  revalidateEventSurfaces(input.eventId, slug);
 }
 
 export async function cancelTicket(

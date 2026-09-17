@@ -58,6 +58,7 @@ export type Database = {
           buyer_phone: string | null;
           created_at: string;
           event_id: string;
+          expires_at: string | null;
           id: string;
           paid_at: string | null;
           payment_external_id: string | null;
@@ -72,6 +73,7 @@ export type Database = {
           buyer_phone?: string | null;
           created_at?: string;
           event_id: string;
+          expires_at?: string | null;
           id?: string;
           paid_at?: string | null;
           payment_external_id?: string | null;
@@ -86,6 +88,7 @@ export type Database = {
           buyer_phone?: string | null;
           created_at?: string;
           event_id?: string;
+          expires_at?: string | null;
           id?: string;
           paid_at?: string | null;
           payment_external_id?: string | null;
@@ -224,9 +227,60 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      cancel_order_by_external: {
+        Args: { p_external_id: string; p_provider: string };
+        Returns: string;
+      };
+      create_checkout_order: {
+        Args: {
+          p_buyer_email: string;
+          p_buyer_name: string;
+          p_buyer_phone: string | null;
+          p_event_id: string;
+          p_items: Json;
+          p_payment_provider: string;
+          p_public_token: string;
+        };
+        Returns: {
+          expires_at: string;
+          order_id: string;
+          total_cents: number;
+        }[];
+      };
+      event_occupied_count: {
+        Args: { p_event_id: string; p_exclude_order_id?: string | null };
+        Returns: number;
+      };
+      issue_courtesy_ticket: {
+        Args: {
+          p_buyer_email: string;
+          p_buyer_name: string;
+          p_event_id: string;
+          p_public_token: string;
+        };
+        Returns: { order_id: string; ticket_id: string }[];
+      };
       is_staff: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
+      };
+      mark_order_paid_by_external: {
+        Args: { p_external_id: string; p_provider: string };
+        Returns: string;
+      };
+      update_event_with_capacity: {
+        Args: {
+          p_capacity: number;
+          p_cover_image_url: string | null;
+          p_description: string;
+          p_event_id: string;
+          p_full_price_cents: number;
+          p_half_price_cents: number;
+          p_name: string;
+          p_starts_at: string;
+          p_venue: string;
+        };
+        Returns: undefined;
       };
     };
     Enums: {

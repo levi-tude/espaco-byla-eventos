@@ -40,6 +40,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
   const processingRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
   const [manualCode, setManualCode] = useState("");
+  const [awaitingNext, setAwaitingNext] = useState(false);
   const [result, setResult] = useState<Result>({
     tone: "idle",
     message: "Aponte a câmera para o QR Code",
@@ -51,6 +52,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
       if (!code || processingRef.current) return;
 
       processingRef.current = true;
+      let keepPaused = false;
       setResult({ tone: "loading", message: "Verificando ingresso..." });
 
       try {
@@ -62,12 +64,17 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         const data = (await response.json()) as CheckInResponse;
 
         if (data.ok) {
+          keepPaused = true;
+          if (scannerRef.current?.isScanning) {
+            scannerRef.current.pause(true);
+          }
           setResult({
             tone: "success",
             message: "Pode entrar",
             detail: `${data.buyerName} · ${kindLabels[data.kind]}`,
           });
           setManualCode("");
+          setAwaitingNext(true);
         } else {
           setResult({ tone: "error", message: data.message });
         }
@@ -77,9 +84,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
           message: "Falha de conexão. Tente novamente.",
         });
       } finally {
-        window.setTimeout(() => {
-          processingRef.current = false;
-        }, 1800);
+        if (!keepPaused) processingRef.current = false;
       }
     },
     [eventId],
@@ -139,6 +144,19 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
     void checkIn(manualCode);
   }
 
+  function scanNextTicket() {
+    setAwaitingNext(false);
+    setResult({ tone: "idle", message: "Aponte a câmera para o QR Code" });
+    processingRef.current = false;
+    try {
+      scannerRef.current?.resume();
+    } catch {
+      setCameraError(
+        "Não foi possível retomar a câmera. Digite o próximo código abaixo.",
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl bg-zinc-950 p-3 shadow-lg">
@@ -166,6 +184,15 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         {"detail" in result ? (
           <p className="mt-2 text-lg font-semibold">{result.detail}</p>
         ) : null}
+        {awaitingNext ? (
+          <button
+            className="mt-5 min-h-12 rounded-xl bg-emerald-800 px-6 text-base font-semibold text-white"
+            onClick={scanNextTicket}
+            type="button"
+          >
+            Próximo ingresso
+          </button>
+        ) : null}
       </section>
 
       <form
@@ -186,7 +213,9 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
           />
           <button
             className="min-h-12 rounded-xl bg-zinc-950 px-6 text-base font-semibold text-white disabled:opacity-50"
-            disabled={!manualCode.trim() || result.tone === "loading"}
+            disabled={
+              !manualCode.trim() || result.tone === "loading" || awaitingNext
+            }
             type="submit"
           >
             Verificar
