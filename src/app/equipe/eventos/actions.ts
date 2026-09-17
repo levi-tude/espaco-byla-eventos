@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
 import { createServerClient } from "@/lib/supabase/server";
 
 export type EventInput = {
@@ -57,17 +58,6 @@ function normalizeInput(input: EventInput): EventInput {
   return { ...normalized, startsAt: startsAt.toISOString() };
 }
 
-function slugify(value: string) {
-  return (
-    value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "evento"
-  );
-}
-
 async function uniqueSlug(name: string) {
   const supabase = await createServerClient();
   const base = slugify(name);
@@ -80,12 +70,29 @@ async function uniqueSlug(name: string) {
     throw new Error("Não foi possível definir o endereço do evento.");
   }
 
-  const existing = new Set(data.map(({ slug }) => slug));
-  if (!existing.has(base)) return base;
+  return resolveUniqueSlug(base, data.map(({ slug }) => slug));
+}
 
-  let suffix = 2;
-  while (existing.has(`${base}-${suffix}`)) suffix += 1;
-  return `${base}-${suffix}`;
+async function getEventSlug(id: string): Promise<string> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("slug")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data?.slug) {
+    throw new Error("Evento não encontrado.");
+  }
+
+  return data.slug;
+}
+
+function revalidateEventSurfaces(id: string, slug: string) {
+  revalidatePath("/");
+  revalidatePath("/equipe");
+  revalidatePath(`/equipe/eventos/${id}`);
+  revalidatePath(`/eventos/${slug}`);
 }
 
 export async function createEvent(input: EventInput): Promise<{ id: string }> {
@@ -135,8 +142,7 @@ export async function createEvent(input: EventInput): Promise<{ id: string }> {
     throw new Error("Não foi possível criar os tipos de ingresso.");
   }
 
-  revalidatePath("/");
-  revalidatePath("/equipe");
+  revalidateEventSurfaces(event.id, slug);
   return { id: event.id };
 }
 
@@ -194,10 +200,8 @@ export async function updateEvent(
     throw new Error("Evento salvo, mas os preços não foram atualizados.");
   }
 
-  revalidatePath("/");
-  revalidatePath(`/eventos`);
-  revalidatePath("/equipe");
-  revalidatePath(`/equipe/eventos/${id}`);
+  const slug = await getEventSlug(id);
+  revalidateEventSurfaces(id, slug);
 }
 
 export async function setSalesOpen(id: string, open: boolean): Promise<void> {
@@ -213,7 +217,6 @@ export async function setSalesOpen(id: string, open: boolean): Promise<void> {
     );
   }
 
-  revalidatePath("/");
-  revalidatePath("/equipe");
-  revalidatePath(`/equipe/eventos/${id}`);
+  const slug = await getEventSlug(id);
+  revalidateEventSurfaces(id, slug);
 }
