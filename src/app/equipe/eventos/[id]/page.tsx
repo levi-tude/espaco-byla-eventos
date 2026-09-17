@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EventForm } from "@/components/equipe/EventForm";
+import { TicketList } from "@/components/equipe/TicketList";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function EventoEquipePage({
@@ -9,7 +10,12 @@ export default async function EventoEquipePage({
 }: PageProps<"/equipe/eventos/[id]">) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const [{ data: event }, { data: ticketTypes }, { count: occupied }] =
+  const [
+    { data: event },
+    { data: ticketTypes },
+    { count: occupied },
+    { data: tickets },
+  ] =
     await Promise.all([
       supabase.from("events").select("*").eq("id", id).maybeSingle(),
       supabase
@@ -21,6 +27,13 @@ export default async function EventoEquipePage({
         .select("id", { count: "exact", head: true })
         .eq("event_id", id)
         .in("status", ["pago", "check_in"]),
+      supabase
+        .from("tickets")
+        .select(
+          "id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at)",
+        )
+        .eq("event_id", id)
+        .order("created_at", { ascending: false }),
     ]);
 
   if (!event) notFound();
@@ -88,12 +101,20 @@ export default async function EventoEquipePage({
         }}
       />
 
-      <section className="mt-8 rounded-xl border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Lista de participantes</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          A lista de compradores e participantes será exibida aqui.
-        </p>
-      </section>
+      <TicketList
+        eventId={event.id}
+        remaining={remaining}
+        tickets={(tickets ?? []).map((ticket) => ({
+          id: ticket.id,
+          buyerName: ticket.buyer_name,
+          buyerEmail: ticket.orders.buyer_email,
+          kind: ticket.kind,
+          status: ticket.status,
+          priceCents: ticket.price_cents,
+          paidAt: ticket.orders.paid_at,
+          checkedInAt: ticket.checked_in_at,
+        }))}
+      />
     </main>
   );
 }

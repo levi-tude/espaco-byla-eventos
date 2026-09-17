@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
+import { assertCapacityAvailable } from "@/lib/domain/capacity";
+import { countsTowardCapacity } from "@/lib/domain/status";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
+import { createPublicToken, createTicketCode } from "@/lib/domain/tickets";
 import { createServerClient } from "@/lib/supabase/server";
 
 export type EventInput = {
@@ -219,4 +222,116 @@ export async function setSalesOpen(id: string, open: boolean): Promise<void> {
 
   const slug = await getEventSlug(id);
   revalidateEventSurfaces(id, slug);
+}
+
+export type CourtesyInput = {
+  eventId: string;
+  name: string;
+  email: string;
+};
+
+export async function issueCourtesy(input: CourtesyInput): Promise<void> {
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!input.eventId || !name || !email.includes("@")) {
+    throw new Error("Preencha nome e e-mail válidos.");
+  }
+
+  const supabase = await createServerClient();
+  const [
+    { data: event, error: eventError },
+    { data: ticketType, error: typeError },
+    { data: tickets, error: ticketsError },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, slug, capacity")
+      .eq("id", input.eventId)
+      .maybeSingle(),
+    supabase
+      .from("ticket_types")
+      .select("id")
+      .eq("event_id", input.eventId)
+      .eq("kind", "cortesia")
+      .eq("active", true)
+      .maybeSingle(),
+    supabase.from("tickets").select("status").eq("event_id", input.eventId),
+  ]);
+
+  if (eventError || !event) throw new Error("Evento não encontrado.");
+  if (typeError || !ticketType) {
+    throw new Error("Cortesia indisponível para este evento.");
+  }
+  if (ticketsError) {
+    throw new Error("Não foi possível verificar a capacidade do evento.");
+  }
+
+  const occupied = (tickets ?? []).filter(({ status }) =>
+    countsTowardCapacity(status),
+  ).length;
+  assertCapacityAvailable(occupied, event.capacity, 1);
+
+  const now = new Date().toISOString();
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      event_id: event.id,
+      buyer_name: name,
+      buyer_email: email,
+      total_cents: 0,
+      status: "pago",
+      paid_at: now,
+      public_token: createPublicToken(),
+      payment_provider: "cortesia_interna",
+    })
+    .select("id")
+    .single();
+
+  if (orderError) throw new Error("Não foi possível registrar a cortesia.");
+
+  const { error: ticketError } = await supabase.from("tickets").insert({
+    order_id: order.id,
+    event_id: event.id,
+    ticket_type_id: ticketType.id,
+    kind: "cortesia",
+    status: "pago",
+    code: createTicketCode(),
+    buyer_name: name,
+    price_cents: 0,
+  });
+
+  if (ticketError) {
+    await supabase.from("orders").delete().eq("id", order.id);
+    throw new Error("Não foi possível emitir o ingresso de cortesia.");
+  }
+
+  revalidateEventSurfaces(event.id, event.slug);
+}
+
+export async function cancelTicket(
+  eventId: string,
+  ticketId: string,
+): Promise<void> {
+  if (!eventId || !ticketId) throw new Error("Ingresso inválido.");
+
+  const supabase = await createServerClient();
+  const { data: ticket, error } = await supabase
+    .from("tickets")
+    .update({
+      status: "cancelado",
+      cancelled_at: new Date().toISOString(),
+    })
+    .eq("id", ticketId)
+    .eq("event_id", eventId)
+    .eq("status", "pago")
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error("Não foi possível cancelar o ingresso.");
+  if (!ticket) {
+    throw new Error("Somente ingressos pagos e sem check-in podem ser cancelados.");
+  }
+
+  const slug = await getEventSlug(eventId);
+  revalidateEventSurfaces(eventId, slug);
 }
