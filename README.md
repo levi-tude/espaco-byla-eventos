@@ -17,6 +17,8 @@ cp .env.example .env.local   # preencha com credenciais reais (nunca commite)
 npm run dev
 ```
 
+> **Nota (Vitest):** na instalação inicial das dependências de teste foi necessário `npm install -D vitest @vitejs/plugin-react jsdom vite --legacy-peer-deps` (conflito de peer deps com `@types/node@20`) e incluir `vite` explicitamente como devDependency (runtime do Vitest).
+
 Acesse [http://localhost:3000](http://localhost:3000).
 
 ## Scripts
