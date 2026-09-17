@@ -1,0 +1,257 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export type Database = {
+  public: {
+    Tables: {
+      events: {
+        Row: {
+          capacity: number;
+          cover_image_url: string | null;
+          created_at: string;
+          description: string;
+          id: string;
+          name: string;
+          sales_open: boolean;
+          slug: string;
+          starts_at: string;
+          updated_at: string;
+          venue: string;
+        };
+        Insert: {
+          capacity: number;
+          cover_image_url?: string | null;
+          created_at?: string;
+          description?: string;
+          id?: string;
+          name: string;
+          sales_open?: boolean;
+          slug: string;
+          starts_at: string;
+          updated_at?: string;
+          venue: string;
+        };
+        Update: {
+          capacity?: number;
+          cover_image_url?: string | null;
+          created_at?: string;
+          description?: string;
+          id?: string;
+          name?: string;
+          sales_open?: boolean;
+          slug?: string;
+          starts_at?: string;
+          updated_at?: string;
+          venue?: string;
+        };
+        Relationships: [];
+      };
+      orders: {
+        Row: {
+          buyer_email: string;
+          buyer_name: string;
+          buyer_phone: string | null;
+          created_at: string;
+          event_id: string;
+          id: string;
+          paid_at: string | null;
+          payment_external_id: string | null;
+          payment_provider: string | null;
+          public_token: string;
+          status: Database["public"]["Enums"]["order_status"];
+          total_cents: number;
+        };
+        Insert: {
+          buyer_email: string;
+          buyer_name: string;
+          buyer_phone?: string | null;
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          paid_at?: string | null;
+          payment_external_id?: string | null;
+          payment_provider?: string | null;
+          public_token: string;
+          status?: Database["public"]["Enums"]["order_status"];
+          total_cents: number;
+        };
+        Update: {
+          buyer_email?: string;
+          buyer_name?: string;
+          buyer_phone?: string | null;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          paid_at?: string | null;
+          payment_external_id?: string | null;
+          payment_provider?: string | null;
+          public_token?: string;
+          status?: Database["public"]["Enums"]["order_status"];
+          total_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "orders_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      staff_profiles: {
+        Row: {
+          created_at: string;
+          display_name: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          display_name: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          display_name?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      ticket_types: {
+        Row: {
+          active: boolean;
+          event_id: string;
+          id: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          price_cents: number;
+        };
+        Insert: {
+          active?: boolean;
+          event_id: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          price_cents: number;
+        };
+        Update: {
+          active?: boolean;
+          event_id?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["ticket_kind"];
+          price_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ticket_types_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tickets: {
+        Row: {
+          buyer_name: string;
+          cancelled_at: string | null;
+          checked_in_at: string | null;
+          code: string;
+          created_at: string;
+          event_id: string;
+          id: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          order_id: string;
+          price_cents: number;
+          status: Database["public"]["Enums"]["ticket_status"];
+          ticket_type_id: string;
+        };
+        Insert: {
+          buyer_name: string;
+          cancelled_at?: string | null;
+          checked_in_at?: string | null;
+          code: string;
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          order_id: string;
+          price_cents: number;
+          status?: Database["public"]["Enums"]["ticket_status"];
+          ticket_type_id: string;
+        };
+        Update: {
+          buyer_name?: string;
+          cancelled_at?: string | null;
+          checked_in_at?: string | null;
+          code?: string;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["ticket_kind"];
+          order_id?: string;
+          price_cents?: number;
+          status?: Database["public"]["Enums"]["ticket_status"];
+          ticket_type_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tickets_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_ticket_type_id_fkey";
+            columns: ["ticket_type_id"];
+            isOneToOne: false;
+            referencedRelation: "ticket_types";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      is_staff: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+    };
+    Enums: {
+      order_status: "pendente" | "pago" | "cancelado" | "expirado";
+      ticket_kind: "inteira" | "meia" | "cortesia";
+      ticket_status: "nao_pago" | "pago" | "cancelado" | "check_in";
+    };
+    CompositeTypes: Record<string, never>;
+  };
+};
+
+type PublicSchema = Database["public"];
+
+export type Tables<
+  TableName extends keyof PublicSchema["Tables"],
+> = PublicSchema["Tables"][TableName]["Row"];
+
+export type TablesInsert<
+  TableName extends keyof PublicSchema["Tables"],
+> = PublicSchema["Tables"][TableName]["Insert"];
+
+export type TablesUpdate<
+  TableName extends keyof PublicSchema["Tables"],
+> = PublicSchema["Tables"][TableName]["Update"];
+
+export type Enums<
+  EnumName extends keyof PublicSchema["Enums"],
+> = PublicSchema["Enums"][EnumName];
