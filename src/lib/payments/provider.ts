@@ -8,6 +8,9 @@ import type {
 export interface PaymentProvider {
   name: string;
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
+  reconcileCheckout?(
+    input: CreatePaymentInput,
+  ): Promise<CreatePaymentResult | null>;
   parseWebhook(req: Request): Promise<WebhookResult>;
 }
 

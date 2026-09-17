@@ -8,6 +8,13 @@ import { sendTicketsEmail } from "@/lib/email/send-tickets";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 export async function POST(request: Request) {
   const provider = getPaymentProvider();
   const result = await provider.parseWebhook(request);
@@ -25,12 +32,18 @@ export async function POST(request: Request) {
     );
 
     if (outcome === "updated" || outcome === "repaired") {
-      const { data: order, error: orderError } = await admin
+      const orderQuery = admin
         .from("orders")
         .select("buyer_email, buyer_name, public_token, event_id")
-        .eq("payment_external_id", result.externalId)
-        .eq("payment_provider", provider.name)
-        .maybeSingle();
+        .eq("payment_provider", provider.name);
+
+      const { data: order, error: orderError } = await (
+        isUuid(result.externalId)
+          ? orderQuery.or(
+              `payment_external_id.eq.${result.externalId},id.eq.${result.externalId}`,
+            )
+          : orderQuery.eq("payment_external_id", result.externalId)
+      ).maybeSingle();
 
       if (orderError || !order) {
         console.error(

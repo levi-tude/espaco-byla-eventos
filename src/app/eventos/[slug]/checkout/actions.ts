@@ -78,14 +78,25 @@ export async function startCheckout(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (!appUrl) throw new Error("NEXT_PUBLIC_APP_URL não configurada.");
 
-  const payment = await provider.createPayment({
+  const paymentInput = {
     orderId: order.order_id,
     amountCents: order.total_cents,
     description: `Ingressos — ${event.name}`,
     buyerEmail: buyer.email,
     successUrl: `${appUrl}/pedidos/${publicToken}`,
     failureUrl: `${appUrl}/eventos/${event.slug}/checkout`,
-  });
+  };
+
+  let payment;
+  try {
+    payment = await provider.createPayment(paymentInput);
+  } catch (primaryError) {
+    const reconciled = provider.reconcileCheckout
+      ? await provider.reconcileCheckout(paymentInput)
+      : null;
+    if (!reconciled) throw primaryError;
+    payment = reconciled;
+  }
 
   return { checkoutUrl: payment.checkoutUrl };
 }

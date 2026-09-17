@@ -50,6 +50,27 @@ export class PagBankPaymentProvider implements PaymentProvider {
   async createPayment(
     input: CreatePaymentInput,
   ): Promise<CreatePaymentResult> {
+    this.assertCreatePaymentInput(input);
+    return this.postCheckout(input);
+  }
+
+  /**
+   * Recupera um checkout já criado no PagBank quando a resposta original se
+   * perdeu após timeout ou falha de rede. A API não expõe GET por
+   * reference_id; reenviamos o POST com a mesma x-idempotency-key (orderId).
+   */
+  async reconcileCheckout(
+    input: CreatePaymentInput,
+  ): Promise<CreatePaymentResult | null> {
+    try {
+      this.assertCreatePaymentInput(input);
+      return await this.postCheckout(input);
+    } catch {
+      return null;
+    }
+  }
+
+  private assertCreatePaymentInput(input: CreatePaymentInput): void {
     if (!this.token) {
       throw new Error(
         "PAGBANK_TOKEN não configurado. Adicione a credencial do sandbox em .env.local.",
@@ -61,32 +82,43 @@ export class PagBankPaymentProvider implements PaymentProvider {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new Error("O valor do pagamento deve ser positivo e em centavos.");
     }
+  }
 
+  private buildCheckoutBody(input: CreatePaymentInput) {
     const webhookUrl = `${this.appUrl}/api/payments/webhook`;
+    return {
+      reference_id: input.orderId,
+      customer: { email: input.buyerEmail },
+      customer_modifiable: true,
+      items: [
+        {
+          reference_id: input.orderId,
+          name: input.description.slice(0, 100),
+          quantity: 1,
+          unit_amount: input.amountCents,
+        },
+      ],
+      payment_methods: [{ type: "PIX" }],
+      redirect_url: input.successUrl,
+      return_url: input.failureUrl,
+      notification_urls: [webhookUrl],
+      payment_notification_urls: [webhookUrl],
+    };
+  }
+
+  private async postCheckout(
+    input: CreatePaymentInput,
+  ): Promise<CreatePaymentResult> {
     const response = await this.request(`${this.apiUrl}/checkouts`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.token}`,
         "Content-Type": "application/json",
+        // reference_id correlaciona webhook ↔ pedido; a chave de idempotência
+        // permite reenvio seguro após falha de rede (doc oficial em /orders).
+        "x-idempotency-key": input.orderId,
       },
-      body: JSON.stringify({
-        reference_id: input.orderId,
-        customer: { email: input.buyerEmail },
-        customer_modifiable: true,
-        items: [
-          {
-            reference_id: input.orderId,
-            name: input.description.slice(0, 100),
-            quantity: 1,
-            unit_amount: input.amountCents,
-          },
-        ],
-        payment_methods: [{ type: "PIX" }],
-        redirect_url: input.successUrl,
-        return_url: input.failureUrl,
-        notification_urls: [webhookUrl],
-        payment_notification_urls: [webhookUrl],
-      }),
+      body: JSON.stringify(this.buildCheckoutBody(input)),
     });
 
     const body = (await response.json()) as PagBankCheckoutResponse;

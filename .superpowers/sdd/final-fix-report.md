@@ -10,6 +10,7 @@ Branch: `feat/mvp`
 - C2: confirmação de pagamento movida para RPC transacional e idempotente, incluindo recuperação de ingressos `nao_pago` de um pedido já pago.
 - C2: cancelamento de pedido pendente e ingressos movido para RPC transacional.
 - I1: a referência local `order.id` é persistida como `payment_external_id` antes da chamada ao PagBank; a RPC também resolve diretamente por `order.id`.
+- I1 (fechamento): `createPayment` envia `x-idempotency-key` e `reference_id` com o `orderId`; `startCheckout` reconcilia via `reconcileCheckout` após falha de rede; webhook/e-mail localizam pedido por `payment_external_id` ou `id` quando o `reference_id` é UUID.
 - I2: edição de evento e preços movida para RPC atômica, impedindo capacidade abaixo de ingressos pagos, usados ou holds ativos.
 - I3: após check-in bem-sucedido, o scanner pausa e exige “Próximo ingresso”.
 - I4: o código completo do ingresso passou a ser exibido e selecionável abaixo do QR.
@@ -18,7 +19,7 @@ Branch: `feat/mvp`
 
 ## Verificação
 
-- `npm test`: passou — 7 arquivos, 25 testes.
+- `npm test`: passou — 8 arquivos, 28 testes.
 - `npm run lint`: passou.
 - `npm run build`: passou com Next.js 16.3.5.
 - `git diff --check`: passou.
