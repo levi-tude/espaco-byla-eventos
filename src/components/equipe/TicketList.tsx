@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useMemo, useState, useTransition } from "react";
 
 import {
@@ -17,6 +18,7 @@ export type TicketListItem = {
   priceCents: number;
   paidAt: string | null;
   checkedInAt: string | null;
+  publicToken: string;
 };
 
 type Props = {
@@ -55,6 +57,7 @@ function formatDate(value: string | null) {
 export function TicketList({ eventId, remaining, tickets }: Props) {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [lastTicketUrl, setLastTicketUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const filteredTickets = useMemo(() => {
@@ -87,14 +90,16 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
 
     startTransition(async () => {
       try {
-        await issueCourtesy({
+        const { publicToken } = await issueCourtesy({
           eventId,
           name: String(formData.get("name") ?? ""),
           email: String(formData.get("email") ?? ""),
         });
         form.reset();
-        setMessage("Cortesia emitida com sucesso.");
+        setLastTicketUrl(`/pedidos/${publicToken}`);
+        setMessage("Cortesia emitida com sucesso. Abra o ingresso abaixo.");
       } catch (error) {
+        setLastTicketUrl(null);
         setMessage(
           error instanceof Error ? error.message : "Não foi possível emitir.",
         );
@@ -137,13 +142,13 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
       </div>
 
       <form
-        className="rounded-xl border border-zinc-200 bg-white p-6"
+        className="rounded-xl border border-byla-border bg-byla-surface p-6"
         onSubmit={submitCourtesy}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold">Emitir cortesia</h2>
-            <p className="text-sm text-zinc-600">
+            <p className="text-sm text-byla-muted">
               {remaining} {remaining === 1 ? "vaga disponível" : "vagas disponíveis"}
             </p>
           </div>
@@ -152,7 +157,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
           <label className="text-sm font-medium">
             Nome
             <input
-              className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 px-3"
+              className="mt-1 block min-h-11 w-full rounded-lg border border-byla-border px-3"
               disabled={isPending || remaining === 0}
               name="name"
               required
@@ -161,7 +166,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
           <label className="text-sm font-medium">
             E-mail
             <input
-              className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 px-3"
+              className="mt-1 block min-h-11 w-full rounded-lg border border-byla-border px-3"
               disabled={isPending || remaining === 0}
               name="email"
               required
@@ -169,7 +174,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
             />
           </label>
           <button
-            className="self-end rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="self-end rounded-lg bg-byla-blue px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
             disabled={isPending || remaining === 0}
             type="submit"
           >
@@ -181,20 +186,31 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
             {message}
           </p>
         ) : null}
+        {lastTicketUrl ? (
+          <p className="mt-3">
+            <Link
+              className="inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-foreground"
+              href={lastTicketUrl}
+              target="_blank"
+            >
+              Abrir ingresso (QR)
+            </Link>
+          </p>
+        ) : null}
       </form>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-6">
+      <div className="rounded-xl border border-byla-border bg-byla-surface p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">Lista de participantes</h2>
-            <p className="mt-1 text-sm text-zinc-600">
+            <p className="mt-1 text-sm text-byla-muted">
               {tickets.length} {tickets.length === 1 ? "ingresso" : "ingressos"}
             </p>
           </div>
           <label className="text-sm font-medium">
             Buscar por nome
             <input
-              className="mt-1 block min-h-10 w-full rounded-lg border border-zinc-300 px-3 sm:w-72"
+              className="mt-1 block min-h-10 w-full rounded-lg border border-byla-border px-3 sm:w-72"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Nome do participante"
               type="search"
@@ -205,7 +221,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
 
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-zinc-200 text-zinc-600">
+            <thead className="border-b border-zinc-200 text-byla-muted">
               <tr>
                 <th className="px-3 py-3 font-medium">Nome</th>
                 <th className="px-3 py-3 font-medium">Tipo</th>
@@ -221,7 +237,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                 <tr className="border-b border-zinc-100" key={ticket.id}>
                   <td className="px-3 py-4">
                     <span className="font-medium">{ticket.buyerName}</span>
-                    <span className="block text-xs text-zinc-500">
+                    <span className="block text-xs text-byla-muted">
                       {ticket.buyerEmail}
                     </span>
                   </td>
@@ -233,25 +249,39 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                   <td className="px-3 py-4">{formatDate(ticket.paidAt)}</td>
                   <td className="px-3 py-4">{formatDate(ticket.checkedInAt)}</td>
                   <td className="px-3 py-4">
-                    {ticket.status === "pago" ? (
-                      <button
-                        className="font-medium text-red-700 disabled:opacity-50"
-                        disabled={isPending}
-                        onClick={() => requestCancellation(ticket)}
-                        type="button"
-                      >
-                        Cancelar
-                      </button>
-                    ) : (
-                      "—"
-                    )}
+                    <div className="flex flex-col gap-2">
+                      {ticket.status === "pago" ||
+                      ticket.status === "check_in" ? (
+                        <Link
+                          className="font-medium text-emerald-300 hover:underline"
+                          href={`/pedidos/${ticket.publicToken}`}
+                          target="_blank"
+                        >
+                          Abrir ingresso
+                        </Link>
+                      ) : null}
+                      {ticket.status === "pago" ? (
+                        <button
+                          className="text-left font-medium text-red-400 disabled:opacity-50"
+                          disabled={isPending}
+                          onClick={() => requestCancellation(ticket)}
+                          type="button"
+                        >
+                          Cancelar
+                        </button>
+                      ) : null}
+                      {ticket.status !== "pago" &&
+                      ticket.status !== "check_in" ? (
+                        <span>—</span>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {filteredTickets.length === 0 ? (
-            <p className="py-8 text-center text-sm text-zinc-600">
+            <p className="py-8 text-center text-sm text-byla-muted">
               Nenhum ingresso encontrado.
             </p>
           ) : null}
@@ -263,8 +293,8 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
 
 function TotalCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5">
-      <p className="text-sm text-zinc-600">{label}</p>
+    <div className="rounded-xl border border-byla-border bg-byla-surface p-5">
+      <p className="text-sm text-byla-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );

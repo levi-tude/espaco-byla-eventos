@@ -102,14 +102,14 @@ export function EventForm({ event }: EventFormProps) {
 
   return (
     <form
-      className="grid gap-6 rounded-xl border border-zinc-200 bg-white p-6"
+      className="grid gap-6 rounded-xl border border-byla-border bg-byla-surface p-6"
       onSubmit={handleSubmit}
     >
       <div className="grid gap-5 md:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium">
           Nome
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={event?.name}
             name="name"
             required
@@ -119,7 +119,7 @@ export function EventForm({ event }: EventFormProps) {
         <label className="grid gap-2 text-sm font-medium">
           Data e hora
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={localDateTimeValue(event?.startsAt)}
             name="startsAt"
             required
@@ -130,7 +130,7 @@ export function EventForm({ event }: EventFormProps) {
         <label className="grid gap-2 text-sm font-medium">
           Local
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={event?.venue}
             name="venue"
             required
@@ -140,7 +140,7 @@ export function EventForm({ event }: EventFormProps) {
         <label className="grid gap-2 text-sm font-medium">
           Capacidade
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={event?.capacity}
             min="1"
             name="capacity"
@@ -153,7 +153,7 @@ export function EventForm({ event }: EventFormProps) {
         <label className="grid gap-2 text-sm font-medium">
           Preço inteira (R$)
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={priceValue(event?.fullPriceCents)}
             min="0"
             name="fullPrice"
@@ -166,7 +166,7 @@ export function EventForm({ event }: EventFormProps) {
         <label className="grid gap-2 text-sm font-medium">
           Preço meia (R$)
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
             defaultValue={priceValue(event?.halfPriceCents)}
             min="0"
             name="halfPrice"
@@ -180,7 +180,7 @@ export function EventForm({ event }: EventFormProps) {
       <label className="grid gap-2 text-sm font-medium">
         Descrição
         <textarea
-          className="min-h-28 rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+          className="min-h-28 rounded-lg border border-byla-border px-3 py-2.5 font-normal"
           defaultValue={event?.description}
           name="description"
         />
@@ -189,7 +189,7 @@ export function EventForm({ event }: EventFormProps) {
       <label className="grid gap-2 text-sm font-medium">
         URL da capa (opcional)
         <input
-          className="rounded-lg border border-zinc-300 px-3 py-2.5 font-normal"
+          className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
           defaultValue={event?.coverImageUrl ?? ""}
           name="coverImageUrl"
           placeholder="https://..."
@@ -198,14 +198,14 @@ export function EventForm({ event }: EventFormProps) {
       </label>
 
       {message ? (
-        <p className="text-sm text-zinc-700" role="status">
+        <p className="text-sm text-zinc-300" role="status">
           {message}
         </p>
       ) : null}
 
       <div className="flex flex-wrap gap-3">
         <button
-          className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-byla-blue px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           disabled={isPending}
           type="submit"
         >
@@ -214,7 +214,7 @@ export function EventForm({ event }: EventFormProps) {
 
         {event ? (
           <button
-            className="rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium disabled:opacity-50"
+            className="rounded-lg border border-byla-border px-5 py-2.5 text-sm font-medium disabled:opacity-50"
             disabled={isPending}
             onClick={toggleSales}
             type="button"

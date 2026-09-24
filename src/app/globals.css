@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
+/* next-themes usa class="dark" no <html> — Tailwind deve seguir isso */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Claro = brand book; escuro = noite cultural (padrão do produto) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f5f7;
+  --foreground: #0a0a0b;
+  --byla-bg: #f4f5f7;
+  --byla-surface: #ffffff;
+  --byla-blue: #4080fc;
+  --byla-yellow: #e6a420;
+  --byla-navy: #0c3974;
+  --byla-muted: #52525b;
+  --byla-border: color-mix(in srgb, #0c3974 14%, transparent);
+  --byla-overlay: color-mix(in srgb, #0c3974 6%, #ffffff);
+  --byla-input: #ffffff;
+  --byla-ring: color-mix(in srgb, #4080fc 35%, transparent);
+}
+
+.dark {
+  --background: #0a0a0b;
+  --foreground: #f4f4f5;
+  --byla-bg: #0a0a0b;
+  --byla-surface: #111113;
+  --byla-blue: #4080fc;
+  --byla-yellow: #ffbd38;
+  --byla-navy: #0c3974;
+  --byla-muted: #a1a1aa;
+  --byla-border: color-mix(in srgb, #ffffff 12%, transparent);
+  --byla-overlay: color-mix(in srgb, #000000 40%, transparent);
+  --byla-input: #0a0a0b;
+  --byla-ring: color-mix(in srgb, #4080fc 45%, transparent);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-byla-bg: var(--byla-bg);
+  --color-byla-surface: var(--byla-surface);
+  --color-byla-blue: var(--byla-blue);
+  --color-byla-yellow: var(--byla-yellow);
+  --color-byla-navy: var(--byla-navy);
+  --color-byla-muted: var(--byla-muted);
+  --color-byla-border: var(--byla-border);
+  --color-byla-overlay: var(--byla-overlay);
+  --color-byla-input: var(--byla-input);
+  --color-byla-ring: var(--byla-ring);
+  --font-sans: var(--font-byla-sans);
+  --font-display: var(--font-byla-display);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-byla-sans), system-ui, sans-serif;
 }

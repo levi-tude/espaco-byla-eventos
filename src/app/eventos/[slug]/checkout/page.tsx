@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-
+import { SiteHeader } from "@/components/brand/SiteHeader";
 import { CheckoutForm } from "./checkout-form";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function CheckoutPage({
   params,
@@ -32,26 +32,31 @@ export default async function CheckoutPage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-12">
-      <Link
-        className="text-sm text-zinc-600 hover:text-zinc-950"
-        href={`/eventos/${slug}`}
-      >
-        ← Voltar ao evento
-      </Link>
-      <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 md:p-10">
-        <p className="text-sm font-medium text-zinc-600">Finalizar compra</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          {event.name}
-        </h1>
-        {event.sales_open && publicTicketTypes.length ? (
-          <CheckoutForm slug={slug} ticketTypes={publicTicketTypes} />
-        ) : (
-          <p className="mt-6 rounded-lg bg-zinc-100 p-4">
-            As vendas deste evento estão fechadas.
+    <main className="relative flex min-h-full flex-1 flex-col">
+      <SiteHeader variant="equipe" />
+      <div className="mx-auto w-full max-w-2xl flex-1 px-6 py-8">
+        <Link
+          className="text-sm font-medium text-byla-muted transition hover:text-foreground"
+          href={`/eventos/${slug}`}
+        >
+          ← Voltar ao evento
+        </Link>
+        <section className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-6 md:p-10">
+          <p className="text-sm font-medium text-byla-yellow">
+            Finalizar compra
           </p>
-        )}
-      </section>
+          <h1 className="mt-1 font-display text-4xl tracking-wide text-foreground">
+            {event.name}
+          </h1>
+          {event.sales_open && publicTicketTypes.length ? (
+            <CheckoutForm slug={slug} ticketTypes={publicTicketTypes} />
+          ) : (
+            <p className="mt-6 rounded-lg border border-byla-border bg-byla-bg p-4 text-byla-muted">
+              As vendas deste evento estão fechadas.
+            </p>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

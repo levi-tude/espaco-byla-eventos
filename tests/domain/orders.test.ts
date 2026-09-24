@@ -22,11 +22,11 @@ describe("markOrderPaidIfPending", () => {
       const { admin, rpc } = createAdminMock([{ data: outcome, error: null }]);
 
       await expect(
-        markOrderPaidIfPending(admin, "payment-1", "pagbank"),
+        markOrderPaidIfPending(admin, "payment-1", "mercadopago"),
       ).resolves.toBe(outcome);
       expect(rpc).toHaveBeenCalledWith("mark_order_paid_by_external", {
         p_external_id: "payment-1",
-        p_provider: "pagbank",
+        p_provider: "mercadopago",
       });
     },
   );
@@ -37,7 +37,7 @@ describe("markOrderPaidIfPending", () => {
     ]);
 
     await expect(
-      markOrderPaidIfPending(admin, "payment-1", "pagbank"),
+      markOrderPaidIfPending(admin, "payment-1", "mercadopago"),
     ).rejects.toThrow("capacidade");
   });
 
@@ -47,11 +47,11 @@ describe("markOrderPaidIfPending", () => {
     ]);
 
     await expect(
-      cancelOrderIfPending(admin, "order-1", "pagbank"),
+      cancelOrderIfPending(admin, "order-1", "mercadopago"),
     ).resolves.toBe("updated");
     expect(rpc).toHaveBeenCalledWith("cancel_order_by_external", {
       p_external_id: "order-1",
-      p_provider: "pagbank",
+      p_provider: "mercadopago",
     });
   });
 });

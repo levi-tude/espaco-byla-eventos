@@ -5,8 +5,8 @@ Revisão dos critérios da seção 10 da especificação em 17/09/2026.
 - [x] **Criar eventos com capacidade e preços.** O painel permite criar e
   editar eventos, definir inteira e meia e emitir cortesia pela equipe.
 - [ ] **Concluir compra e pagamento no site com taxa de marketplace próxima de
-  zero.** O checkout e o adaptador PagBank estão implementados, mas faltam
-  credenciais e validação ponta a ponta em uma conta PagBank real.
+  zero.** Checkout Pro (Mercado Pago) implementado; faltam validação ponta a
+  ponta com credenciais de teste/produção e URL pública.
 - [x] **Manter lista confiável e auditável de pagantes.** A equipe consulta
   participante, tipo, valor, status, pagamento e check-in por evento.
 - [x] **Exibir status inequívocos.** A interface usa “Não pago”, “Pago”,

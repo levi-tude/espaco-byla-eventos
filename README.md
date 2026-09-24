@@ -40,13 +40,14 @@ Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.ex
 1. Importe o repositório na Vercel e mantenha `main` como branch de produção.
 2. Cadastre no projeto todas as chaves de `.env.example`:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER`, `PAGBANK_TOKEN`,
-   `PAGBANK_API_URL`, `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` e
-   `RESEND_FROM_EMAIL`.
+   `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER`,
+   `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`,
+   `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` e `RESEND_FROM_EMAIL`.
 3. Em produção, defina `NEXT_PUBLIC_APP_URL` com a URL pública da aplicação e
-   use credenciais de produção do Supabase, PagBank e Resend.
-4. No PagBank, configure o webhook como
-   `https://seu-dominio/api/payments/webhook`.
+   use credenciais de produção do Supabase, Mercado Pago e Resend.
+4. O webhook de pagamento é
+   `https://seu-dominio/api/payments/webhook` (também enviado como
+   `notification_url` na preferência).
 5. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
    check-in antes de abrir as vendas.
 
@@ -55,24 +56,21 @@ Development. Este repositório não cria o projeto Vercel automaticamente.
 
 ## Pagamentos
 
-O MVP usa o **Checkout PagBank com PIX**. A decisão e a comparação com o
-Mercado Pago estão em
+O MVP usa o **Checkout Pro do Mercado Pago**. A decisão está em
 [`docs/superpowers/plans/payment-provider-decision.md`](docs/superpowers/plans/payment-provider-decision.md).
 
-Para testar, crie uma credencial no sandbox do PagBank e configure somente em
-`.env.local`:
+Para testar, use as **credenciais de teste** da aplicação no Mercado Pago
+Developers e configure somente em `.env.local`:
 
 ```dotenv
-PAYMENT_PROVIDER=pagbank
-PAGBANK_TOKEN=seu-token-de-sandbox
-PAGBANK_API_URL=https://sandbox.api.pagseguro.com
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+PAYMENT_PROVIDER=mercadopago
+MERCADOPAGO_ACCESS_TOKEN=seu-access-token-de-teste
+MERCADOPAGO_PUBLIC_KEY=sua-public-key-de-teste
+NEXT_PUBLIC_APP_URL=https://sua-url-publica
 ```
 
-O webhook deve apontar para
-`https://seu-dominio/api/payments/webhook`. O adapter valida
-`x-authenticity-token` quando `PAGBANK_TOKEN` está configurado. Nunca coloque
-tokens reais no Git.
+`NEXT_PUBLIC_APP_URL` precisa ser **https público** (não localhost) para o
+Mercado Pago aceitar retorno e notificação. Nunca coloque tokens reais no Git.
 
 ## E-mail dos ingressos
 

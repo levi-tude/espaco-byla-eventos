@@ -18,14 +18,16 @@ export default async function EquipePage() {
     <main className="mx-auto w-full max-w-6xl px-6 py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Eventos</h1>
-          <p className="mt-1 text-zinc-600">
-            Acompanhe e organize os eventos do Espaço Byla.
+          <h1 className="font-display text-4xl tracking-wide text-foreground">
+            Eventos
+          </h1>
+          <p className="mt-1 text-byla-muted">
+            Organize a programação e os ingressos do Espaço Byla.
           </p>
         </div>
 
         <Link
-          className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+          className="rounded-lg bg-byla-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
           href="/equipe/eventos/novo"
         >
           Novo evento
@@ -34,7 +36,7 @@ export default async function EquipePage() {
 
       {error ? (
         <div
-          className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          className="mt-8 rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100"
           role="alert"
         >
           Não foi possível carregar os eventos.
@@ -42,9 +44,9 @@ export default async function EquipePage() {
       ) : null}
 
       {!error && events?.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-dashed border-zinc-300 bg-white p-10 text-center">
-          <p className="font-medium">Nenhum evento cadastrado.</p>
-          <p className="mt-1 text-sm text-zinc-600">
+        <div className="mt-8 rounded-xl border border-dashed border-byla-border bg-byla-surface p-10 text-center">
+          <p className="font-medium text-foreground">Nenhum evento cadastrado.</p>
+          <p className="mt-1 text-sm text-byla-muted">
             Crie o primeiro evento para começar.
           </p>
         </div>
@@ -54,12 +56,12 @@ export default async function EquipePage() {
         <ul className="mt-8 grid gap-4">
           {events.map((event) => (
             <li
-              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white p-5"
+              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-byla-border bg-byla-surface p-5"
               key={event.id}
             >
               <div>
-                <h2 className="font-semibold">{event.name}</h2>
-                <p className="mt-1 text-sm text-zinc-600">
+                <h2 className="font-semibold text-foreground">{event.name}</h2>
+                <p className="mt-1 text-sm text-byla-muted">
                   {dateFormatter.format(new Date(event.starts_at))}
                 </p>
               </div>
@@ -68,14 +70,14 @@ export default async function EquipePage() {
                 <span
                   className={
                     event.sales_open
-                      ? "rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800"
-                      : "rounded-full bg-zinc-200 px-3 py-1 text-sm font-medium text-zinc-700"
+                      ? "rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-medium text-emerald-300"
+                      : "rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-zinc-300"
                   }
                 >
                   {event.sales_open ? "Venda aberta" : "Venda fechada"}
                 </span>
                 <Link
-                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium"
+                  className="rounded-lg border border-byla-border px-3 py-2 text-sm font-medium text-foreground transition hover:border-byla-blue/60"
                   href={`/equipe/eventos/${event.id}`}
                 >
                   Gerenciar

@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Permite HMR/assets do Next quando o site é aberto via túnel (ngrok etc.)
+  allowedDevOrigins: [
+    "carlyn-prothetic-cletus.ngrok-free.dev",
+    "*.ngrok-free.dev",
+    "*.ngrok-free.app",
+    "*.loca.lt",
+  ],
 };
 
 export default nextConfig;

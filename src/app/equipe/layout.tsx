@@ -3,6 +3,8 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { BrandMark } from "@/components/brand/BrandMark";
+import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function EquipeLayout({
@@ -44,29 +46,37 @@ export default async function EquipeLayout({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-950">
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-sm font-semibold">Espaço Byla Eventos</p>
-            <nav className="mt-1" aria-label="Navegação da equipe">
-              <Link
-                className="text-sm text-zinc-600 transition hover:text-zinc-950"
-                href="/equipe"
-              >
-                Eventos
-              </Link>
-            </nav>
+    <div className="min-h-screen bg-byla-bg text-foreground">
+      <header className="border-b border-byla-border bg-byla-surface">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <BrandMark size={32} />
+            <div>
+              <p className="font-display text-lg tracking-wide text-foreground">
+                Espaço Byla Eventos
+              </p>
+              <nav className="mt-0.5" aria-label="Navegação da equipe">
+                <Link
+                  className="text-sm text-byla-muted transition hover:text-byla-blue"
+                  href="/equipe"
+                >
+                  Eventos
+                </Link>
+              </nav>
+            </div>
           </div>
 
-          <form action={signOut}>
-            <button
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium transition hover:bg-zinc-100"
-              type="submit"
-            >
-              Sair
-            </button>
-          </form>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <form action={signOut}>
+              <button
+                className="rounded-lg border border-byla-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-byla-blue/60"
+                type="submit"
+              >
+                Sair
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

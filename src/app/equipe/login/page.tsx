@@ -3,6 +3,8 @@
 import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { BrandMark } from "@/components/brand/BrandMark";
+import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -52,25 +54,36 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  const fieldClass =
+    "w-full rounded-lg border border-byla-border bg-byla-input px-3 py-2.5 text-foreground outline-none transition focus:border-byla-blue focus:ring-2 focus:ring-byla-ring";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-6 py-12">
-      <section className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium text-zinc-500">Espaço Byla Eventos</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
+    <main className="relative flex min-h-screen items-center justify-center bg-byla-bg px-6 py-12">
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
+      <section className="w-full max-w-sm rounded-2xl border border-byla-border bg-byla-surface p-8 shadow-xl shadow-black/20 dark:shadow-black/40">
+        <div className="flex items-center gap-3">
+          <BrandMark size={40} />
+          <p className="font-display text-xl tracking-wide text-foreground">
+            Espaço Byla Eventos
+          </p>
+        </div>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
           Acesso da equipe
         </h1>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           <div>
             <label
-              className="mb-2 block text-sm font-medium text-zinc-800"
+              className="mb-2 block text-sm font-medium text-byla-muted"
               htmlFor="email"
             >
               E-mail
             </label>
             <input
               autoComplete="email"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+              className={fieldClass}
               id="email"
               name="email"
               required
@@ -80,14 +93,14 @@ export default function LoginPage() {
 
           <div>
             <label
-              className="mb-2 block text-sm font-medium text-zinc-800"
+              className="mb-2 block text-sm font-medium text-byla-muted"
               htmlFor="password"
             >
               Senha
             </label>
             <input
               autoComplete="current-password"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+              className={fieldClass}
               id="password"
               name="password"
               required
@@ -96,13 +109,13 @@ export default function LoginPage() {
           </div>
 
           {error ? (
-            <p className="text-sm font-medium text-red-700" role="alert">
+            <p className="text-sm font-medium text-red-400" role="alert">
               {error}
             </p>
           ) : null}
 
           <button
-            className="w-full rounded-lg bg-zinc-950 px-4 py-2.5 font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-byla-blue px-4 py-2.5 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
             type="submit"
           >

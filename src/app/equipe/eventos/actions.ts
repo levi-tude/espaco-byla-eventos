@@ -104,6 +104,7 @@ async function assertStaff(): Promise<void> {
 }
 
 export async function createEvent(input: EventInput): Promise<{ id: string }> {
+  await assertStaff();
   const normalized = normalizeInput(input);
   const supabase = await createServerClient();
   const slug = await uniqueSlug(normalized.name);
@@ -118,6 +119,7 @@ export async function createEvent(input: EventInput): Promise<{ id: string }> {
       description: normalized.description,
       capacity: normalized.capacity,
       cover_image_url: normalized.coverImageUrl,
+      sales_open: true,
     })
     .select("id")
     .single();
@@ -126,16 +128,19 @@ export async function createEvent(input: EventInput): Promise<{ id: string }> {
     throw new Error("Não foi possível criar o evento.");
   }
 
+  // PostgREST envia null se `active` for omitido — a coluna é NOT NULL.
   const { error: ticketTypesError } = await supabase.from("ticket_types").insert([
     {
       event_id: event.id,
       kind: "inteira",
       price_cents: normalized.fullPriceCents,
+      active: true,
     },
     {
       event_id: event.id,
       kind: "meia",
       price_cents: normalized.halfPriceCents,
+      active: true,
     },
     {
       event_id: event.id,
@@ -209,7 +214,9 @@ export type CourtesyInput = {
   email: string;
 };
 
-export async function issueCourtesy(input: CourtesyInput): Promise<void> {
+export async function issueCourtesy(
+  input: CourtesyInput,
+): Promise<{ publicToken: string }> {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   if (!input.eventId || !name || !email.includes("@")) {
@@ -218,12 +225,13 @@ export async function issueCourtesy(input: CourtesyInput): Promise<void> {
 
   await assertStaff();
   const slug = await getEventSlug(input.eventId);
+  const publicToken = createPublicToken();
   const admin = createAdminClient();
   const { error } = await admin.rpc("issue_courtesy_ticket", {
     p_event_id: input.eventId,
     p_buyer_name: name,
     p_buyer_email: email,
-    p_public_token: createPublicToken(),
+    p_public_token: publicToken,
   });
 
   if (error) {
@@ -234,6 +242,7 @@ export async function issueCourtesy(input: CourtesyInput): Promise<void> {
   }
 
   revalidateEventSurfaces(input.eventId, slug);
+  return { publicToken };
 }
 
 export async function cancelTicket(

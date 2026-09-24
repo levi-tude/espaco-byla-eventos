@@ -20,13 +20,15 @@ export default async function CheckInPage({
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
       <Link
-        className="inline-flex min-h-11 items-center text-base font-medium text-zinc-700"
+        className="inline-flex min-h-11 items-center text-base font-medium text-byla-muted transition hover:text-foreground"
         href={`/equipe/eventos/${event.id}`}
       >
         ← Voltar ao evento
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight">Check-in</h1>
-      <p className="mb-6 mt-1 text-lg text-zinc-600">{event.name}</p>
+      <h1 className="mt-3 font-display text-4xl tracking-wide text-foreground">
+        Check-in
+      </h1>
+      <p className="mb-6 mt-1 text-lg text-byla-muted">{event.name}</p>
 
       <CheckInScanner eventId={event.id} />
     </main>

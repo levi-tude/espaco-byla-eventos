@@ -29,10 +29,10 @@ const kindLabels: Record<Enums<"ticket_kind">, string> = {
 };
 
 const resultStyles: Record<Result["tone"], string> = {
-  idle: "border-zinc-300 bg-white text-zinc-900",
-  loading: "border-amber-300 bg-amber-50 text-amber-950",
-  success: "border-emerald-500 bg-emerald-100 text-emerald-950",
-  error: "border-red-500 bg-red-100 text-red-950",
+  idle: "border-byla-border bg-byla-surface text-foreground",
+  loading: "border-amber-500/40 bg-amber-950/40 text-amber-100",
+  success: "border-emerald-500 bg-emerald-950/50 text-emerald-100",
+  error: "border-red-500 bg-red-950/50 text-red-100",
 };
 
 export function CheckInScanner({ eventId }: { eventId: string }) {
@@ -46,13 +46,23 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
     message: "Aponte a câmera para o QR Code",
   });
 
+  const pauseForNext = useCallback(() => {
+    if (scannerRef.current?.isScanning) {
+      try {
+        scannerRef.current.pause(true);
+      } catch {
+        // Câmera pode já estar pausada
+      }
+    }
+    setAwaitingNext(true);
+  }, []);
+
   const checkIn = useCallback(
     async (rawCode: string) => {
       const code = rawCode.trim();
       if (!code || processingRef.current) return;
 
       processingRef.current = true;
-      let keepPaused = false;
       setResult({ tone: "loading", message: "Verificando ingresso..." });
 
       try {
@@ -64,30 +74,26 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         const data = (await response.json()) as CheckInResponse;
 
         if (data.ok) {
-          keepPaused = true;
-          if (scannerRef.current?.isScanning) {
-            scannerRef.current.pause(true);
-          }
           setResult({
             tone: "success",
             message: "Pode entrar",
             detail: `${data.buyerName} · ${kindLabels[data.kind]}`,
           });
           setManualCode("");
-          setAwaitingNext(true);
         } else {
           setResult({ tone: "error", message: data.message });
         }
+        // Pausa após qualquer resposta para não reler o mesmo QR em loop
+        pauseForNext();
       } catch {
         setResult({
           tone: "error",
           message: "Falha de conexão. Tente novamente.",
         });
-      } finally {
-        if (!keepPaused) processingRef.current = false;
+        pauseForNext();
       }
     },
-    [eventId],
+    [eventId, pauseForNext],
   );
 
   useEffect(() => {
@@ -169,7 +175,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
 
       {cameraError ? (
         <p
-          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-base font-medium text-amber-950"
+          className="rounded-xl border border-amber-500/40 bg-amber-950/40 p-4 text-base font-medium text-amber-100"
           role="alert"
         >
           {cameraError}
@@ -186,7 +192,9 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         ) : null}
         {awaitingNext ? (
           <button
-            className="mt-5 min-h-12 rounded-xl bg-emerald-800 px-6 text-base font-semibold text-white"
+            className={`mt-5 min-h-12 rounded-xl px-6 text-base font-semibold text-foreground ${
+              result.tone === "success" ? "bg-emerald-800" : "bg-zinc-900"
+            }`}
             onClick={scanNextTicket}
             type="button"
           >
@@ -196,7 +204,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
       </section>
 
       <form
-        className="rounded-2xl border border-zinc-200 bg-white p-5"
+        className="rounded-2xl border border-byla-border bg-byla-surface p-5"
         onSubmit={submitManualCode}
       >
         <label className="text-base font-semibold" htmlFor="manual-code">
@@ -205,14 +213,14 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
             autoComplete="off"
-            className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 text-lg"
+            className="min-h-12 flex-1 rounded-xl border border-byla-border px-4 text-lg"
             id="manual-code"
             onChange={(event) => setManualCode(event.target.value)}
             placeholder="Código do ingresso"
             value={manualCode}
           />
           <button
-            className="min-h-12 rounded-xl bg-zinc-950 px-6 text-base font-semibold text-white disabled:opacity-50"
+            className="min-h-12 rounded-xl bg-byla-blue px-6 text-base font-semibold text-white disabled:opacity-50"
             disabled={
               !manualCode.trim() || result.tone === "loading" || awaitingNext
             }

@@ -15,7 +15,7 @@ function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
 
-export async function POST(request: Request) {
+async function handleWebhook(request: Request) {
   const provider = getPaymentProvider();
   const result = await provider.parseWebhook(request);
 
@@ -84,4 +84,13 @@ export async function POST(request: Request) {
     received: true,
     outcome,
   });
+}
+
+export async function POST(request: Request) {
+  return handleWebhook(request);
+}
+
+/** Mercado Pago também pode notificar via query string (IPN). */
+export async function GET(request: Request) {
+  return handleWebhook(request);
 }
