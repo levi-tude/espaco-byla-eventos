@@ -56,11 +56,12 @@ Development. Este repositório não cria o projeto Vercel automaticamente.
 
 ## Pagamentos
 
-O MVP usa o **Checkout Pro do Mercado Pago**. A decisão está em
+O MVP usa o **Mercado Pago Checkout Bricks** (pagamento embutido no site, PIX e cartão). A decisão está em
 [`docs/superpowers/plans/payment-provider-decision.md`](docs/superpowers/plans/payment-provider-decision.md).
 
-Para testar, use as **credenciais de teste** da aplicação no Mercado Pago
-Developers e configure somente em `.env.local`:
+Para testar, use as **credenciais de teste** (`TEST-`) de uma aplicação
+Checkout Transparente criada na conta real do Mercado Pago Developers e
+configure somente em `.env.local`:
 
 ```dotenv
 PAYMENT_PROVIDER=mercadopago

@@ -14,7 +14,7 @@ export type CheckoutInput = {
 
 export async function startCheckout(
   input: CheckoutInput,
-): Promise<{ checkoutUrl: string }> {
+): Promise<{ publicToken: string }> {
   const buyer = {
     name: input.buyer.name.trim(),
     email: input.buyer.email.trim().toLowerCase(),
@@ -46,7 +46,7 @@ export async function startCheckout(
   const admin = createAdminClient();
   const { data: event, error: eventError } = await admin
     .from("events")
-    .select("id, name, slug")
+    .select("id")
     .eq("slug", input.slug)
     .maybeSingle();
 
@@ -75,28 +75,5 @@ export async function startCheckout(
     throw new Error("Não foi possível criar o pedido.");
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (!appUrl) throw new Error("NEXT_PUBLIC_APP_URL não configurada.");
-
-  const paymentInput = {
-    orderId: order.order_id,
-    amountCents: order.total_cents,
-    description: `Ingressos — ${event.name}`,
-    buyerEmail: buyer.email,
-    successUrl: `${appUrl}/pedidos/${publicToken}`,
-    failureUrl: `${appUrl}/eventos/${event.slug}/checkout`,
-  };
-
-  let payment;
-  try {
-    payment = await provider.createPayment(paymentInput);
-  } catch (primaryError) {
-    const reconciled = provider.reconcileCheckout
-      ? await provider.reconcileCheckout(paymentInput)
-      : null;
-    if (!reconciled) throw primaryError;
-    payment = reconciled;
-  }
-
-  return { checkoutUrl: payment.checkoutUrl };
+  return { publicToken };
 }

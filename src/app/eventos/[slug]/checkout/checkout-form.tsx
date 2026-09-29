@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
 
 import { startCheckout } from "./actions";
@@ -23,19 +24,6 @@ const kindLabels: Record<TicketKind, string> = {
 
 const MAX_PER_KIND = 10;
 
-function friendlyCheckoutError(message: string) {
-  if (/MERCADOPAGO_ACCESS_TOKEN não configurado/i.test(message)) {
-    return "Pagamento em configuração. Falta a credencial do Mercado Pago no ambiente.";
-  }
-  if (/URL pública https|NEXT_PUBLIC_APP_URL/i.test(message)) {
-    return message;
-  }
-  if (/Não foi possível criar o checkout no Mercado Pago/i.test(message)) {
-    return message;
-  }
-  return message;
-}
-
 function parseQty(raw: string): number {
   const digits = raw.replace(/\D/g, "");
   if (!digits) return 0;
@@ -53,6 +41,7 @@ export function CheckoutForm({
     inteira: 0,
     meia: 0,
   });
+  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const totalCents = ticketTypes.reduce(
@@ -79,7 +68,7 @@ export function CheckoutForm({
 
     startTransition(async () => {
       try {
-        const { checkoutUrl } = await startCheckout({
+        const { publicToken } = await startCheckout({
           slug,
           items: ticketTypes.map(({ kind }) => ({
             kind,
@@ -91,13 +80,13 @@ export function CheckoutForm({
             phone: String(data.get("phone") ?? ""),
           },
         });
-        window.location.assign(checkoutUrl);
+        router.push(`/pedidos/${publicToken}`);
       } catch (cause) {
-        const raw =
+        setError(
           cause instanceof Error
             ? cause.message
-            : "Não foi possível iniciar o pagamento.";
-        setError(friendlyCheckoutError(raw));
+            : "Não foi possível iniciar o pagamento.",
+        );
       }
     });
   }
@@ -197,7 +186,7 @@ export function CheckoutForm({
         disabled={pending || totalCents === 0}
         type="submit"
       >
-        {pending ? "Abrindo pagamento…" : "Ir para o pagamento"}
+        {pending ? "Reservando ingressos…" : "Continuar para o pagamento"}
       </button>
     </form>
   );

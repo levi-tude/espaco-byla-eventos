@@ -2,17 +2,15 @@ import { MercadoPagoPaymentProvider } from "./mercadopago";
 import type {
   CreatePaymentInput,
   CreatePaymentResult,
+  OrderPaymentLookup,
   WebhookResult,
 } from "./types";
 
 export interface PaymentProvider {
   name: string;
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
-  reconcileCheckout?(
-    input: CreatePaymentInput,
-  ): Promise<CreatePaymentResult | null>;
-  /** Confirma pagamento pelo id do redirect (fallback se o webhook falhar). */
-  confirmPayment?(paymentId: string): Promise<WebhookResult>;
+  /** Consulta o provedor pelo pedido (fallback quando o webhook não chega). */
+  findOrderPayment(orderId: string): Promise<OrderPaymentLookup>;
   parseWebhook(req: Request): Promise<WebhookResult>;
 }
 

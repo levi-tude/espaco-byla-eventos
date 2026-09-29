@@ -1,13 +1,12 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { OrderPayment } from "@/components/public/OrderPayment";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
-import {
-  cancelOrderIfPending,
-  markOrderPaidIfPending,
-} from "@/lib/domain/orders";
+import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
+import type { PixData } from "@/lib/payments/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -48,60 +47,55 @@ async function resolveStaffBackNav(eventId: string, eventSlug: string) {
   };
 }
 
-async function reconcileReturnPayment(
+const moneyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+function isReservationExpired(expiresAt: string | null) {
+  return expiresAt !== null && Date.parse(expiresAt) <= Date.now();
+}
+
+async function lookupPendingPayment(
+  admin: ReturnType<typeof createAdminClient>,
   orderId: string,
-  publicToken: string,
-  searchParams: Record<string, string | string[] | undefined>,
-) {
+): Promise<{ paid: boolean; pix: PixData | null }> {
   const provider = getPaymentProvider();
-  if (!provider.confirmPayment) return;
-
-  const rawPaymentId = searchParams.payment_id ?? searchParams.collection_id;
-  const paymentId = Array.isArray(rawPaymentId)
-    ? rawPaymentId[0]
-    : rawPaymentId;
-  if (!paymentId) return;
-
-  const result = await provider.confirmPayment(paymentId);
-  if (!result.externalId || result.externalId !== orderId) return;
-
-  const admin = createAdminClient();
-  if (result.kind === "paid") {
-    await markOrderPaidIfPending(admin, result.externalId, provider.name);
-    redirect(`/pedidos/${publicToken}`);
-  }
-
-  if (result.kind === "cancelled") {
-    await cancelOrderIfPending(admin, result.externalId, provider.name);
-    redirect(`/pedidos/${publicToken}`);
+  try {
+    const existing = await provider.findOrderPayment(orderId);
+    if (existing.kind === "paid") {
+      await confirmOrderPaid(admin, orderId, provider.name);
+      return { paid: true, pix: null };
+    }
+    return {
+      paid: false,
+      pix: existing.kind === "pending_pix" ? existing.pix : null,
+    };
+  } catch (error) {
+    console.error("[pagamento] Falha ao consultar pagamento do pedido.", error);
+    return { paid: false, pix: null };
   }
 }
 
 export default async function PedidoPage({
   params,
-  searchParams,
 }: PageProps<"/pedidos/[publicToken]">) {
   const { publicToken } = await params;
-  const query = await searchParams;
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("id, event_id, status, buyer_name")
+    .select("id, event_id, status, buyer_name, buyer_email, total_cents, expires_at")
     .eq("public_token", publicToken)
     .maybeSingle();
 
   if (orderError) throw new Error("Não foi possível carregar o pedido.");
   if (!order) notFound();
 
+  let initialPix: PixData | null = null;
   if (order.status === "pendente") {
-    await reconcileReturnPayment(order.id, publicToken, query);
-    // Releitura após possível confirmação via redirect do Mercado Pago
-    const { data: refreshed } = await admin
-      .from("orders")
-      .select("id, event_id, status, buyer_name")
-      .eq("id", order.id)
-      .single();
-    if (refreshed) Object.assign(order, refreshed);
+    const pending = await lookupPendingPayment(admin, order.id);
+    if (pending.paid) order.status = "pago";
+    initialPix = pending.pix;
   }
 
   const { data: event, error: eventError } = await admin
@@ -115,25 +109,54 @@ export default async function PedidoPage({
   const backNav = await resolveStaffBackNav(order.event_id, event.slug);
 
   if (order.status === "pendente") {
+    const publicKey = process.env.MERCADOPAGO_PUBLIC_KEY;
+    const expired = !initialPix && isReservationExpired(order.expires_at);
+
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
         <SiteHeader variant="equipe" />
-        <div className="pt-4">
+        <div className="grid gap-6 pt-4">
           <TicketPageNav
             backHref={backNav.backHref}
             backLabel={backNav.backLabel}
             eventSlug={event.slug}
           />
-          <section className="w-full rounded-2xl border border-amber-500/40 bg-amber-950/30 p-8 text-center">
-            <p className="text-sm font-medium text-amber-300">Não pago</p>
-            <h1 className="mt-2 font-display text-4xl tracking-wide text-foreground">
-              Aguardando pagamento
+          <header>
+            <p className="text-sm font-medium text-byla-yellow">Pagamento</p>
+            <h1 className="mt-1 font-display text-4xl tracking-wide text-foreground">
+              {event.name}
             </h1>
-            <p className="mt-4 leading-7 text-byla-muted">
-              Assim que o pagamento for confirmado, seus ingressos aparecerão
-              nesta página.
+            <p className="mt-2 text-byla-muted">
+              {dateFormatter.format(new Date(event.starts_at))} · Total{" "}
+              <strong className="text-foreground">
+                {moneyFormatter.format(order.total_cents / 100)}
+              </strong>
             </p>
-          </section>
+          </header>
+          {expired ? (
+            <section className="rounded-2xl border border-byla-border bg-byla-surface p-8 text-center">
+              <h2 className="font-display text-3xl tracking-wide text-foreground">
+                Tempo esgotado
+              </h2>
+              <p className="mt-3 text-byla-muted">
+                A reserva deste pedido expirou. Volte ao evento e faça uma nova
+                compra.
+              </p>
+            </section>
+          ) : publicKey ? (
+            <OrderPayment
+              amountCents={order.total_cents}
+              buyerEmail={order.buyer_email}
+              initialPix={initialPix}
+              publicKey={publicKey}
+              publicToken={publicToken}
+            />
+          ) : (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-950/40 p-4 text-amber-100">
+              Pagamento em configuração. Falta a chave pública do Mercado Pago
+              no ambiente.
+            </p>
+          )}
         </div>
       </main>
     );
