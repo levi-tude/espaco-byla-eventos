@@ -2,9 +2,10 @@ import Link from "next/link";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { HomeSingleEvent } from "@/components/public/HomeSingleEvent";
+import { eventDateFormatter } from "@/lib/datetime";
 import { createServerClient } from "@/lib/supabase/server";
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+const dateFormatter = eventDateFormatter({
   dateStyle: "long",
   timeStyle: "short",
 });

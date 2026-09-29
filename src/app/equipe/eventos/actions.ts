@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { parseEventInputValue } from "@/lib/datetime";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
 import { createPublicToken } from "@/lib/domain/tickets";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -44,7 +45,7 @@ function normalizeInput(input: EventInput): EventInput {
     throw new Error("Informe preços válidos.");
   }
 
-  const startsAt = new Date(normalized.startsAt);
+  const startsAt = parseEventInputValue(normalized.startsAt);
   if (Number.isNaN(startsAt.getTime())) {
     throw new Error("Informe uma data e hora válidas.");
   }

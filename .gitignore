@@ -27,3 +27,4 @@ coverage/
 
 .design-refs/
 .env*
+!.env.example

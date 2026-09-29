@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { eventDateFormatter } from "@/lib/datetime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+const dateFormatter = eventDateFormatter({
   dateStyle: "long",
   timeStyle: "short",
 });

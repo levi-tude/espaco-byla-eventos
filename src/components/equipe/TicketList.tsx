@@ -7,6 +7,7 @@ import {
   cancelTicket,
   issueCourtesy,
 } from "@/app/equipe/eventos/actions";
+import { eventDateFormatter } from "@/lib/datetime";
 import type { Enums } from "@/types/database";
 
 export type TicketListItem = {
@@ -48,7 +49,7 @@ const currency = new Intl.NumberFormat("pt-BR", {
 function formatDate(value: string | null) {
   if (!value) return "—";
 
-  return new Intl.DateTimeFormat("pt-BR", {
+  return eventDateFormatter({
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));

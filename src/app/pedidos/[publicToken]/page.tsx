@@ -4,13 +4,14 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { OrderPayment } from "@/components/public/OrderPayment";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
+import { eventDateFormatter } from "@/lib/datetime";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import type { PixData } from "@/lib/payments/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+const dateFormatter = eventDateFormatter({
   dateStyle: "long",
   timeStyle: "short",
 });

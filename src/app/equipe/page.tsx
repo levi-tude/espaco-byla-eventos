@@ -1,8 +1,9 @@
 import Link from "next/link";
 
+import { eventDateFormatter } from "@/lib/datetime";
 import { createServerClient } from "@/lib/supabase/server";
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+const dateFormatter = eventDateFormatter({
   dateStyle: "short",
   timeStyle: "short",
 });

@@ -9,6 +9,7 @@ import {
   setSalesOpen,
   updateEvent,
 } from "@/app/equipe/eventos/actions";
+import { toEventInputValue } from "@/lib/datetime";
 
 type EventFormProps = {
   event?: {
@@ -24,14 +25,6 @@ type EventFormProps = {
     salesOpen: boolean;
   };
 };
-
-function localDateTimeValue(value?: string) {
-  if (!value) return "";
-
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
 
 function toCents(value: string) {
   return Math.round(Number(value.replace(",", ".")) * 100);
@@ -120,7 +113,7 @@ export function EventForm({ event }: EventFormProps) {
           Data e hora
           <input
             className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={localDateTimeValue(event?.startsAt)}
+            defaultValue={toEventInputValue(event?.startsAt)}
             name="startsAt"
             required
             type="datetime-local"
