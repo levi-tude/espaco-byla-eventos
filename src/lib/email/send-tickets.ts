@@ -1,28 +1,23 @@
 import "server-only";
 
+import { buildTicketsEmail } from "@/lib/email/tickets-template";
+
 export type SendTicketsEmailInput = {
   buyerEmail: string;
   buyerName: string;
   eventName: string;
+  venue: string;
+  startsAt: string;
+  ticketCount: number;
   publicToken: string;
 };
 
 export type SendTicketsEmailResult = "sent" | "skipped" | "failed";
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 export async function sendTicketsEmail({
   buyerEmail,
-  buyerName,
-  eventName,
   publicToken,
+  ...details
 }: SendTicketsEmailInput): Promise<SendTicketsEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -36,6 +31,7 @@ export async function sendTicketsEmail({
   }
 
   const ticketUrl = `${appUrl}/pedidos/${encodeURIComponent(publicToken)}`;
+  const { subject, html, text } = buildTicketsEmail({ ...details, ticketUrl });
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -44,18 +40,7 @@ export async function sendTicketsEmail({
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from,
-        to: [buyerEmail],
-        subject: `Seus ingressos — ${eventName}`,
-        html: `
-          <h1>Seus ingressos estão disponíveis</h1>
-          <p>Olá, ${escapeHtml(buyerName)}!</p>
-          <p>O pagamento para <strong>${escapeHtml(eventName)}</strong> foi confirmado.</p>
-          <p><a href="${escapeHtml(ticketUrl)}">Abrir meus ingressos</a></p>
-          <p>Apresente o QR Code na entrada do evento.</p>
-        `,
-      }),
+      body: JSON.stringify({ from, to: [buyerEmail], subject, html, text }),
     });
 
     if (!response.ok) {

@@ -29,23 +29,34 @@ export async function confirmOrderPaid(
     return outcome;
   }
 
-  const { data: event, error: eventError } = await admin
-    .from("events")
-    .select("name")
-    .eq("id", order.event_id)
-    .single();
+  const [eventResult, ticketsResult] = await Promise.all([
+    admin
+      .from("events")
+      .select("name, venue, starts_at")
+      .eq("id", order.event_id)
+      .single(),
+    admin
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", orderId),
+  ]);
 
-  if (eventError) {
+  if (eventResult.error || !eventResult.data) {
     console.error(
       "[email] Pedido pago, mas o evento para envio não foi encontrado.",
     );
     return outcome;
   }
 
+  const event = eventResult.data;
+
   await sendTicketsEmail({
     buyerEmail: order.buyer_email,
     buyerName: order.buyer_name,
     eventName: event.name,
+    venue: event.venue,
+    startsAt: event.starts_at,
+    ticketCount: ticketsResult.count ?? 1,
     publicToken: order.public_token,
   });
 
