@@ -1,6 +1,7 @@
 "use server";
 
 import { createPublicToken } from "@/lib/domain/tickets";
+import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { BOT_BLOCKED_MESSAGE, isBotRequest } from "@/lib/security/bot";
 import {
@@ -17,6 +18,7 @@ export type CheckoutInput = {
   slug: string;
   items: { kind: CheckoutKind; qty: number }[];
   buyer: { name: string; email: string; phone?: string };
+  acceptedPrivacy: boolean;
 };
 
 // Em produção o Next esconde a mensagem de erros lançados em Server Actions;
@@ -50,6 +52,9 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   }
   if (quantity > 10) {
     return { error: "Selecione no máximo 10 ingressos por pedido." };
+  }
+  if (input.acceptedPrivacy !== true) {
+    return { error: PRIVACY_REQUIRED_MESSAGE };
   }
 
   if (await isBotRequest()) return { error: BOT_BLOCKED_MESSAGE };

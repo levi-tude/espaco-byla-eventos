@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
+
+import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
 
 import { startCheckout } from "./actions";
 
@@ -79,6 +82,7 @@ export function CheckoutForm({
             email: String(data.get("email") ?? ""),
             phone: String(data.get("phone") ?? ""),
           },
+          acceptedPrivacy: data.get("privacy") === "on",
         });
         if ("error" in result) {
           setError(result.error);
@@ -165,6 +169,30 @@ export function CheckoutForm({
         <label className="grid gap-1 text-sm text-byla-muted">
           Telefone (opcional)
           <input className={fieldClass} name="phone" type="tel" />
+        </label>
+        <label className="flex items-start gap-3 text-sm text-byla-muted">
+          <input
+            className="mt-0.5 h-5 w-5 shrink-0 accent-byla-blue"
+            name="privacy"
+            onChange={(event) => event.currentTarget.setCustomValidity("")}
+            onInvalid={(event) =>
+              event.currentTarget.setCustomValidity(PRIVACY_REQUIRED_MESSAGE)
+            }
+            required
+            type="checkbox"
+          />
+          <span>
+            Li e aceito a{" "}
+            <Link
+              className="font-medium text-byla-blue underline underline-offset-2"
+              href="/privacidade"
+              rel="noopener"
+              target="_blank"
+            >
+              Política de Privacidade
+            </Link>
+            .
+          </span>
         </label>
       </fieldset>
 

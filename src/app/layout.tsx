@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, Open_Sans } from "next/font/google";
 import { headers } from "next/headers";
 
+import { SiteFooter } from "@/components/brand/SiteFooter";
 import { ThemeProvider } from "@/components/brand/ThemeProvider";
 import "./globals.css";
 
@@ -31,7 +32,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col bg-byla-bg text-foreground">
-        <ThemeProvider nonce={nonce}>{children}</ThemeProvider>
+        <ThemeProvider nonce={nonce}>
+          {children}
+          <SiteFooter />
+        </ThemeProvider>
       </body>
     </html>
   );

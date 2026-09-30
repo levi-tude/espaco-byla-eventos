@@ -29,6 +29,7 @@ vi.mock("@/lib/payments/confirm-order", () => ({ confirmOrderPaid: vi.fn() }));
 
 import { startCheckout } from "@/app/eventos/[slug]/checkout/actions";
 import { checkOrderPayment, payOrder } from "@/app/pedidos/[publicToken]/actions";
+import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
 import { BOT_BLOCKED_MESSAGE } from "@/lib/security/bot";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
@@ -36,6 +37,7 @@ const checkoutInput = {
   slug: "show",
   items: [{ kind: "inteira" as const, qty: 2 }],
   buyer: { name: "Comprador", email: "comprador@example.com" },
+  acceptedPrivacy: true,
 };
 
 const pendingOrder = {
@@ -70,6 +72,19 @@ describe("proteção do checkout e do pagamento", () => {
     vi.clearAllMocks();
     mocks.isBot.mockReturnValue(false);
     mocks.findOrderPayment.mockResolvedValue({ kind: "none" });
+  });
+
+  it.each([
+    ["recusada", false],
+    ["ausente (chamada direta)", undefined],
+  ])("sem aceitar a Política de Privacidade (%s) não cria pedido", async (_caso, accepted) => {
+    const result = await startCheckout({
+      ...checkoutInput,
+      acceptedPrivacy: accepted as boolean,
+    });
+    expect(result).toEqual({ error: PRIVACY_REQUIRED_MESSAGE });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("robô não cria pedido", async () => {
