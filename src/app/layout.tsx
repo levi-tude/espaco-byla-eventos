@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Open_Sans } from "next/font/google";
+import { headers } from "next/headers";
 
 import { ThemeProvider } from "@/components/brand/ThemeProvider";
 import "./globals.css";
@@ -20,7 +21,9 @@ export const metadata: Metadata = {
   description: "Venda e controle de ingressos para eventos do Espaço Byla",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="pt-BR"
@@ -28,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col bg-byla-bg text-foreground">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider nonce={nonce}>{children}</ThemeProvider>
       </body>
     </html>
   );

@@ -231,6 +231,15 @@ export type Database = {
         Args: { p_external_id: string; p_provider: string };
         Returns: string;
       };
+      consume_rate_limit: {
+        Args: {
+          p_bucket: string;
+          p_key_hash: string;
+          p_limit: number;
+          p_window_seconds: number;
+        };
+        Returns: boolean;
+      };
       create_checkout_order: {
         Args: {
           p_buyer_email: string;
@@ -267,6 +276,10 @@ export type Database = {
       mark_order_paid_by_external: {
         Args: { p_external_id: string; p_provider: string };
         Returns: string;
+      };
+      purge_rate_limit_hits: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
       };
       update_event_with_capacity: {
         Args: {

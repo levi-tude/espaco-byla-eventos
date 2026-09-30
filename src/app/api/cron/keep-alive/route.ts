@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     supabase.from("events").select("id").limit(1),
     supabase.from("ticket_types").select("id").limit(1),
     supabase.from("orders").select("id", { count: "exact", head: true }),
+    supabase.rpc("purge_rate_limit_hits"),
   ]);
 
   const failed = results.find((result) => result.error);

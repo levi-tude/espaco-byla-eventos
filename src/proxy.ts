@@ -1,12 +1,32 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { buildContentSecurityPolicy, createNonce } from "@/lib/security/csp";
 import type { Database } from "@/types/database";
 
 export async function proxy(request: NextRequest) {
+  const nonce = createNonce();
+  const csp = buildContentSecurityPolicy({
+    nonce,
+    isDev: process.env.NODE_ENV === "development",
+    upgradeInsecureRequests: request.nextUrl.protocol === "https:",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
 
+  const response = request.nextUrl.pathname.startsWith("/equipe")
+    ? await protectStaffArea(request, requestHeaders)
+    : NextResponse.next({ request: { headers: requestHeaders } });
+
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+async function protectStaffArea(request: NextRequest, requestHeaders: Headers) {
   let response = NextResponse.next({
     request: {
       headers: requestHeaders,
@@ -84,6 +104,10 @@ function redirectWithCookies(
   return redirectResponse;
 }
 
+// Sem exceção para prefetch: um cabeçalho enviado pelo cliente não pode pular
+// a checagem de login da área da equipe.
 export const config = {
-  matcher: ["/equipe/:path*"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|149e9513-01fa-4fb0-aad4-566afd725d1b|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml)$).*)",
+  ],
 };

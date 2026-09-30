@@ -68,7 +68,7 @@ export function CheckoutForm({
 
     startTransition(async () => {
       try {
-        const { publicToken } = await startCheckout({
+        const result = await startCheckout({
           slug,
           items: ticketTypes.map(({ kind }) => ({
             kind,
@@ -80,13 +80,13 @@ export function CheckoutForm({
             phone: String(data.get("phone") ?? ""),
           },
         });
-        router.push(`/pedidos/${publicToken}`);
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "Não foi possível iniciar o pagamento.",
-        );
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        router.push(`/pedidos/${result.publicToken}`);
+      } catch {
+        setError("Não foi possível iniciar o pagamento. Tente novamente.");
       }
     });
   }

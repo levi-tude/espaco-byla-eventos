@@ -3,6 +3,13 @@
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import type { CardPaymentType, PixData } from "@/lib/payments/types";
+import { BOT_BLOCKED_MESSAGE, isBotRequest } from "@/lib/security/bot";
+import {
+  clientIp,
+  consumeRateLimit,
+  RATE_LIMIT_MESSAGE,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type PaymentSubmission = {
@@ -89,6 +96,10 @@ export async function payOrder(
   publicToken: string,
   submission: PaymentSubmission,
 ): Promise<PayOrderResult> {
+  if (await isBotRequest()) {
+    return { status: "rejected", message: BOT_BLOCKED_MESSAGE };
+  }
+
   const loaded = await loadOrder(publicToken);
   if (!loaded) {
     return { status: "unavailable", message: "Pedido não encontrado." };
@@ -132,6 +143,11 @@ export async function payOrder(
       };
     }
 
+    const withinLimits =
+      (await consumeRateLimit(admin, RATE_LIMITS.paymentPerOrder, order.id)) &&
+      (await consumeRateLimit(admin, RATE_LIMITS.paymentPerIp, await clientIp()));
+    if (!withinLimits) return { status: "rejected", message: RATE_LIMIT_MESSAGE };
+
     const { data: event } = await admin
       .from("events")
       .select("name")
@@ -164,6 +180,8 @@ export async function payOrder(
 export async function checkOrderPayment(
   publicToken: string,
 ): Promise<OrderPaymentStatus> {
+  if (await isBotRequest()) return "pending";
+
   const loaded = await loadOrder(publicToken);
   if (!loaded) return "unavailable";
   const { admin, order } = loaded;
