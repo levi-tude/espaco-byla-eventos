@@ -193,6 +193,7 @@ export async function updateEvent(
 }
 
 export async function setSalesOpen(id: string, open: boolean): Promise<void> {
+  await assertStaff();
   const supabase = await createServerClient();
   const { error } = await supabase
     .from("events")
@@ -252,6 +253,7 @@ export async function cancelTicket(
 ): Promise<void> {
   if (!eventId || !ticketId) throw new Error("Ingresso inválido.");
 
+  await assertStaff();
   const supabase = await createServerClient();
   const { data: ticket, error } = await supabase
     .from("tickets")
