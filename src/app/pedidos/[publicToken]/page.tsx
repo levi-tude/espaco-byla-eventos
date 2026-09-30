@@ -7,7 +7,7 @@ import { TicketQr } from "@/components/public/TicketQr";
 import { eventDateFormatter } from "@/lib/datetime";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
-import type { PixData } from "@/lib/payments/types";
+import type { OrderReference, PixData } from "@/lib/payments/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -59,13 +59,13 @@ function isReservationExpired(expiresAt: string | null) {
 
 async function lookupPendingPayment(
   admin: ReturnType<typeof createAdminClient>,
-  orderId: string,
+  order: OrderReference,
 ): Promise<{ paid: boolean; pix: PixData | null }> {
   const provider = getPaymentProvider();
   try {
-    const existing = await provider.findOrderPayment(orderId);
+    const existing = await provider.findOrderPayment(order);
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, orderId, provider.name);
+      await confirmOrderPaid(admin, order.id, provider.name);
       return { paid: true, pix: null };
     }
     return {
@@ -85,7 +85,9 @@ export default async function PedidoPage({
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("id, event_id, status, buyer_name, buyer_email, total_cents, expires_at")
+    .select(
+      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at",
+    )
     .eq("public_token", publicToken)
     .maybeSingle();
 
@@ -94,7 +96,10 @@ export default async function PedidoPage({
 
   let initialPix: PixData | null = null;
   if (order.status === "pendente") {
-    const pending = await lookupPendingPayment(admin, order.id);
+    const pending = await lookupPendingPayment(admin, {
+      id: order.id,
+      createdAt: order.created_at,
+    });
     if (pending.paid) order.status = "pago";
     initialPix = pending.pix;
   }

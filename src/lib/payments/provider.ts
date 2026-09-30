@@ -3,6 +3,7 @@ import type {
   CreatePaymentInput,
   CreatePaymentResult,
   OrderPaymentLookup,
+  OrderReference,
   WebhookResult,
 } from "./types";
 
@@ -10,7 +11,7 @@ export interface PaymentProvider {
   name: string;
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
   /** Consulta o provedor pelo pedido (fallback quando o webhook não chega). */
-  findOrderPayment(orderId: string): Promise<OrderPaymentLookup>;
+  findOrderPayment(order: OrderReference): Promise<OrderPaymentLookup>;
   parseWebhook(req: Request): Promise<WebhookResult>;
 }
 

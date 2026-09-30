@@ -17,7 +17,6 @@ type BrickFormData = {
   payment_method_id?: string;
   token?: string;
   installments?: number;
-  issuer_id?: string | number;
   payer?: {
     email?: string;
     identification?: { type?: string; number?: string };
@@ -87,14 +86,19 @@ export function OrderPayment({
     };
   }, [pix, waiting, publicToken, router]);
 
-  async function handleSubmit({ formData }: { formData: BrickFormData }) {
+  async function handleSubmit({
+    paymentType,
+    formData,
+  }: {
+    paymentType?: string;
+    formData: BrickFormData;
+  }) {
     setMessage("");
     const submission: PaymentSubmission = {
       paymentMethodId: formData.payment_method_id ?? "",
+      paymentType,
       cardToken: formData.token,
       installments: formData.installments,
-      issuerId:
-        formData.issuer_id != null ? String(formData.issuer_id) : undefined,
       email: formData.payer?.email,
       identification: formData.payer?.identification,
     };

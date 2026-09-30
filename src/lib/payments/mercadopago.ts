@@ -3,55 +3,67 @@ import type {
   CreatePaymentInput,
   CreatePaymentResult,
   OrderPaymentLookup,
+  OrderReference,
   PixData,
   WebhookResult,
 } from "./types";
 
-type MercadoPagoPayment = {
-  id?: number | string;
+type MercadoPagoOrderPayment = {
+  id?: string;
   status?: string;
   status_detail?: string;
-  payment_method_id?: string;
-  external_reference?: string;
   date_of_expiration?: string | null;
-  point_of_interaction?: {
-    transaction_data?: { qr_code?: string; qr_code_base64?: string };
-  };
+  payment_method?: {
+    id?: string | null;
+    type?: string | null;
+    qr_code?: string | null;
+    qr_code_base64?: string | null;
+  } | null;
+};
+
+type MercadoPagoOrder = {
+  id?: string;
+  status?: string;
+  status_detail?: string;
+  external_reference?: string;
+  transactions?: { payments?: MercadoPagoOrderPayment[] } | null;
+  errors?: Array<{ code?: string; message?: string; details?: string[] }>;
   message?: string;
   error?: string;
-  cause?: Array<{ description?: string; code?: string | number }>;
 };
 
 type MercadoPagoOptions = {
   accessToken?: string;
-  appUrl?: string;
   apiBaseUrl?: string;
   fetch?: typeof fetch;
 };
 
-const PIX_EXPIRATION_MINUTES = 30;
+const PIX_EXPIRATION = "PT30M";
+/** Folga na busca por data para cobrir diferença de relógio entre servidores. */
+const SEARCH_MARGIN_MS = 10 * 60_000;
+const STATEMENT_DESCRIPTOR = "ESPACO BYLA";
 
 const REJECTION_MESSAGES: Record<string, string> = {
-  cc_rejected_insufficient_amount:
+  card_insufficient_amount:
     "Cartão sem limite suficiente. Tente outro cartão ou pague com PIX.",
-  cc_rejected_bad_filled_security_code:
-    "Código de segurança (CVV) inválido. Confira e tente de novo.",
-  cc_rejected_bad_filled_date:
-    "Data de validade inválida. Confira e tente de novo.",
-  cc_rejected_bad_filled_card_number:
-    "Número do cartão inválido. Confira e tente de novo.",
-  cc_rejected_bad_filled_other:
+  insufficient_amount:
+    "Cartão sem limite suficiente. Tente outro cartão ou pague com PIX.",
+  bad_filled_card_data:
     "Algum dado do cartão está incorreto. Confira e tente de novo.",
-  cc_rejected_call_for_authorize:
+  invalid_card_token:
+    "Não foi possível validar o cartão. Preencha os dados de novo.",
+  required_call_for_authorize:
     "O banco pediu autorização. Ligue para o seu banco ou use outro cartão.",
-  cc_rejected_card_disabled:
+  card_disabled:
     "Cartão desativado. Ative com o seu banco ou use outro cartão.",
   cc_rejected_duplicated_payment:
     "Já existe um pagamento igual recente. Aguarde ou use outro meio.",
-  cc_rejected_high_risk:
+  high_risk:
     "Pagamento recusado por segurança. Tente outro cartão ou pague com PIX.",
-  cc_rejected_max_attempts:
+  max_attempts_exceeded:
     "Limite de tentativas atingido. Use outro cartão ou pague com PIX.",
+  invalid_installments:
+    "Número de parcelas não aceito. Escolha outra opção.",
 };
 
 const DEFAULT_REJECTION =
@@ -60,17 +72,12 @@ const DEFAULT_REJECTION =
 export class MercadoPagoPaymentProvider implements PaymentProvider {
   readonly name = "mercadopago";
   private readonly accessToken?: string;
-  private readonly appUrl?: string;
   private readonly apiBaseUrl: string;
   private readonly request: typeof fetch;
 
   constructor(options: MercadoPagoOptions = {}) {
     this.accessToken =
       options.accessToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
-    this.appUrl = (options.appUrl ?? process.env.NEXT_PUBLIC_APP_URL)?.replace(
-      /\/$/,
-      "",
-    );
     this.apiBaseUrl = (
       options.apiBaseUrl ?? "https://api.mercadopago.com"
     ).replace(/\/$/, "");
@@ -80,35 +87,41 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     this.assertCreatePaymentInput(input);
 
+    const amount = (input.amountCents / 100).toFixed(2);
     const isPix = input.paymentMethodId === "pix";
-    const body: Record<string, unknown> = {
-      transaction_amount: Number((input.amountCents / 100).toFixed(2)),
-      description: input.description.slice(0, 256),
-      payment_method_id: input.paymentMethodId,
+    const payment = isPix
+      ? {
+          amount,
+          expiration_time: PIX_EXPIRATION,
+          payment_method: { id: "pix", type: "bank_transfer" },
+        }
+      : {
+          amount,
+          payment_method: {
+            id: input.paymentMethodId,
+            type: input.cardType ?? "credit_card",
+            token: input.cardToken,
+            installments: input.installments ?? 1,
+            statement_descriptor: STATEMENT_DESCRIPTOR,
+          },
+        };
+
+    const body = {
+      type: "online",
+      processing_mode: "automatic",
       external_reference: input.orderId,
-      statement_descriptor: "ESPACO BYLA",
+      total_amount: amount,
+      description: input.description.slice(0, 256),
       payer: {
         email: input.payer.email,
         ...(input.payer.identification
           ? { identification: input.payer.identification }
           : {}),
       },
+      transactions: { payments: [payment] },
     };
 
-    if (isPix) {
-      body.date_of_expiration = pixExpiration(new Date());
-    } else {
-      body.token = input.cardToken;
-      body.installments = input.installments ?? 1;
-      if (input.issuerId) body.issuer_id = input.issuerId;
-    }
-
-    // Sem https público (ex.: localhost) o site confirma consultando o pedido.
-    if (this.appUrl && isPublicHttpsUrl(this.appUrl)) {
-      body.notification_url = `${this.appUrl}/api/payments/webhook`;
-    }
-
-    const response = await this.request(`${this.apiBaseUrl}/v1/payments`, {
+    const response = await this.request(`${this.apiBaseUrl}/v1/orders`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -117,75 +130,97 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       },
       body: JSON.stringify(body),
     });
-    const payment = (await response.json()) as MercadoPagoPayment;
+    const order = (await response.json()) as MercadoPagoOrder & {
+      data?: MercadoPagoOrder;
+    };
 
-    if (!response.ok || payment.id == null) {
+    // 402: a order foi criada, mas a cobrança falhou (ex.: cartão recusado).
+    // A order vem em `data` e o motivo também em `errors[].details`.
+    if (response.status === 402) {
+      const failed = order.data ?? order;
+      return {
+        status: "rejected",
+        ...(failed.id ? { paymentId: failed.id } : {}),
+        reason: rejectionReason({ ...failed, errors: order.errors }),
+      };
+    }
+
+    if (!response.ok || !order.id) {
       const detail =
-        payment.cause?.[0]?.description || payment.message || payment.error;
+        order.errors?.[0]?.message || order.message || order.error;
       throw new Error(
         `Mercado Pago recusou o pagamento${detail ? `: ${detail}` : "."}`,
       );
     }
 
-    const paymentId = String(payment.id);
-
-    if (payment.status === "approved") {
-      return { status: "approved", paymentId };
+    if (order.status === "processed") {
+      return { status: "approved", paymentId: order.id };
     }
 
-    if (payment.status === "pending" || payment.status === "in_process") {
-      const pix = pixFromPayment(payment);
-      return pix
-        ? { status: "pending", paymentId, pix }
-        : { status: "pending", paymentId };
+    if (order.status === "failed") {
+      return {
+        status: "rejected",
+        paymentId: order.id,
+        reason: rejectionReason(order),
+      };
     }
 
-    return {
-      status: "rejected",
-      paymentId,
-      reason:
-        (payment.status_detail && REJECTION_MESSAGES[payment.status_detail]) ||
-        DEFAULT_REJECTION,
-    };
+    const pix = pixFromOrder(order);
+    return pix
+      ? { status: "pending", paymentId: order.id, pix }
+      : { status: "pending", paymentId: order.id };
   }
 
-  async findOrderPayment(orderId: string): Promise<OrderPaymentLookup> {
+  async findOrderPayment(order: OrderReference): Promise<OrderPaymentLookup> {
     if (!this.accessToken) return { kind: "none" };
 
+    const createdAt = Date.parse(order.createdAt);
+    const begin = new Date(
+      (Number.isFinite(createdAt) ? createdAt : Date.now()) - SEARCH_MARGIN_MS,
+    );
+    const end = new Date(Date.now() + SEARCH_MARGIN_MS);
     const params = new URLSearchParams({
-      external_reference: orderId,
-      sort: "date_created",
-      criteria: "desc",
+      begin_date: begin.toISOString(),
+      end_date: end.toISOString(),
+      external_reference: order.id,
+      sort_by: "created_date",
+      sort_order: "desc",
     });
     const response = await this.request(
-      `${this.apiBaseUrl}/v1/payments/search?${params.toString()}`,
+      `${this.apiBaseUrl}/v1/orders?${params.toString()}`,
       { headers: { Authorization: `Bearer ${this.accessToken}` } },
     );
     if (!response.ok) return { kind: "none" };
 
-    const { results = [] } = (await response.json()) as {
-      results?: MercadoPagoPayment[];
+    const { data = [] } = (await response.json()) as {
+      data?: MercadoPagoOrder[];
     };
-    const own = results.filter(
-      (payment) => payment.external_reference?.trim() === orderId,
+    const own = data.filter(
+      (found) => found.external_reference?.trim() === order.id,
     );
 
-    if (own.some((payment) => payment.status === "approved")) {
+    if (own.some((found) => found.status === "processed")) {
       return { kind: "paid" };
     }
 
-    const now = Date.now();
-    for (const payment of own) {
-      if (payment.status !== "pending" || payment.payment_method_id !== "pix") {
+    for (const found of own) {
+      if (
+        found.status !== "action_required" ||
+        found.transactions?.payments?.[0]?.payment_method?.id !== "pix"
+      ) {
         continue;
       }
-      const expiresAt = payment.date_of_expiration
-        ? Date.parse(payment.date_of_expiration)
-        : Number.NaN;
-      if (Number.isFinite(expiresAt) && expiresAt <= now) continue;
 
-      const pix = pixFromPayment(payment);
-      if (pix) return { kind: "pending_pix", pix };
+      // A busca vem sem QR e sem validade; nesse caso a order completa é consultada.
+      const full =
+        pixFromOrder(found) || !found.id ? found : await this.fetchOrder(found.id);
+      const pix = pixFromOrder(full);
+      if (!pix) continue;
+
+      const expiresAt = pix.expiresAt ? Date.parse(pix.expiresAt) : Number.NaN;
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) continue;
+
+      return { kind: "pending_pix", pix };
     }
 
     return { kind: "none" };
@@ -197,75 +232,54 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     }
 
     const url = new URL(req.url);
-    let paymentId =
-      url.searchParams.get("data.id") ||
-      url.searchParams.get("id") ||
-      undefined;
+    let orderId = url.searchParams.get("data.id") || undefined;
+    let topic = url.searchParams.get("type") || undefined;
 
-    const topic =
-      url.searchParams.get("type") ||
-      url.searchParams.get("topic") ||
-      undefined;
-
-    if (!paymentId) {
+    if (!orderId || !topic) {
       try {
         const payload = (await req.json()) as {
           type?: string;
-          action?: string;
           data?: { id?: string | number };
         };
-        if (payload.data?.id != null) {
-          paymentId = String(payload.data.id);
+        if (!orderId && payload.data?.id != null) {
+          orderId = String(payload.data.id);
         }
-        if (
-          payload.type &&
-          payload.type !== "payment" &&
-          !payload.action?.includes("payment")
-        ) {
-          return { kind: "ignored" };
-        }
+        topic ??= payload.type;
       } catch {
         return { kind: "ignored" };
       }
     }
 
-    if (!paymentId) {
+    if (!orderId || topic !== "order") {
       return { kind: "ignored" };
     }
 
-    if (topic && topic !== "payment" && !topic.includes("payment")) {
-      return { kind: "ignored" };
-    }
-
-    const payment = await this.fetchPayment(paymentId);
-    const externalId = payment?.external_reference?.trim();
-    if (!payment || !externalId) {
+    // O aviso só diz qual order mudou; o status vem sempre da API.
+    const order = await this.fetchOrder(orderId);
+    const externalId = order?.external_reference?.trim();
+    if (!order || !externalId) {
       return { kind: "ignored" };
     }
 
     // Recusa ou PIX expirado não cancelam o pedido: o comprador pode tentar de novo.
-    if (payment.status === "approved") {
+    if (order.status === "processed") {
       return { kind: "paid", externalId };
     }
 
     return { kind: "ignored", externalId };
   }
 
-  private async fetchPayment(
-    paymentId: string,
-  ): Promise<MercadoPagoPayment | null> {
+  private async fetchOrder(orderId: string): Promise<MercadoPagoOrder | null> {
     const response = await this.request(
-      `${this.apiBaseUrl}/v1/payments/${encodeURIComponent(paymentId)}`,
-      {
-        headers: { Authorization: `Bearer ${this.accessToken}` },
-      },
+      `${this.apiBaseUrl}/v1/orders/${encodeURIComponent(orderId)}`,
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
     );
 
     if (!response.ok) {
       return null;
     }
 
-    return (await response.json()) as MercadoPagoPayment;
+    return (await response.json()) as MercadoPagoOrder;
   }
 
   private assertCreatePaymentInput(input: CreatePaymentInput): void {
@@ -283,30 +297,31 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   }
 }
 
-function pixFromPayment(payment: MercadoPagoPayment): PixData | null {
-  const data = payment.point_of_interaction?.transaction_data;
-  if (!data?.qr_code || !data.qr_code_base64) return null;
+function rejectionReason(order: MercadoPagoOrder | null): string {
+  const detail = order?.transactions?.payments?.[0]?.status_detail;
+  if (detail && REJECTION_MESSAGES[detail]) return REJECTION_MESSAGES[detail];
+
+  // Formato observado: { code: "failed", details: ["PAY01…: insufficient_amount"] }.
+  for (const error of order?.errors ?? []) {
+    for (const candidate of [error.code, ...(error.details ?? [])]) {
+      const code = candidate?.split(":").pop()?.trim();
+      if (code && REJECTION_MESSAGES[code]) {
+        return REJECTION_MESSAGES[code];
+      }
+    }
+  }
+  return DEFAULT_REJECTION;
+}
+
+function pixFromOrder(order: MercadoPagoOrder | null): PixData | null {
+  const payment = order?.transactions?.payments?.[0];
+  const method = payment?.payment_method;
+  if (!method?.qr_code || !method.qr_code_base64) return null;
   return {
-    qrCode: data.qr_code,
-    qrCodeBase64: data.qr_code_base64,
-    ...(payment.date_of_expiration
+    qrCode: method.qr_code,
+    qrCodeBase64: method.qr_code_base64,
+    ...(payment?.date_of_expiration
       ? { expiresAt: payment.date_of_expiration }
       : {}),
   };
-}
-
-function pixExpiration(now: Date): string {
-  const expires = new Date(now.getTime() + PIX_EXPIRATION_MINUTES * 60_000);
-  return expires.toISOString().replace("Z", "+00:00");
-}
-
-function isPublicHttpsUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    const host = parsed.hostname.toLowerCase();
-    return host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
-  } catch {
-    return false;
-  }
 }

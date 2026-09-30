@@ -1,3 +1,5 @@
+export type CardPaymentType = "credit_card" | "debit_card";
+
 export type CreatePaymentInput = {
   orderId: string;
   amountCents: number;
@@ -9,8 +11,14 @@ export type CreatePaymentInput = {
   };
   /** Token do cartão gerado no navegador (ausente no PIX). */
   cardToken?: string;
+  cardType?: CardPaymentType;
   installments?: number;
-  issuerId?: string;
+};
+
+/** Pedido do site usado para localizar cobranças no provedor. */
+export type OrderReference = {
+  id: string;
+  createdAt: string;
 };
 
 export type PixData = {

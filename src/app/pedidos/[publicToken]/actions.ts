@@ -2,14 +2,14 @@
 
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
-import type { PixData } from "@/lib/payments/types";
+import type { CardPaymentType, PixData } from "@/lib/payments/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type PaymentSubmission = {
   paymentMethodId: string;
+  paymentType?: string;
   cardToken?: string;
   installments?: number;
-  issuerId?: string;
   email?: string;
   identification?: { type?: string; number?: string };
 };
@@ -33,7 +33,7 @@ async function loadOrder(publicToken: string) {
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("id, event_id, status, total_cents, buyer_email, expires_at")
+    .select("id, event_id, status, total_cents, buyer_email, expires_at, created_at")
     .eq("public_token", publicToken)
     .maybeSingle();
   return order ? { admin, order } : null;
@@ -73,16 +73,14 @@ function sanitizeSubmission(raw: PaymentSubmission, fallbackEmail: string) {
   const installments = Number.isInteger(raw.installments)
     ? Math.min(12, Math.max(1, raw.installments!))
     : 1;
-  const issuerId =
-    typeof raw.issuerId === "string" || typeof raw.issuerId === "number"
-      ? String(raw.issuerId)
-      : undefined;
+  const cardType: CardPaymentType =
+    raw.paymentType === "debit_card" ? "debit_card" : "credit_card";
 
   return {
     paymentMethodId,
     cardToken,
+    cardType,
     installments,
-    issuerId,
     payer: { email, identification },
   };
 }
@@ -115,7 +113,10 @@ export async function payOrder(
   }
 
   try {
-    const existing = await provider.findOrderPayment(order.id);
+    const existing = await provider.findOrderPayment({
+      id: order.id,
+      createdAt: order.created_at,
+    });
     if (existing.kind === "paid") {
       await confirmOrderPaid(admin, order.id, provider.name);
       return { status: "paid" };
@@ -172,7 +173,10 @@ export async function checkOrderPayment(
 
   const provider = getPaymentProvider();
   try {
-    const existing = await provider.findOrderPayment(order.id);
+    const existing = await provider.findOrderPayment({
+      id: order.id,
+      createdAt: order.created_at,
+    });
     if (existing.kind === "paid") {
       await confirmOrderPaid(admin, order.id, provider.name);
       return "paid";
