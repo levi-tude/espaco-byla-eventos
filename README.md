@@ -45,10 +45,12 @@ Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.ex
    `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` e `RESEND_FROM_EMAIL`.
 3. Em produção, defina `NEXT_PUBLIC_APP_URL` com a URL pública da aplicação e
    use credenciais de produção do Supabase, Mercado Pago e Resend.
-4. O webhook de pagamento é
-   `https://seu-dominio/api/payments/webhook` (também enviado como
-   `notification_url` na preferência).
-5. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
+4. No painel do Mercado Pago (aplicação > Webhooks, modo produção), cadastre
+   `https://seu-dominio/api/payments/webhook` com o evento
+   **Order (Mercado Pago)**.
+5. Cadastre também `CRON_SECRET`: a tarefa diária de `vercel.json` faz leituras
+   no banco para o Supabase gratuito não pausar.
+6. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
    check-in antes de abrir as vendas.
 
 Não coloque tokens no repositório nem use os valores de produção em Preview ou
@@ -59,19 +61,20 @@ Development. Este repositório não cria o projeto Vercel automaticamente.
 O MVP usa o **Mercado Pago Checkout Bricks** (pagamento embutido no site, PIX e cartão). A decisão está em
 [`docs/superpowers/plans/payment-provider-decision.md`](docs/superpowers/plans/payment-provider-decision.md).
 
-Para testar, use as **credenciais de teste** (`TEST-`) de uma aplicação
-Checkout Transparente criada na conta real do Mercado Pago Developers e
-configure somente em `.env.local`:
+Os pagamentos usam a **API de Orders**. Para testar, crie na conta real do
+Mercado Pago Developers uma aplicação Checkout Transparente com
+"API de Orders" e use as **credenciais de teste** dela (prefixo `APP_USR-`),
+somente em `.env.local`:
 
 ```dotenv
 PAYMENT_PROVIDER=mercadopago
 MERCADOPAGO_ACCESS_TOKEN=seu-access-token-de-teste
 MERCADOPAGO_PUBLIC_KEY=sua-public-key-de-teste
-NEXT_PUBLIC_APP_URL=https://sua-url-publica
 ```
 
-`NEXT_PUBLIC_APP_URL` precisa ser **https público** (não localhost) para o
-Mercado Pago aceitar retorno e notificação. Nunca coloque tokens reais no Git.
+Nos testes, o e-mail do comprador precisa terminar em `@testuser.com`. Sem
+webhook (ex.: localhost), a página do pedido confirma o pagamento consultando o
+Mercado Pago a cada poucos segundos. Nunca coloque tokens reais no Git.
 
 ## E-mail dos ingressos
 

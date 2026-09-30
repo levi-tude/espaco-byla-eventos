@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+
+import { useMounted } from "@/lib/use-mounted";
 
 type Props = {
   size?: number;
@@ -14,12 +15,7 @@ type Props = {
 /** Logo adaptativa: flor clara no escuro; marca amarelo/azul no claro. */
 export function BrandMark({ size = 36, className, forceDark = false }: Props) {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  const mounted = useMounted();
   const dark = forceDark || !mounted || resolvedTheme === "dark";
   const src = dark ? "/brand/flower-white.png" : "/brand/mark-yellow-blue.png";
 

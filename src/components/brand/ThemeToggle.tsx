@@ -2,7 +2,8 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+
+import { useMounted } from "@/lib/use-mounted";
 
 type Props = {
   /** Botão sobre hero escuro */
@@ -11,12 +12,7 @@ type Props = {
 
 export function ThemeToggle({ onMedia = false }: Props) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  const mounted = useMounted();
   const isDark = mounted && resolvedTheme === "dark";
 
   return (

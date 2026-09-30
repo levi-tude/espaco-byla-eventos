@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { useMounted } from "@/lib/use-mounted";
 
 type EventCard = {
   slug: string;
@@ -16,11 +16,7 @@ type EventCard = {
 
 export function HomeSingleEvent({ event }: { event: EventCard }) {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   // Antes de montar, assume escuro (padrão do produto) para evitar flash claro
   const isDark = !mounted || resolvedTheme === "dark";
