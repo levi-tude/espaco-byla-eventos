@@ -74,10 +74,10 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong className="text-foreground">No pagamento:</strong> CPF e
-              dados do cartão ou do PIX são digitados direto no formulário do
-              Mercado Pago. O número do cartão nunca passa pelos nossos
-              servidores, e o CPF é repassado ao Mercado Pago sem ficar guardado
-              no nosso banco de dados.
+              dados do cartão ou do PIX são digitados direto no formulário
+              seguro do banco responsável pelo pagamento. O número do cartão
+              nunca passa pelos nossos servidores, e o CPF é repassado ao banco
+              sem ficar guardado conosco.
             </li>
             <li>
               <strong className="text-foreground">Na entrada do evento:</strong>{" "}
@@ -113,22 +113,10 @@ export default function PrivacyPage() {
         <Section title="Com quem compartilhamos">
           <p>Somente com os serviços necessários para o site funcionar:</p>
           <ul className="list-disc space-y-2 pl-5">
-            <li>
-              <strong className="text-foreground">Mercado Pago</strong> —
-              processa o pagamento.
-            </li>
-            <li>
-              <strong className="text-foreground">Resend</strong> — envia os
-              e-mails com os ingressos.
-            </li>
-            <li>
-              <strong className="text-foreground">Supabase</strong> — guarda os
-              pedidos e ingressos com segurança.
-            </li>
-            <li>
-              <strong className="text-foreground">Vercel</strong> — hospeda o
-              site.
-            </li>
+            <li>o banco responsável por processar o pagamento;</li>
+            <li>o serviço que envia os e-mails com os ingressos;</li>
+            <li>o serviço que guarda os pedidos e ingressos com segurança;</li>
+            <li>o serviço que hospeda o site.</li>
           </ul>
           <p>
             Alguns desses serviços podem guardar dados fora do Brasil, sempre
@@ -167,8 +155,8 @@ export default function PrivacyPage() {
           <p>
             Não usamos cookies de propaganda nem de rastreamento. O site guarda
             no seu navegador apenas a preferência de tema (claro ou escuro). O
-            formulário de pagamento do Mercado Pago e a proteção contra robôs
-            podem usar recursos próprios para prevenir fraudes.
+            formulário de pagamento do banco e a proteção contra robôs podem
+            usar recursos próprios para prevenir fraudes.
           </p>
         </Section>
 
