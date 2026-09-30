@@ -26,5 +26,6 @@ coverage/
 .cursor/
 
 .design-refs/
+.security/
 .env*
 !.env.example
