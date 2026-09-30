@@ -33,7 +33,8 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
   (`/pedidos/<token>` funcionam como "senha" de acesso ao ingresso).
 - Contas da equipe (login Supabase + cadastro em `staff_profiles`).
 - Chaves: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADOPAGO_ACCESS_TOKEN`,
-  `RESEND_API_KEY`, `CRON_SECRET` (valores nunca no Git nem no chat).
+  `RESEND_API_KEY`, `CRON_SECRET`, `MERCADOPAGO_WEBHOOK_SECRET` (valores nunca
+  no Git nem no chat). `ALERT_EMAIL` (destino dos alertas) só no ambiente.
 
 ## Atores e papéis
 - **Visitante/comprador (anônimo):** vê eventos com venda aberta, cria pedido,
