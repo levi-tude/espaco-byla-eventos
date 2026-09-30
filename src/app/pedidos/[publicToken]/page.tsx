@@ -65,7 +65,7 @@ async function lookupPendingPayment(
   try {
     const existing = await provider.findOrderPayment(order);
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name);
+      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
       return { paid: true, pix: null };
     }
     return {

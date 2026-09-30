@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import type { PaymentProvider } from "./provider";
 import type {
   CreatePaymentInput,
@@ -26,6 +28,8 @@ type MercadoPagoOrder = {
   status?: string;
   status_detail?: string;
   external_reference?: string;
+  total_amount?: string | number;
+  total_paid_amount?: string | number;
   transactions?: { payments?: MercadoPagoOrderPayment[] } | null;
   errors?: Array<{ code?: string; message?: string; details?: string[] }>;
   message?: string;
@@ -34,6 +38,7 @@ type MercadoPagoOrder = {
 
 type MercadoPagoOptions = {
   accessToken?: string;
+  webhookSecret?: string;
   apiBaseUrl?: string;
   fetch?: typeof fetch;
 };
@@ -72,12 +77,15 @@ const DEFAULT_REJECTION =
 export class MercadoPagoPaymentProvider implements PaymentProvider {
   readonly name = "mercadopago";
   private readonly accessToken?: string;
+  private readonly webhookSecret?: string;
   private readonly apiBaseUrl: string;
   private readonly request: typeof fetch;
 
   constructor(options: MercadoPagoOptions = {}) {
     this.accessToken =
       options.accessToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+    this.webhookSecret =
+      options.webhookSecret ?? process.env.MERCADOPAGO_WEBHOOK_SECRET;
     this.apiBaseUrl = (
       options.apiBaseUrl ?? "https://api.mercadopago.com"
     ).replace(/\/$/, "");
@@ -199,8 +207,13 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       (found) => found.external_reference?.trim() === order.id,
     );
 
-    if (own.some((found) => found.status === "processed")) {
-      return { kind: "paid" };
+    const processed = own.find((found) => found.status === "processed");
+    if (processed) {
+      let amountCents = amountCentsFromOrder(processed);
+      if (amountCents === null && processed.id) {
+        amountCents = amountCentsFromOrder(await this.fetchOrder(processed.id));
+      }
+      return { kind: "paid", amountCents };
     }
 
     for (const found of own) {
@@ -232,6 +245,13 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     }
 
     const url = new URL(req.url);
+    if (
+      this.webhookSecret &&
+      !isValidWebhookSignature(req.headers, url.searchParams.get("data.id"), this.webhookSecret)
+    ) {
+      return { kind: "invalid_signature" };
+    }
+
     let orderId = url.searchParams.get("data.id") || undefined;
     let topic = url.searchParams.get("type") || undefined;
 
@@ -263,7 +283,7 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
 
     // Recusa ou PIX expirado não cancelam o pedido: o comprador pode tentar de novo.
     if (order.status === "processed") {
-      return { kind: "paid", externalId };
+      return { kind: "paid", externalId, amountCents: amountCentsFromOrder(order) };
     }
 
     return { kind: "ignored", externalId };
@@ -311,6 +331,42 @@ function rejectionReason(order: MercadoPagoOrder | null): string {
     }
   }
   return DEFAULT_REJECTION;
+}
+
+function amountCentsFromOrder(order: MercadoPagoOrder | null): number | null {
+  const raw = order?.total_paid_amount ?? order?.total_amount;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.round(value * 100) : null;
+}
+
+/**
+ * Assinatura do aviso: HMAC-SHA256 de `id:{data.id};request-id:{x-request-id};ts:{ts};`
+ * com a chave secreta do app (partes ausentes saem do texto).
+ */
+function isValidWebhookSignature(
+  headers: Headers,
+  dataId: string | null,
+  secret: string,
+): boolean {
+  const signature = headers.get("x-signature") ?? "";
+  const parts = new Map(
+    signature.split(",").map((part) => {
+      const [key, ...value] = part.split("=");
+      return [key.trim(), value.join("=").trim()] as const;
+    }),
+  );
+  const ts = parts.get("ts");
+  const received = parts.get("v1");
+  if (!ts || !received || !/^[0-9a-f]{64}$/i.test(received)) return false;
+
+  const requestId = headers.get("x-request-id");
+  const manifest =
+    (dataId ? `id:${dataId.toLowerCase()};` : "") +
+    (requestId ? `request-id:${requestId};` : "") +
+    `ts:${ts};`;
+  const expected = createHmac("sha256", secret).update(manifest).digest();
+  return timingSafeEqual(expected, Buffer.from(received, "hex"));
 }
 
 function pixFromOrder(order: MercadoPagoOrder | null): PixData | null {

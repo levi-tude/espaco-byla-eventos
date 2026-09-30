@@ -58,19 +58,17 @@ export function EventForm({ event }: EventFormProps) {
     startTransition(async () => {
       try {
         if (event) {
-          await updateEvent(event.id, input);
+          const result = await updateEvent(event.id, input);
+          if (!result.ok) return setMessage(result.error);
           setMessage("Alterações salvas.");
           router.refresh();
         } else {
-          const created = await createEvent(input);
-          router.push(`/equipe/eventos/${created.id}`);
+          const result = await createEvent(input);
+          if (!result.ok) return setMessage(result.error);
+          router.push(`/equipe/eventos/${result.data.id}`);
         }
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível salvar o evento.",
-        );
+      } catch {
+        setMessage("Não foi possível salvar o evento.");
       }
     });
   }
@@ -81,14 +79,11 @@ export function EventForm({ event }: EventFormProps) {
 
     startTransition(async () => {
       try {
-        await setSalesOpen(event.id, !event.salesOpen);
+        const result = await setSalesOpen(event.id, !event.salesOpen);
+        if (!result.ok) return setMessage(result.error);
         router.refresh();
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível alterar a venda.",
-        );
+      } catch {
+        setMessage("Não foi possível alterar a venda.");
       }
     });
   }

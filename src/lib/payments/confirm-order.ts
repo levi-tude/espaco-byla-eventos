@@ -7,12 +7,30 @@ import {
 } from "@/lib/domain/orders";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
 
-/** Marca o pedido como pago e envia os ingressos por e-mail na primeira confirmação. */
+/**
+ * Marca o pedido como pago e envia os ingressos por e-mail na primeira confirmação.
+ * Só confirma se o valor pago no provedor for exatamente o total do pedido.
+ */
 export async function confirmOrderPaid(
   admin: SupabaseAdmin,
   orderId: string,
   providerName: string,
+  paidAmountCents: number | null,
 ): Promise<PaidOrderOutcome> {
+  const { data: expected } = await admin
+    .from("orders")
+    .select("total_cents")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!expected || paidAmountCents !== expected.total_cents) {
+    console.error("[pagamento] Valor pago não confere com o pedido.", {
+      orderId,
+      paidAmountCents,
+      expectedCents: expected?.total_cents ?? null,
+    });
+    throw new Error("Valor pago não confere com o pedido; confirmação bloqueada.");
+  }
+
   const outcome = await markOrderPaidIfPending(admin, orderId, providerName);
   if (outcome === "noop") return outcome;
 

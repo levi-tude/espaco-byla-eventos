@@ -33,10 +33,11 @@ export type CreatePaymentResult =
   | { status: "rejected"; paymentId?: string; reason: string };
 
 export type WebhookResult =
-  | { kind: "paid"; externalId: string }
-  | { kind: "ignored"; externalId?: string };
+  | { kind: "paid"; externalId: string; amountCents: number | null }
+  | { kind: "ignored"; externalId?: string }
+  | { kind: "invalid_signature" };
 
 export type OrderPaymentLookup =
-  | { kind: "paid" }
+  | { kind: "paid"; amountCents: number | null }
   | { kind: "pending_pix"; pix: PixData }
   | { kind: "none" };

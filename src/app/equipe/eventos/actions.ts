@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { parseEventInputValue } from "@/lib/datetime";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
 import { createPublicToken } from "@/lib/domain/tickets";
@@ -29,11 +30,11 @@ function normalizeInput(input: EventInput): EventInput {
   };
 
   if (!normalized.name || !normalized.venue || !normalized.startsAt) {
-    throw new Error("Preencha nome, data e local do evento.");
+    throw new ActionError("Preencha nome, data e local do evento.");
   }
 
   if (!Number.isInteger(normalized.capacity) || normalized.capacity <= 0) {
-    throw new Error("Informe uma capacidade válida.");
+    throw new ActionError("Informe uma capacidade válida.");
   }
 
   if (
@@ -42,19 +43,19 @@ function normalizeInput(input: EventInput): EventInput {
     !Number.isInteger(normalized.halfPriceCents) ||
     normalized.halfPriceCents < 0
   ) {
-    throw new Error("Informe preços válidos.");
+    throw new ActionError("Informe preços válidos.");
   }
 
   const startsAt = parseEventInputValue(normalized.startsAt);
   if (Number.isNaN(startsAt.getTime())) {
-    throw new Error("Informe uma data e hora válidas.");
+    throw new ActionError("Informe uma data e hora válidas.");
   }
 
   if (normalized.coverImageUrl) {
     try {
       new URL(normalized.coverImageUrl);
     } catch {
-      throw new Error("Informe uma URL válida para a capa.");
+      throw new ActionError("Informe uma URL válida para a capa.");
     }
   }
 
@@ -70,7 +71,7 @@ async function uniqueSlug(name: string) {
     .like("slug", `${base}%`);
 
   if (error) {
-    throw new Error("Não foi possível definir o endereço do evento.");
+    throw new ActionError("Não foi possível definir o endereço do evento.");
   }
 
   return resolveUniqueSlug(base, data.map(({ slug }) => slug));
@@ -85,7 +86,7 @@ async function getEventSlug(id: string): Promise<string> {
     .maybeSingle();
 
   if (error || !data?.slug) {
-    throw new Error("Evento não encontrado.");
+    throw new ActionError("Evento não encontrado.");
   }
 
   return data.slug;
@@ -101,10 +102,40 @@ function revalidateEventSurfaces(id: string, slug: string) {
 async function assertStaff(): Promise<void> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc("is_staff");
-  if (error || !data) throw new Error("Acesso restrito à equipe.");
+  if (error || !data) throw new ActionError("Acesso restrito à equipe.");
 }
 
-export async function createEvent(input: EventInput): Promise<{ id: string }> {
+export async function createEvent(
+  input: EventInput,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(() => createEventOrThrow(input), "Não foi possível criar o evento.");
+}
+
+export async function updateEvent(id: string, input: EventInput): Promise<ActionResult> {
+  return runAction(() => updateEventOrThrow(id, input), "Não foi possível salvar o evento.");
+}
+
+export async function setSalesOpen(id: string, open: boolean): Promise<ActionResult> {
+  return runAction(() => setSalesOpenOrThrow(id, open), "Não foi possível alterar a venda.");
+}
+
+export async function issueCourtesy(
+  input: CourtesyInput,
+): Promise<ActionResult<{ publicToken: string }>> {
+  return runAction(
+    () => issueCourtesyOrThrow(input),
+    "Não foi possível emitir o ingresso de cortesia.",
+  );
+}
+
+export async function cancelTicket(eventId: string, ticketId: string): Promise<ActionResult> {
+  return runAction(
+    () => cancelTicketOrThrow(eventId, ticketId),
+    "Não foi possível cancelar o ingresso.",
+  );
+}
+
+async function createEventOrThrow(input: EventInput): Promise<{ id: string }> {
   await assertStaff();
   const normalized = normalizeInput(input);
   const supabase = await createServerClient();
@@ -126,7 +157,7 @@ export async function createEvent(input: EventInput): Promise<{ id: string }> {
     .single();
 
   if (eventError) {
-    throw new Error("Não foi possível criar o evento.");
+    throw new ActionError("Não foi possível criar o evento.");
   }
 
   // PostgREST envia null se `active` for omitido — a coluna é NOT NULL.
@@ -153,17 +184,14 @@ export async function createEvent(input: EventInput): Promise<{ id: string }> {
 
   if (ticketTypesError) {
     await supabase.from("events").delete().eq("id", event.id);
-    throw new Error("Não foi possível criar os tipos de ingresso.");
+    throw new ActionError("Não foi possível criar os tipos de ingresso.");
   }
 
   revalidateEventSurfaces(event.id, slug);
   return { id: event.id };
 }
 
-export async function updateEvent(
-  id: string,
-  input: EventInput,
-): Promise<void> {
+async function updateEventOrThrow(id: string, input: EventInput): Promise<undefined> {
   const normalized = normalizeInput(input);
   await assertStaff();
   const admin = createAdminClient();
@@ -181,18 +209,18 @@ export async function updateEvent(
 
   if (eventError) {
     if (eventError.message.includes("capacidade não pode ser menor")) {
-      throw new Error(
+      throw new ActionError(
         "A capacidade não pode ser menor que os ingressos já reservados.",
       );
     }
-    throw new Error("Não foi possível salvar o evento.");
+    throw new ActionError("Não foi possível salvar o evento.");
   }
 
   const slug = await getEventSlug(id);
   revalidateEventSurfaces(id, slug);
 }
 
-export async function setSalesOpen(id: string, open: boolean): Promise<void> {
+async function setSalesOpenOrThrow(id: string, open: boolean): Promise<undefined> {
   await assertStaff();
   const supabase = await createServerClient();
   const { error } = await supabase
@@ -201,7 +229,7 @@ export async function setSalesOpen(id: string, open: boolean): Promise<void> {
     .eq("id", id);
 
   if (error) {
-    throw new Error(
+    throw new ActionError(
       open ? "Não foi possível abrir a venda." : "Não foi possível fechar a venda.",
     );
   }
@@ -216,13 +244,13 @@ export type CourtesyInput = {
   email: string;
 };
 
-export async function issueCourtesy(
+async function issueCourtesyOrThrow(
   input: CourtesyInput,
 ): Promise<{ publicToken: string }> {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   if (!input.eventId || !name || !email.includes("@")) {
-    throw new Error("Preencha nome e e-mail válidos.");
+    throw new ActionError("Preencha nome e e-mail válidos.");
   }
 
   await assertStaff();
@@ -238,20 +266,17 @@ export async function issueCourtesy(
 
   if (error) {
     if (error.message.includes("Capacidade esgotada")) {
-      throw new Error("Capacidade esgotada para este evento.");
+      throw new ActionError("Capacidade esgotada para este evento.");
     }
-    throw new Error("Não foi possível emitir o ingresso de cortesia.");
+    throw new ActionError("Não foi possível emitir o ingresso de cortesia.");
   }
 
   revalidateEventSurfaces(input.eventId, slug);
   return { publicToken };
 }
 
-export async function cancelTicket(
-  eventId: string,
-  ticketId: string,
-): Promise<void> {
-  if (!eventId || !ticketId) throw new Error("Ingresso inválido.");
+async function cancelTicketOrThrow(eventId: string, ticketId: string): Promise<undefined> {
+  if (!eventId || !ticketId) throw new ActionError("Ingresso inválido.");
 
   await assertStaff();
   const supabase = await createServerClient();
@@ -267,9 +292,9 @@ export async function cancelTicket(
     .select("id")
     .maybeSingle();
 
-  if (error) throw new Error("Não foi possível cancelar o ingresso.");
+  if (error) throw new ActionError("Não foi possível cancelar o ingresso.");
   if (!ticket) {
-    throw new Error("Somente ingressos pagos e sem check-in podem ser cancelados.");
+    throw new ActionError("Somente ingressos pagos e sem check-in podem ser cancelados.");
   }
 
   const slug = await getEventSlug(eventId);

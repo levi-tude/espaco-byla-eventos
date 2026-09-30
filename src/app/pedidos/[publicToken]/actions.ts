@@ -129,7 +129,7 @@ export async function payOrder(
       createdAt: order.created_at,
     });
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name);
+      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
       return { status: "paid" };
     }
     if (existing.kind === "pending_pix" && payment.paymentMethodId === "pix") {
@@ -162,7 +162,7 @@ export async function payOrder(
     });
 
     if (result.status === "approved") {
-      await confirmOrderPaid(admin, order.id, provider.name);
+      await confirmOrderPaid(admin, order.id, provider.name, order.total_cents);
       return { status: "paid" };
     }
     if (result.status === "pending") {
@@ -196,7 +196,7 @@ export async function checkOrderPayment(
       createdAt: order.created_at,
     });
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name);
+      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
       return "paid";
     }
   } catch (error) {

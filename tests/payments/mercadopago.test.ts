@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { MercadoPagoPaymentProvider } from "@/lib/payments/mercadopago";
 
@@ -208,13 +209,20 @@ describe("MercadoPagoPaymentProvider.findOrderPayment", () => {
       jsonResponse({
         data: [
           { id: "ORD5", status: "failed", external_reference: orderId },
-          { id: "ORD4", status: "processed", external_reference: orderId },
+          {
+            id: "ORD4",
+            status: "processed",
+            external_reference: orderId,
+            total_amount: "25.00",
+            total_paid_amount: "25.00",
+          },
         ],
       }),
     );
 
     await expect(makeProvider(fetchMock).findOrderPayment(orderRef)).resolves.toEqual({
       kind: "paid",
+      amountCents: 2500,
     });
 
     const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
@@ -330,7 +338,12 @@ describe("MercadoPagoPaymentProvider.findOrderPayment", () => {
 describe("MercadoPagoPaymentProvider.parseWebhook", () => {
   it("consulta a order avisada e marca como pago quando processed", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({ id: "ORD8", status: "processed", external_reference: orderId }),
+      jsonResponse({
+        id: "ORD8",
+        status: "processed",
+        external_reference: orderId,
+        total_amount: "0.01",
+      }),
     );
 
     const request = new Request(
@@ -345,6 +358,7 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
     await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "paid",
       externalId: orderId,
+      amountCents: 1,
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.mercadopago.com/v1/orders/ORD8");
   });
@@ -360,6 +374,64 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
     await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "ignored",
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("MercadoPagoPaymentProvider.parseWebhook com chave secreta", () => {
+  const secret = "segredo-de-teste";
+  const url = "https://eventos.example/api/payments/webhook?data.id=ORD01ABC&type=order";
+  const body = JSON.stringify({ type: "order", data: { id: "ORD01ABC" } });
+
+  function signedRequest(signature: string, requestId = "req-123") {
+    return new Request(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-request-id": requestId,
+        "x-signature": signature,
+      },
+      body,
+    });
+  }
+
+  function makeSignedProvider(fetchMock: ReturnType<typeof vi.fn>) {
+    return new MercadoPagoPaymentProvider({
+      accessToken: "APP_USR-TOKEN",
+      webhookSecret: secret,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+  }
+
+  const ts = "1742505638683";
+  const validV1 = createHmac("sha256", secret)
+    .update(`id:ord01abc;request-id:req-123;ts:${ts};`)
+    .digest("hex");
+
+  it("aceita aviso com assinatura correta", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: "ORD01ABC",
+        status: "processed",
+        external_reference: orderId,
+        total_amount: "10.00",
+      }),
+    );
+    await expect(
+      makeSignedProvider(fetchMock).parseWebhook(signedRequest(`ts=${ts},v1=${validV1}`)),
+    ).resolves.toEqual({ kind: "paid", externalId: orderId, amountCents: 1000 });
+  });
+
+  it.each([
+    ["assinatura alterada", `ts=${ts},v1=${"0".repeat(64)}`, "req-123"],
+    ["outro request-id", `ts=${ts},v1=${validV1}`, "req-999"],
+    ["sem assinatura", "", "req-123"],
+    ["formato inválido", "v1=abc", "req-123"],
+  ])("recusa aviso com %s sem consultar a API", async (_caso, signature, requestId) => {
+    const fetchMock = vi.fn();
+    await expect(
+      makeSignedProvider(fetchMock).parseWebhook(signedRequest(signature, requestId)),
+    ).resolves.toEqual({ kind: "invalid_signature" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

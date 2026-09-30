@@ -8,6 +8,10 @@ async function handleWebhook(request: Request) {
   const provider = getPaymentProvider();
   const result = await provider.parseWebhook(request);
 
+  if (result.kind === "invalid_signature") {
+    console.warn("[pagamento] Aviso de pagamento com assinatura inválida recusado.");
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
   if (result.kind !== "paid") {
     return NextResponse.json({ received: true });
   }
@@ -16,6 +20,7 @@ async function handleWebhook(request: Request) {
     createAdminClient(),
     result.externalId,
     provider.name,
+    result.amountCents,
   );
   return NextResponse.json({ received: true, outcome });
 }

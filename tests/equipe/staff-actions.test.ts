@@ -51,7 +51,7 @@ describe("ações da equipe sem login de equipe", () => {
   it.each(Object.entries(staffActions))(
     "%s é recusada antes de tocar no banco",
     async (_name, action) => {
-      await expect(action()).rejects.toThrow("Acesso restrito à equipe.");
+      expect(await action()).toEqual({ ok: false, error: "Acesso restrito à equipe." });
       expect(mocks.rpc).toHaveBeenCalledWith("is_staff");
       expect(mocks.from).not.toHaveBeenCalled();
       expect(mocks.createAdminClient).not.toHaveBeenCalled();
@@ -60,9 +60,16 @@ describe("ações da equipe sem login de equipe", () => {
 
   it("recusa também quando a checagem de equipe falha", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "falhou" } });
-    await expect(setSalesOpen(eventId, false)).rejects.toThrow(
-      "Acesso restrito à equipe.",
-    );
+    expect(await setSalesOpen(eventId, false)).toEqual({
+      ok: false,
+      error: "Acesso restrito à equipe.",
+    });
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("erro inesperado vira mensagem genérica, sem detalhes internos", async () => {
+    mocks.rpc.mockRejectedValue(new Error("connection refused 10.0.0.1:5432"));
+    const result = await setSalesOpen(eventId, true);
+    expect(result).toEqual({ ok: false, error: "Não foi possível alterar a venda." });
   });
 });

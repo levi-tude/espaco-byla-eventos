@@ -91,19 +91,22 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
 
     startTransition(async () => {
       try {
-        const { publicToken } = await issueCourtesy({
+        const result = await issueCourtesy({
           eventId,
           name: String(formData.get("name") ?? ""),
           email: String(formData.get("email") ?? ""),
         });
+        if (!result.ok) {
+          setLastTicketUrl(null);
+          setMessage(result.error);
+          return;
+        }
         form.reset();
-        setLastTicketUrl(`/pedidos/${publicToken}`);
+        setLastTicketUrl(`/pedidos/${result.data.publicToken}`);
         setMessage("Cortesia emitida com sucesso. Abra o ingresso abaixo.");
-      } catch (error) {
+      } catch {
         setLastTicketUrl(null);
-        setMessage(
-          error instanceof Error ? error.message : "Não foi possível emitir.",
-        );
+        setMessage("Não foi possível emitir.");
       }
     });
   }
@@ -120,12 +123,10 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
     setMessage("");
     startTransition(async () => {
       try {
-        await cancelTicket(eventId, ticket.id);
-        setMessage("Ingresso cancelado. A vaga foi liberada.");
-      } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : "Não foi possível cancelar.",
-        );
+        const result = await cancelTicket(eventId, ticket.id);
+        setMessage(result.ok ? "Ingresso cancelado. A vaga foi liberada." : result.error);
+      } catch {
+        setMessage("Não foi possível cancelar.");
       }
     });
   }
