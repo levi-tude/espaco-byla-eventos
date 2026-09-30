@@ -26,5 +26,7 @@ Revisão dos critérios da seção 10 da especificação. Última atualização:
 
 ## Pendências fora do código
 
-- Compra real de R$ 1,00 pela API de Orders para confirmar o webhook do painel.
-- E-mail dos ingressos (Resend): requer domínio próprio verificado.
+- Compra real de R$ 1,00 pela API de Orders para confirmar o webhook do painel
+  e o e-mail automático em produção.
+- [x] E-mail dos ingressos (Resend, domínio `espacobyla.online` verificado):
+  QR Code de cada ingresso no corpo do e-mail + botão para a página do pedido.
