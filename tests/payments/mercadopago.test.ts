@@ -403,10 +403,23 @@ describe("MercadoPagoPaymentProvider.parseWebhook com chave secreta", () => {
     });
   }
 
-  const ts = "1742505638683";
+  const ts = "1790804351";
+  // Formato observado no aviso real de Orders: data.id como veio (maiúsculas).
   const validV1 = createHmac("sha256", secret)
-    .update(`id:ord01abc;request-id:req-123;ts:${ts};`)
+    .update(`id:ORD01ABC;request-id:req-123;ts:${ts};`)
     .digest("hex");
+
+  it("aceita assinatura no formato antigo (data.id em minúsculas)", async () => {
+    const legacyV1 = createHmac("sha256", secret)
+      .update(`id:ord01abc;request-id:req-123;ts:${ts};`)
+      .digest("hex");
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ id: "ORD01ABC", status: "failed", external_reference: orderId }),
+    );
+    await expect(
+      makeSignedProvider(fetchMock).parseWebhook(signedRequest(`ts=${ts},v1=${legacyV1}`)),
+    ).resolves.toEqual({ kind: "ignored", externalId: orderId });
+  });
 
   it("aceita aviso com assinatura correta", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

@@ -342,7 +342,8 @@ function amountCentsFromOrder(order: MercadoPagoOrder | null): number | null {
 
 /**
  * Assinatura do aviso: HMAC-SHA256 de `id:{data.id};request-id:{x-request-id};ts:{ts};`
- * com a chave secreta do app (partes ausentes saem do texto).
+ * com a chave secreta do app (partes ausentes saem do texto). Orders assina o
+ * data.id como veio; a doc antiga (Payments) pede minúsculas — aceitamos os dois.
  */
 function isValidWebhookSignature(
   headers: Headers,
@@ -361,12 +362,16 @@ function isValidWebhookSignature(
   if (!ts || !received || !/^[0-9a-f]{64}$/i.test(received)) return false;
 
   const requestId = headers.get("x-request-id");
-  const manifest =
-    (dataId ? `id:${dataId.toLowerCase()};` : "") +
-    (requestId ? `request-id:${requestId};` : "") +
-    `ts:${ts};`;
-  const expected = createHmac("sha256", secret).update(manifest).digest();
-  return timingSafeEqual(expected, Buffer.from(received, "hex"));
+  const receivedBytes = Buffer.from(received, "hex");
+  const ids = dataId ? [...new Set([dataId, dataId.toLowerCase()])] : [null];
+  return ids.some((id) => {
+    const manifest =
+      (id ? `id:${id};` : "") +
+      (requestId ? `request-id:${requestId};` : "") +
+      `ts:${ts};`;
+    const expected = createHmac("sha256", secret).update(manifest).digest();
+    return timingSafeEqual(expected, receivedBytes);
+  });
 }
 
 function pixFromOrder(order: MercadoPagoOrder | null): PixData | null {

@@ -9,11 +9,7 @@ async function handleWebhook(request: Request) {
   const result = await provider.parseWebhook(request);
 
   if (result.kind === "invalid_signature") {
-    console.warn("[pagamento] Aviso de pagamento com assinatura inválida recusado.", {
-      search: new URL(request.url).search,
-      xSignature: request.headers.get("x-signature"),
-      xRequestId: request.headers.get("x-request-id"),
-    });
+    console.warn("[pagamento] Aviso de pagamento com assinatura inválida recusado.");
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
   if (result.kind !== "paid") {
