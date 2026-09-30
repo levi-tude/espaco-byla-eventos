@@ -1,11 +1,19 @@
 import { eventDateFormatter } from "@/lib/datetime";
 
+export type TicketsEmailTicket = {
+  holderName: string;
+  kindLabel: string;
+  code: string;
+  /** Content-ID da imagem do QR anexada ao e-mail (`cid:`). */
+  qrContentId: string;
+};
+
 export type TicketsEmailData = {
   buyerName: string;
   eventName: string;
   venue: string;
   startsAt: string;
-  ticketCount: number;
+  tickets: TicketsEmailTicket[];
   ticketUrl: string;
 };
 
@@ -38,11 +46,30 @@ function formatStartsAt(startsAt: string) {
   );
 }
 
+function ticketBlock(ticket: TicketsEmailTicket, index: number, total: number) {
+  const title = total > 1 ? `Ingresso ${index + 1} de ${total}` : "Seu ingresso";
+  return `<tr>
+              <td align="center" style="padding:12px 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:12px;">
+                  <tr>
+                    <td align="center" style="padding:20px 16px;">
+                      <p style="margin:0 0 4px;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#888888;">${title}</p>
+                      <p style="margin:0 0 12px;font-size:16px;font-weight:bold;color:#111111;">${escapeHtml(ticket.holderName)} · ${escapeHtml(ticket.kindLabel)}</p>
+                      <img src="cid:${escapeHtml(ticket.qrContentId)}" width="220" height="220" alt="QR Code do ingresso" style="display:block;width:220px;height:220px;border:0;">
+                      <p style="margin:12px 0 4px;font-size:12px;color:#888888;">Código para digitação manual</p>
+                      <p style="margin:0;font-family:'Courier New',monospace;font-size:12px;color:#333333;word-break:break-all;">${escapeHtml(ticket.code)}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`;
+}
+
 export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const name = firstName(data.buyerName);
   const when = formatStartsAt(data.startsAt);
-  const count =
-    data.ticketCount === 1 ? "1 ingresso" : `${data.ticketCount} ingressos`;
+  const total = data.tickets.length;
+  const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
 
   const subject = `Seus ingressos — ${data.eventName}`;
 
@@ -56,6 +83,10 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
       (line) =>
         `<p style="margin:0 0 8px;font-size:15px;line-height:22px;color:#333333;">${line}</p>`,
     )
+    .join("");
+
+  const tickets = data.tickets
+    .map((ticket, index) => ticketBlock(ticket, index, total))
     .join("");
 
   const html = `<!doctype html>
@@ -73,8 +104,10 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
                 <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">Pagamento confirmado!</h1>
                 <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#333333;">Olá, ${escapeHtml(name)}! Seus ingressos para <strong>${escapeHtml(data.eventName)}</strong> estão garantidos.</p>
                 ${details}
+                <p style="margin:16px 0 0;font-size:14px;line-height:20px;color:#555555;">Na entrada, mostre o QR Code de cada ingresso. Cada um vale para uma pessoa e só pode ser usado uma vez.</p>
               </td>
             </tr>
+            ${tickets}
             <tr>
               <td align="center" style="padding:20px 24px 8px;">
                 <a href="${escapeHtml(data.ticketUrl)}" style="display:inline-block;background:${BRAND_BLUE};color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;padding:14px 28px;border-radius:8px;">Ver meus ingressos</a>
@@ -82,8 +115,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
             </tr>
             <tr>
               <td style="padding:16px 24px 28px;">
-                <p style="margin:0 0 8px;font-size:14px;line-height:20px;color:#555555;">Na entrada, abra este link no celular e mostre o QR Code de cada ingresso.</p>
-                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Guarde este e-mail. Se o botão não funcionar, copie este endereço no navegador:<br><a href="${escapeHtml(data.ticketUrl)}" style="color:${BRAND_BLUE};word-break:break-all;">${escapeHtml(data.ticketUrl)}</a></p>
+                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Guarde este e-mail. Se o QR Code não aparecer, use o botão acima ou copie este endereço no navegador:<br><a href="${escapeHtml(data.ticketUrl)}" style="color:${BRAND_BLUE};word-break:break-all;">${escapeHtml(data.ticketUrl)}</a></p>
               </td>
             </tr>
           </table>
@@ -102,9 +134,14 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     `Onde: ${data.venue}`,
     `Quantidade: ${count}`,
     "",
-    `Ver meus ingressos: ${data.ticketUrl}`,
+    ...data.tickets.map(
+      (ticket, index) =>
+        `Ingresso ${index + 1}: ${ticket.holderName} (${ticket.kindLabel}) — código ${ticket.code}`,
+    ),
     "",
-    "Na entrada, abra este link no celular e mostre o QR Code de cada ingresso.",
+    `Ver meus ingressos (com QR Code): ${data.ticketUrl}`,
+    "",
+    "Na entrada, mostre o QR Code de cada ingresso. Cada um vale para uma pessoa e só pode ser usado uma vez.",
     "",
     "Espaço Byla",
   ]

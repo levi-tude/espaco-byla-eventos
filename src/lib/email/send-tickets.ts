@@ -1,6 +1,8 @@
 import "server-only";
 
 import { buildTicketsEmail } from "@/lib/email/tickets-template";
+import { ticketKindLabels, ticketQrPng } from "@/lib/tickets/qr";
+import type { Enums } from "@/types/database";
 
 export type SendTicketsEmailInput = {
   buyerEmail: string;
@@ -8,7 +10,7 @@ export type SendTicketsEmailInput = {
   eventName: string;
   venue: string;
   startsAt: string;
-  ticketCount: number;
+  tickets: { code: string; holderName: string; kind: Enums<"ticket_kind"> }[];
   publicToken: string;
 };
 
@@ -17,6 +19,7 @@ export type SendTicketsEmailResult = "sent" | "skipped" | "failed";
 export async function sendTicketsEmail({
   buyerEmail,
   publicToken,
+  tickets,
   ...details
 }: SendTicketsEmailInput): Promise<SendTicketsEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -31,16 +34,43 @@ export async function sendTicketsEmail({
   }
 
   const ticketUrl = `${appUrl}/pedidos/${encodeURIComponent(publicToken)}`;
-  const { subject, html, text } = buildTicketsEmail({ ...details, ticketUrl });
 
   try {
+    const qrImages = await Promise.all(
+      tickets.map((ticket) => ticketQrPng(ticket.code)),
+    );
+    const emailTickets = tickets.map((ticket, index) => ({
+      holderName: ticket.holderName,
+      kindLabel: ticketKindLabels[ticket.kind],
+      code: ticket.code,
+      qrContentId: `ingresso-${index + 1}`,
+    }));
+    const { subject, html, text } = buildTicketsEmail({
+      ...details,
+      tickets: emailTickets,
+      ticketUrl,
+    });
+    const attachments = emailTickets.map((ticket, index) => ({
+      filename: `${ticket.qrContentId}.png`,
+      content: qrImages[index].toString("base64"),
+      content_type: "image/png",
+      content_id: ticket.qrContentId,
+    }));
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: [buyerEmail], subject, html, text }),
+      body: JSON.stringify({
+        from,
+        to: [buyerEmail],
+        subject,
+        html,
+        text,
+        attachments,
+      }),
     });
 
     if (!response.ok) {

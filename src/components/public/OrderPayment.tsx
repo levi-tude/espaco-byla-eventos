@@ -62,7 +62,6 @@ export function OrderPayment({
       paymentMethods: {
         bankTransfer: "all" as const,
         creditCard: "all" as const,
-        debitCard: "all" as const,
       },
       visual: { style: { theme: "dark" as const } },
     }),

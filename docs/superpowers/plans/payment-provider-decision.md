@@ -29,8 +29,10 @@ só chegam em Orders) para a **API de Orders**.
   `/pedidos/[publicToken]`, que mostra o Payment Brick.
 - O servidor cria a cobrança em `POST /v1/orders` (`processing_mode:
   automatic`) com o valor lido do banco, `external_reference = orderId` e
-  `X-Idempotency-Key`. Cartão envia `type` `credit_card`/`debit_card` conforme
-  o Brick.
+  `X-Idempotency-Key`. O Brick oferece só **PIX e cartão de crédito**: no
+  Brasil o débito online do Mercado Pago é apenas o "débito virtual Caixa",
+  então a opção foi removida (quem quer pagar com saldo da conta usa PIX).
+  Google Pay/Apple Pay não estão disponíveis via Mercado Pago.
 - Status: `processed` = pago; `action_required` = aguardando (PIX);
   `failed` = recusado. Cartão recusado volta como HTTP 402 com a order em
   `data` e o motivo em `errors[].details` (`"PAY…: insufficient_amount"`).

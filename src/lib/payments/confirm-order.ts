@@ -37,13 +37,22 @@ export async function confirmOrderPaid(
       .single(),
     admin
       .from("tickets")
-      .select("id", { count: "exact", head: true })
-      .eq("order_id", orderId),
+      .select("code, buyer_name, kind")
+      .eq("order_id", orderId)
+      .eq("status", "pago")
+      .order("created_at"),
   ]);
 
   if (eventResult.error || !eventResult.data) {
     console.error(
       "[email] Pedido pago, mas o evento para envio não foi encontrado.",
+    );
+    return outcome;
+  }
+
+  if (ticketsResult.error || !ticketsResult.data?.length) {
+    console.error(
+      "[email] Pedido pago, mas os ingressos para envio não foram encontrados.",
     );
     return outcome;
   }
@@ -56,7 +65,11 @@ export async function confirmOrderPaid(
     eventName: event.name,
     venue: event.venue,
     startsAt: event.starts_at,
-    ticketCount: ticketsResult.count ?? 1,
+    tickets: ticketsResult.data.map((ticket) => ({
+      code: ticket.code,
+      holderName: ticket.buyer_name,
+      kind: ticket.kind,
+    })),
     publicToken: order.public_token,
   });
 

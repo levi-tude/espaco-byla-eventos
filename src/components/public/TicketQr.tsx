@@ -1,6 +1,5 @@
-import QRCode from "qrcode";
-
 import { DownloadTicketPdf } from "@/components/public/DownloadTicketPdf";
+import { ticketKindLabels as kindLabels, ticketQrDataUrl } from "@/lib/tickets/qr";
 import type { Enums } from "@/types/database";
 
 type TicketQrProps = {
@@ -11,12 +10,6 @@ type TicketQrProps = {
   holderName: string;
   kind: Enums<"ticket_kind">;
   status: "pago" | "check_in";
-};
-
-const kindLabels: Record<Enums<"ticket_kind">, string> = {
-  inteira: "Inteira",
-  meia: "Meia-entrada",
-  cortesia: "Cortesia",
 };
 
 const statusLabels: Record<TicketQrProps["status"], string> = {
@@ -44,12 +37,7 @@ export async function TicketQr({
   kind,
   status,
 }: TicketQrProps) {
-  const qrDataUrl = await QRCode.toDataURL(code, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 280,
-    color: { dark: "#0a0a0b", light: "#ffffff" },
-  });
+  const qrDataUrl = await ticketQrDataUrl(code);
   const fileName = `ingresso-${safeFileName(eventName)}-${safeFileName(holderName)}-${kind}`;
 
   return (
