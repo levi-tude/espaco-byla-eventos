@@ -63,6 +63,8 @@ export type Database = {
           paid_at: string | null;
           payment_external_id: string | null;
           payment_provider: string | null;
+          privacy_accepted_at: string | null;
+          privacy_policy_version: string | null;
           public_token: string;
           status: Database["public"]["Enums"]["order_status"];
           total_cents: number;
@@ -78,6 +80,8 @@ export type Database = {
           paid_at?: string | null;
           payment_external_id?: string | null;
           payment_provider?: string | null;
+          privacy_accepted_at?: string | null;
+          privacy_policy_version?: string | null;
           public_token: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents: number;
@@ -93,6 +97,8 @@ export type Database = {
           paid_at?: string | null;
           payment_external_id?: string | null;
           payment_provider?: string | null;
+          privacy_accepted_at?: string | null;
+          privacy_policy_version?: string | null;
           public_token?: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents?: number;
@@ -248,6 +254,7 @@ export type Database = {
           p_event_id: string;
           p_items: Json;
           p_payment_provider: string;
+          p_privacy_policy_version?: string | null;
           p_public_token: string;
         };
         Returns: {

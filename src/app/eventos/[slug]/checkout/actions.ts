@@ -1,7 +1,10 @@
 "use server";
 
 import { createPublicToken } from "@/lib/domain/tickets";
-import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
+import {
+  PRIVACY_POLICY_VERSION,
+  PRIVACY_REQUIRED_MESSAGE,
+} from "@/lib/legal/privacy";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { BOT_BLOCKED_MESSAGE, isBotRequest } from "@/lib/security/bot";
 import {
@@ -90,6 +93,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
       p_payment_provider: provider.name,
       p_public_token: publicToken,
       p_items: items,
+      p_privacy_policy_version: PRIVACY_POLICY_VERSION,
     })
     .single();
 

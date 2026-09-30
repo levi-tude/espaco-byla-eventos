@@ -29,7 +29,10 @@ vi.mock("@/lib/payments/confirm-order", () => ({ confirmOrderPaid: vi.fn() }));
 
 import { startCheckout } from "@/app/eventos/[slug]/checkout/actions";
 import { checkOrderPayment, payOrder } from "@/app/pedidos/[publicToken]/actions";
-import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
+import {
+  PRIVACY_POLICY_VERSION,
+  PRIVACY_REQUIRED_MESSAGE,
+} from "@/lib/legal/privacy";
 import { BOT_BLOCKED_MESSAGE } from "@/lib/security/bot";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
@@ -85,6 +88,23 @@ describe("proteção do checkout e do pagamento", () => {
     expect(result).toEqual({ error: PRIVACY_REQUIRED_MESSAGE });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("pedido criado registra a versão da Política de Privacidade aceita", async () => {
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+    mocks.from.mockImplementation(() => selectResult({ id: "evento" }));
+
+    const result = await startCheckout(checkoutInput);
+
+    expect(result).toHaveProperty("publicToken");
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_checkout_order",
+      expect.objectContaining({ p_privacy_policy_version: PRIVACY_POLICY_VERSION }),
+    );
   });
 
   it("robô não cria pedido", async () => {
