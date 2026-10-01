@@ -41,7 +41,7 @@ export async function TicketQr({
   const fileName = `ingresso-${safeFileName(eventName)}-${safeFileName(holderName)}-${kind}`;
 
   return (
-    <article className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center shadow-lg shadow-black/40">
+    <article className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center shadow-lg shadow-black/10 dark:shadow-black/40">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-byla-yellow">
         Espaço Byla Eventos
       </p>
@@ -64,15 +64,15 @@ export async function TicketQr({
         <p className="text-xs font-semibold uppercase tracking-wide text-byla-muted">
           Código para digitação manual
         </p>
-        <code className="mt-1 block select-all break-all rounded-lg border border-byla-border bg-byla-overlay px-3 py-2 text-sm text-zinc-100">
+        <code className="mt-1 block select-all break-all rounded-lg border border-byla-border bg-byla-overlay px-3 py-2 text-sm text-foreground">
           {code}
         </code>
       </div>
       <p
         className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
           status === "pago"
-            ? "bg-emerald-500/20 text-emerald-300"
-            : "bg-white/10 text-zinc-200"
+            ? "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+            : "bg-zinc-500/15 text-zinc-700 dark:bg-white/10 dark:text-zinc-200"
         }`}
       >
         {statusLabels[status]}

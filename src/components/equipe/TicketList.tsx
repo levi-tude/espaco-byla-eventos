@@ -18,6 +18,8 @@ export type TicketListItem = {
   status: Enums<"ticket_status">;
   priceCents: number;
   paidAt: string | null;
+  /** Pago nas últimas 24 h (calculado no servidor). */
+  recentlyPaid: boolean;
   checkedInAt: string | null;
   publicToken: string;
 };
@@ -39,6 +41,14 @@ const statusLabels: Record<Enums<"ticket_status">, string> = {
   pago: "Pago",
   cancelado: "Cancelado",
   check_in: "Check-in",
+};
+
+const statusBadgeClasses: Record<Enums<"ticket_status">, string> = {
+  pago: "border-emerald-600/40 bg-emerald-500/15 text-emerald-800 dark:border-emerald-400/40 dark:text-emerald-300",
+  check_in:
+    "border-sky-600/40 bg-sky-500/15 text-sky-800 dark:border-sky-400/40 dark:text-sky-300",
+  nao_pago: "border-byla-border bg-byla-overlay text-byla-muted",
+  cancelado: "border-byla-border bg-byla-overlay text-byla-muted",
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -73,6 +83,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
   const soldTickets = tickets.filter(
     ({ status }) => status === "pago" || status === "check_in",
   );
+  const recentCount = tickets.filter(({ recentlyPaid }) => recentlyPaid).length;
   const totals = {
     inteira: soldTickets.filter(({ kind }) => kind === "inteira").length,
     meia: soldTickets.filter(({ kind }) => kind === "meia").length,
@@ -191,7 +202,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
         {lastTicketUrl ? (
           <p className="mt-3">
             <Link
-              className="inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-foreground"
+              className="inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white"
               href={lastTicketUrl}
               target="_blank"
             >
@@ -207,6 +218,18 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
             <h2 className="text-lg font-semibold">Lista de participantes</h2>
             <p className="mt-1 text-sm text-byla-muted">
               {tickets.length} {tickets.length === 1 ? "ingresso" : "ingressos"}
+              {recentCount > 0 ? (
+                <>
+                  {" · "}
+                  <span className="font-semibold text-amber-800 dark:text-byla-yellow">
+                    {recentCount} {recentCount === 1 ? "pago" : "pagos"} nas
+                    últimas 24 h
+                  </span>
+                </>
+              ) : null}
+            </p>
+            <p className="mt-1 text-xs text-byla-muted">
+              A lista atualiza sozinha a cada 30 segundos.
             </p>
           </div>
           <label className="text-sm font-medium">
@@ -223,7 +246,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
 
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-zinc-200 text-byla-muted">
+            <thead className="border-b border-byla-border text-byla-muted">
               <tr>
                 <th className="px-3 py-3 font-medium">Nome</th>
                 <th className="px-3 py-3 font-medium">Tipo</th>
@@ -236,7 +259,12 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr className="border-b border-zinc-100" key={ticket.id}>
+                <tr
+                  className={`border-b border-byla-border ${
+                    ticket.recentlyPaid ? "bg-emerald-500/5" : ""
+                  }`}
+                  key={ticket.id}
+                >
                   <td className="px-3 py-4">
                     <span className="font-medium">{ticket.buyerName}</span>
                     <span className="block text-xs text-byla-muted">
@@ -244,7 +272,23 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                     </span>
                   </td>
                   <td className="px-3 py-4">{kindLabels[ticket.kind]}</td>
-                  <td className="px-3 py-4">{statusLabels[ticket.status]}</td>
+                  <td className="px-3 py-4">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClasses[ticket.status]}`}
+                      >
+                        {statusLabels[ticket.status]}
+                      </span>
+                      {ticket.recentlyPaid ? (
+                        <span
+                          className="inline-flex rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black"
+                          title="Pago nas últimas 24 horas"
+                        >
+                          Novo
+                        </span>
+                      ) : null}
+                    </span>
+                  </td>
                   <td className="px-3 py-4">
                     {currency.format(ticket.priceCents / 100)}
                   </td>
@@ -255,7 +299,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                       {ticket.status === "pago" ||
                       ticket.status === "check_in" ? (
                         <Link
-                          className="font-medium text-emerald-300 hover:underline"
+                          className="font-medium text-byla-blue hover:underline"
                           href={`/pedidos/${ticket.publicToken}`}
                           target="_blank"
                         >
@@ -264,7 +308,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                       ) : null}
                       {ticket.status === "pago" ? (
                         <button
-                          className="text-left font-medium text-red-400 disabled:opacity-50"
+                          className="text-left font-medium text-red-700 disabled:opacity-50 dark:text-red-400"
                           disabled={isPending}
                           onClick={() => requestCancellation(ticket)}
                           type="button"

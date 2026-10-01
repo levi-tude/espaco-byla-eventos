@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canEnter, countsTowardCapacity } from "@/lib/domain/status";
+import { canEnter, countsTowardCapacity, isRecentlyPaid } from "@/lib/domain/status";
 
 describe("status", () => {
   it("só pago pode entrar", () => {
@@ -14,5 +14,14 @@ describe("status", () => {
     expect(countsTowardCapacity("check_in")).toBe(true);
     expect(countsTowardCapacity("nao_pago")).toBe(false);
     expect(countsTowardCapacity("cancelado")).toBe(false);
+  });
+
+  it("selo 'Novo' só para pagamento nas últimas 24 h", () => {
+    const now = Date.parse("2026-10-01T15:00:00Z");
+    expect(isRecentlyPaid("2026-10-01T14:59:00Z", now)).toBe(true);
+    expect(isRecentlyPaid("2026-09-30T15:00:01Z", now)).toBe(true);
+    expect(isRecentlyPaid("2026-09-30T15:00:00Z", now)).toBe(false);
+    expect(isRecentlyPaid(null, now)).toBe(false);
+    expect(isRecentlyPaid("data inválida", now)).toBe(false);
   });
 });

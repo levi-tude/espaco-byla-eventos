@@ -25,6 +25,10 @@ type BrickFormData = {
 
 let initializedKey: string | null = null;
 
+function confirmedOrderPath(publicToken: string) {
+  return `/pedidos/${encodeURIComponent(publicToken)}?confirmado=1`;
+}
+
 function ensureMercadoPago(publicKey: string) {
   if (initializedKey === publicKey) return;
   initMercadoPago(publicKey, { locale: "pt-BR" });
@@ -50,6 +54,7 @@ export function OrderPayment({
   const [waiting, setWaiting] = useState(false);
   const [brickKey, setBrickKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   ensureMercadoPago(publicKey);
 
@@ -74,7 +79,11 @@ export function OrderPayment({
     const timer = setInterval(async () => {
       const status = await checkOrderPayment(publicToken);
       if (!active) return;
-      if (status !== "pending") {
+      if (status === "paid") {
+        clearInterval(timer);
+        setConfirmed(true);
+        router.replace(confirmedOrderPath(publicToken));
+      } else if (status !== "pending") {
         clearInterval(timer);
         router.refresh();
       }
@@ -104,8 +113,13 @@ export function OrderPayment({
 
     const result = await payOrder(publicToken, submission);
 
-    if (result.status === "paid" || result.status === "unavailable") {
-      if (result.status === "unavailable") setMessage(result.message);
+    if (result.status === "paid") {
+      setConfirmed(true);
+      router.replace(confirmedOrderPath(publicToken));
+      return;
+    }
+    if (result.status === "unavailable") {
+      setMessage(result.message);
       router.refresh();
       return;
     }
@@ -157,9 +171,14 @@ export function OrderPayment({
         >
           {copied ? "Código copiado!" : "Copiar código PIX"}
         </button>
-        <p className="mt-6 flex items-center justify-center gap-2 text-sm text-byla-muted">
+        <p
+          aria-live="polite"
+          className="mt-6 flex items-center justify-center gap-2 text-sm text-byla-muted"
+        >
           <span className="h-2 w-2 animate-pulse rounded-full bg-byla-yellow" />
-          Aguardando pagamento… esta página atualiza sozinha.
+          {confirmed
+            ? "Pagamento confirmado! Abrindo seus ingressos…"
+            : "Aguardando pagamento… esta página atualiza sozinha."}
         </p>
       </section>
     );
@@ -171,9 +190,10 @@ export function OrderPayment({
         <h2 className="font-display text-3xl tracking-wide text-foreground">
           Pagamento em análise
         </h2>
-        <p className="mt-3 text-byla-muted">
-          O Mercado Pago está confirmando seu pagamento. Esta página atualiza
-          sozinha assim que for aprovado.
+        <p aria-live="polite" className="mt-3 text-byla-muted">
+          {confirmed
+            ? "Pagamento confirmado! Abrindo seus ingressos…"
+            : "O Mercado Pago está confirmando seu pagamento. Esta página atualiza sozinha assim que for aprovado."}
         </p>
       </section>
     );
@@ -181,8 +201,11 @@ export function OrderPayment({
 
   return (
     <section className="grid gap-4">
+      <p aria-live="polite" className="sr-only">
+        {confirmed ? "Pagamento confirmado! Abrindo seus ingressos…" : ""}
+      </p>
       {message ? (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-100">
+        <p className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           {message}
         </p>
       ) : null}

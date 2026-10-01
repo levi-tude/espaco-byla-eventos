@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { OrderPayment } from "@/components/public/OrderPayment";
+import { PaymentConfirmed } from "@/components/public/PaymentConfirmed";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
 import { eventDateFormatter } from "@/lib/datetime";
+import { maskEmail } from "@/lib/domain/mask";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import type { OrderReference, PixData } from "@/lib/payments/types";
@@ -48,6 +50,8 @@ async function resolveStaffBackNav(eventId: string, eventSlug: string) {
   };
 }
 
+const COURTESY_PROVIDER = "cortesia_interna";
+
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -80,13 +84,15 @@ async function lookupPendingPayment(
 
 export default async function PedidoPage({
   params,
+  searchParams,
 }: PageProps<"/pedidos/[publicToken]">) {
-  const { publicToken } = await params;
+  const [{ publicToken }, query] = await Promise.all([params, searchParams]);
+  const justConfirmed = query.confirmado === "1";
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from("orders")
     .select(
-      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at",
+      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -158,7 +164,7 @@ export default async function PedidoPage({
               publicToken={publicToken}
             />
           ) : (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-950/40 p-4 text-amber-100">
+            <p className="rounded-lg border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               Pagamento em configuração. Falta a chave pública do Mercado Pago
               no ambiente.
             </p>
@@ -200,6 +206,8 @@ export default async function PedidoPage({
 
   if (ticketsError) throw new Error("Não foi possível carregar os ingressos.");
 
+  const isCourtesy = order.payment_provider === COURTESY_PROVIDER;
+
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <SiteHeader variant="equipe" />
@@ -210,18 +218,23 @@ export default async function PedidoPage({
           eventSlug={event.slug}
         />
 
-        <header className="text-center">
-          <p className="text-sm font-medium text-emerald-400">
-            Pagamento confirmado
-          </p>
-          <h1 className="mt-2 font-display text-5xl tracking-wide text-foreground">
+        <PaymentConfirmed
+          eventSlug={event.slug}
+          justConfirmed={justConfirmed}
+          maskedEmail={isCourtesy ? null : maskEmail(order.buyer_email)}
+          ticketCount={tickets?.length ?? 0}
+          title={isCourtesy ? "Ingresso confirmado!" : "Pagamento confirmado!"}
+        />
+
+        <header className="mt-10 text-center">
+          <h2 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl">
             Seus ingressos
-          </h1>
+          </h2>
           <p className="mt-4 text-byla-muted">
             {event.name} · {dateFormatter.format(new Date(event.starts_at))}
           </p>
           <p className="mt-1 text-byla-muted">{event.venue}</p>
-          <p className="mt-4 text-sm text-zinc-500">
+          <p className="mt-4 text-sm text-byla-muted">
             Apresente o QR Code na entrada. Cada ingresso deve ser usado uma
             única vez. Use “Baixar ingresso (PDF)” para guardar no celular.
           </p>

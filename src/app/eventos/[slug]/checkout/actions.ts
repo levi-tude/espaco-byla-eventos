@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  capacityRefusalMessage,
+  MAX_PEOPLE_PER_ORDER,
+} from "@/lib/domain/availability";
+import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { createPublicToken } from "@/lib/domain/tickets";
 import {
   PRIVACY_POLICY_VERSION,
@@ -26,7 +31,9 @@ export type CheckoutInput = {
 
 // Em produção o Next esconde a mensagem de erros lançados em Server Actions;
 // por isso os erros esperados voltam como resultado.
-export type CheckoutResult = { publicToken: string } | { error: string };
+export type CheckoutResult =
+  | { publicToken: string }
+  | { error: string; remaining?: number };
 
 export async function startCheckout(input: CheckoutInput): Promise<CheckoutResult> {
   const buyer = {
@@ -53,8 +60,10 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   if (quantity === 0) {
     return { error: "Selecione pelo menos um ingresso." };
   }
-  if (quantity > 10) {
-    return { error: "Selecione no máximo 10 ingressos por pedido." };
+  if (quantity > MAX_PEOPLE_PER_ORDER) {
+    return {
+      error: `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} ingressos por pedido.`,
+    };
   }
   if (input.acceptedPrivacy !== true) {
     return { error: PRIVACY_REQUIRED_MESSAGE };
@@ -74,7 +83,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
 
   const { data: event, error: eventError } = await admin
     .from("events")
-    .select("id")
+    .select("id, capacity")
     .eq("slug", input.slug)
     .maybeSingle();
 
@@ -99,7 +108,14 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
 
   if (orderError || !order) {
     if (orderError?.message.includes("Capacidade esgotada")) {
-      return { error: "Capacidade esgotada para este evento." };
+      const availability = await loadEventAvailability(admin, event);
+      return {
+        error: capacityRefusalMessage(availability),
+        ...(availability ? { remaining: availability.remaining } : {}),
+      };
+    }
+    if (orderError?.message.includes("vendas deste evento estão fechadas")) {
+      return { error: "As vendas deste evento estão fechadas." };
     }
     return { error: "Não foi possível criar o pedido." };
   }

@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { EventGallery } from "@/components/public/EventGallery";
 import { eventDateFormatter } from "@/lib/datetime";
+import { salesState, salesStateMessages } from "@/lib/domain/availability";
+import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -38,7 +40,7 @@ export default async function EventoPublicoPage({
 
   const gallery = await loadEventGallery(supabase, event.id);
 
-  const [{ data: ticketTypes }, { count: occupied }] = await Promise.all([
+  const [{ data: ticketTypes }, availability] = await Promise.all([
     supabase
       .from("ticket_types")
       .select("kind, price_cents")
@@ -46,14 +48,10 @@ export default async function EventoPublicoPage({
       .in("kind", ["inteira", "meia"])
       .eq("active", true)
       .order("price_cents", { ascending: false }),
-    createAdminClient()
-      .from("tickets")
-      .select("id", { count: "exact", head: true })
-      .eq("event_id", event.id)
-      .in("status", ["pago", "check_in"]),
+    loadEventAvailability(createAdminClient(), event),
   ]);
 
-  const hasAvailability = (occupied ?? 0) < event.capacity;
+  const state = salesState(event.sales_open, availability);
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col pb-28 md:pb-12">
@@ -87,7 +85,7 @@ export default async function EventoPublicoPage({
               <h1 className="mt-2 font-display text-4xl tracking-wide text-foreground sm:text-5xl">
                 {event.name}
               </h1>
-              <p className="mt-3 font-medium text-zinc-200">{event.venue}</p>
+              <p className="mt-3 font-medium text-foreground">{event.venue}</p>
               {event.description ? (
                 <p className="mt-8 whitespace-pre-line leading-7 text-byla-muted">
                   {event.description}
@@ -105,7 +103,7 @@ export default async function EventoPublicoPage({
                       className="flex items-center justify-between gap-4"
                       key={ticketType.kind}
                     >
-                      <dt className="text-zinc-300">
+                      <dt className="text-byla-muted">
                         {kindLabels[ticketType.kind] ?? ticketType.kind}
                       </dt>
                       <dd className="font-medium text-foreground">
@@ -120,7 +118,7 @@ export default async function EventoPublicoPage({
                 </p>
               )}
 
-              {event.sales_open && hasAvailability ? (
+              {state === "open" ? (
                 <Link
                   className="mt-6 hidden min-h-12 items-center justify-center rounded-lg bg-byla-blue px-4 text-sm font-semibold text-white transition hover:brightness-110 md:flex"
                   href={`/eventos/${event.slug}/checkout`}
@@ -128,8 +126,8 @@ export default async function EventoPublicoPage({
                   Comprar ingresso
                 </Link>
               ) : (
-                <p className="mt-6 rounded-lg border border-byla-border bg-byla-bg p-3 text-center text-sm font-medium text-zinc-200">
-                  {hasAvailability ? "Venda fechada" : "Ingressos esgotados"}
+                <p className="mt-6 rounded-lg border border-byla-border bg-byla-bg p-3 text-center text-sm font-medium text-foreground">
+                  {salesStateMessages[state]}
                 </p>
               )}
             </aside>
@@ -137,7 +135,7 @@ export default async function EventoPublicoPage({
         </article>
       </div>
 
-      {event.sales_open && hasAvailability ? (
+      {state === "open" ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-byla-border bg-byla-bg/95 p-4 backdrop-blur md:hidden">
           <Link
             className="flex min-h-12 w-full items-center justify-center rounded-lg bg-byla-blue text-base font-semibold text-white"

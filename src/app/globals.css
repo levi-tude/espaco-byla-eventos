@@ -51,6 +51,21 @@
   --font-display: var(--font-byla-display);
 }
 
+@theme {
+  --animate-success-in: success-in 0.45s ease-out both;
+
+  @keyframes success-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
