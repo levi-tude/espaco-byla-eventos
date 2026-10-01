@@ -22,6 +22,9 @@ Público: equipe (Admin/secretaria) no painel; compradores na página do evento.
 | Campo de link da capa | Mantido: enviar arquivo **ou** colar link |
 | Onde guardar | Supabase Storage do projeto Espaço Byla Eventos (plano grátis, 1 GB) |
 | Como enviar | Navegador envia direto ao Storage com autorização de envio emitida pelo servidor após checar equipe |
+| Enquadramento (2026-10-01) | Só a capa: janela com moldura fixa 16:9, arrastar + zoom (1×–3×), salva já recortada; galeria entra inteira |
+| Formato da capa no site (2026-10-01) | Sempre 16:9 (`aspect-video`) na home (cards e evento único) e na página do evento |
+| Biblioteca de recorte (2026-10-01) | `react-easy-crop` 6.2.3 (MIT, aprovada pelo dono; só carrega na tela da equipe) |
 
 Alternativas descartadas: envio via Server Action/rota (limite de ~4,5 MB do corpo na Vercel quebra fotos de celular) e Vercel Blob (mais um serviço sem ganho).
 
@@ -30,7 +33,9 @@ Alternativas descartadas: envio via Server Action/rota (limite de ~4,5 MB do cor
 **Capa**
 
 - Bloco "Capa do evento" com dois modos: **Enviar imagem** (arquivo) ou **Colar link** (campo atual).
-- Após envio: prévia + **Trocar** / **Remover**.
+- Ao escolher a imagem abre a janela **"Enquadrar capa"** (moldura 16:9; arrastar com dedo/mouse; zoom por controle deslizante, pinça ou roda do mouse; **Cancelar** / **Usar esta capa**). O navegador recorta e reduz para no máximo 1920 × 1080 antes de enviar. Só a versão recortada é guardada; para reenquadrar, escolhe a foto de novo.
+- Link colado não passa pela janela; o site corta pelo centro em 16:9.
+- Após envio: prévia 16:9 + **Trocar** / **Remover**.
 - A capa é gravada ao **Salvar** o evento (como os demais campos). Funciona também em evento novo.
 
 **Galeria ("Fotos do evento")**
@@ -109,7 +114,7 @@ Leitura pública: a página do evento busca `event_images` pelo cliente de servi
 
 - Capa enviada e evento nunca salvo deixa arquivo órfão em `covers/` (pequeno; limpeza manual futura se necessário).
 - Apagar evento remove as linhas de `event_images`, mas não os arquivos (não há exclusão de evento na UI hoje).
-- Fora do escopo: reordenar por arrastar, legendas, vídeo, recorte de imagem.
+- Fora do escopo: reordenar por arrastar, legendas, vídeo, recorte das fotos da galeria.
 
 ## 9. Testes
 

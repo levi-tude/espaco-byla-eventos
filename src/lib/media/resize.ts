@@ -13,21 +13,35 @@ export function fitWithin(
   };
 }
 
+/** Área recortada em pixels da imagem original. */
+export type CropArea = { x: number; y: number; width: number; height: number };
+
 function canvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, QUALITY));
 }
 
 /** Só no navegador. Safari não gera WebP pelo canvas, então cai para JPEG. */
-export async function resizeImage(file: File): Promise<Blob> {
+async function drawToBlob(file: File, area?: CropArea): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   try {
-    const { width, height } = fitWithin(bitmap.width, bitmap.height);
+    const source = area ?? { x: 0, y: 0, width: bitmap.width, height: bitmap.height };
+    const { width, height } = fitWithin(source.width, source.height);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas indisponível.");
-    context.drawImage(bitmap, 0, 0, width, height);
+    context.drawImage(
+      bitmap,
+      source.x,
+      source.y,
+      source.width,
+      source.height,
+      0,
+      0,
+      width,
+      height,
+    );
 
     const webp = await canvasToBlob(canvas, "image/webp");
     if (webp?.type === "image/webp") return webp;
@@ -38,4 +52,12 @@ export async function resizeImage(file: File): Promise<Blob> {
   } finally {
     bitmap.close();
   }
+}
+
+export function resizeImage(file: File): Promise<Blob> {
+  return drawToBlob(file);
+}
+
+export function cropImage(file: File, area: CropArea): Promise<Blob> {
+  return drawToBlob(file, area);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fitWithin, MAX_IMAGE_DIMENSION } from "@/lib/media/resize";
+import { COVER_ASPECT } from "@/lib/media/rules";
 
 describe("fitWithin", () => {
   it("reduz mantendo a proporção pelo lado maior", () => {
@@ -14,5 +15,10 @@ describe("fitWithin", () => {
 
   it("nunca devolve dimensão zero", () => {
     expect(fitWithin(10000, 1)).toEqual({ width: MAX_IMAGE_DIMENSION, height: 1 });
+  });
+
+  it("recorte 16:9 de foto grande sai em 1920 × 1080", () => {
+    const width = 3200;
+    expect(fitWithin(width, width / COVER_ASPECT)).toEqual({ width: 1920, height: 1080 });
   });
 });

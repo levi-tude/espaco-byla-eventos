@@ -1,6 +1,8 @@
 export const MEDIA_BUCKET = "event-media";
 export const MAX_GALLERY_IMAGES = 10;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** A capa é salva já recortada nesse formato e exibida assim em todo o site. */
+export const COVER_ASPECT = 16 / 9;
 
 const IMAGE_EXTENSIONS = {
   "image/webp": "webp",

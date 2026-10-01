@@ -36,7 +36,7 @@ export function EventGalleryManager({ eventId, images }: EventGalleryManagerProp
 
     for (const file of files) {
       try {
-        const uploaded = await uploadImage(file, "gallery", eventId);
+        const uploaded = await uploadImage(file, "gallery", { eventId });
         const added = uploaded.ok ? await addEventImage(eventId, uploaded.path) : uploaded;
         if (!added.ok) {
           failed += 1;

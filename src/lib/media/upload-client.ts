@@ -1,5 +1,5 @@
 import { requestImageUpload, type UploadTarget } from "@/app/equipe/eventos/media-actions";
-import { resizeImage } from "@/lib/media/resize";
+import { type CropArea, cropImage, resizeImage } from "@/lib/media/resize";
 import {
   IMAGE_TOO_LARGE_MESSAGE,
   INVALID_IMAGE_TYPE_MESSAGE,
@@ -12,16 +12,17 @@ import { createClient } from "@/lib/supabase/client";
 
 export type UploadOutcome = { ok: true; path: string } | { ok: false; error: string };
 
-/** Reduz a foto, pede autorização ao servidor e envia direto ao armazenamento. */
+/** Recorta (se pedido) e reduz a foto, pede autorização ao servidor e envia direto ao armazenamento. */
 export async function uploadImage(
   file: File,
   target: UploadTarget,
-  eventId?: string,
+  options: { eventId?: string; crop?: CropArea } = {},
 ): Promise<UploadOutcome> {
+  const { eventId, crop } = options;
   if (!isImageContentType(file.type)) return { ok: false, error: INVALID_IMAGE_TYPE_MESSAGE };
 
   try {
-    const blob = await resizeImage(file);
+    const blob = crop ? await cropImage(file, crop) : await resizeImage(file);
     if (blob.size > MAX_IMAGE_BYTES) return { ok: false, error: IMAGE_TOO_LARGE_MESSAGE };
 
     const ticket = await requestImageUpload(target, blob.type, eventId);

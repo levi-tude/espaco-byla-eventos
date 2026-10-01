@@ -3,8 +3,10 @@
 import { ImagePlus } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { CoverCropDialog } from "@/components/equipe/CoverCropDialog";
 import { isOwnMediaUrl, publicMediaUrl } from "@/lib/media/paths";
-import { IMAGE_ACCEPT } from "@/lib/media/rules";
+import type { CropArea } from "@/lib/media/resize";
+import { IMAGE_ACCEPT, INVALID_IMAGE_TYPE_MESSAGE, isImageContentType } from "@/lib/media/rules";
 import { uploadImage } from "@/lib/media/upload-client";
 
 type CoverFieldProps = {
@@ -25,15 +27,29 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
   );
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ file: File; src: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File | undefined) {
+  function handleFile(file: File | undefined) {
     if (fileInput.current) fileInput.current.value = "";
     if (!file) return;
+    if (!isImageContentType(file.type)) return setError(INVALID_IMAGE_TYPE_MESSAGE);
     setError(null);
+    setPending({ file, src: URL.createObjectURL(file) });
+  }
+
+  function closeCrop() {
+    if (pending) URL.revokeObjectURL(pending.src);
+    setPending(null);
+  }
+
+  async function handleCrop(area: CropArea) {
+    if (!pending) return;
+    const { file } = pending;
+    closeCrop();
     setUploading(true);
     onBusyChange(true);
-    const result = await uploadImage(file, "cover");
+    const result = await uploadImage(file, "cover", { crop: area });
     setUploading(false);
     onBusyChange(false);
     if (!result.ok) return setError(result.error);
@@ -137,8 +153,18 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
         </p>
       ) : null}
       <p className="text-xs text-byla-muted">
-        JPG, PNG ou WebP. A imagem é reduzida automaticamente. A capa vale ao salvar o evento.
+        JPG, PNG ou WebP, no formato deitado (16:9). Você enquadra a foto antes de enviar. A
+        capa vale ao salvar o evento.
       </p>
+
+      {pending ? (
+        <CoverCropDialog
+          key={pending.src}
+          onCancel={closeCrop}
+          onConfirm={handleCrop}
+          src={pending.src}
+        />
+      ) : null}
     </fieldset>
   );
 }
