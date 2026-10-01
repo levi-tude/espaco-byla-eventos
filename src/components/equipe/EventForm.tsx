@@ -9,6 +9,7 @@ import {
   setSalesOpen,
   updateEvent,
 } from "@/app/equipe/eventos/actions";
+import { CoverField } from "@/components/equipe/CoverField";
 import { toEventInputValue } from "@/lib/datetime";
 
 type EventFormProps = {
@@ -38,6 +39,7 @@ export function EventForm({ event }: EventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
 
   function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
@@ -174,16 +176,7 @@ export function EventForm({ event }: EventFormProps) {
         />
       </label>
 
-      <label className="grid gap-2 text-sm font-medium">
-        URL da capa (opcional)
-        <input
-          className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-          defaultValue={event?.coverImageUrl ?? ""}
-          name="coverImageUrl"
-          placeholder="https://..."
-          type="url"
-        />
-      </label>
+      <CoverField defaultValue={event?.coverImageUrl ?? null} onBusyChange={setCoverBusy} />
 
       {message ? (
         <p className="text-sm text-zinc-300" role="status">
@@ -194,10 +187,10 @@ export function EventForm({ event }: EventFormProps) {
       <div className="flex flex-wrap gap-3">
         <button
           className="rounded-lg bg-byla-blue px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-          disabled={isPending}
+          disabled={isPending || coverBusy}
           type="submit"
         >
-          {isPending ? "Salvando..." : "Salvar"}
+          {coverBusy ? "Enviando capa..." : isPending ? "Salvando..." : "Salvar"}
         </button>
 
         {event ? (

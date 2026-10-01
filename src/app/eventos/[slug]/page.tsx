@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { EventGallery } from "@/components/public/EventGallery";
 import { eventDateFormatter } from "@/lib/datetime";
+import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -33,6 +35,8 @@ export default async function EventoPublicoPage({
     .maybeSingle();
 
   if (!event) notFound();
+
+  const gallery = await loadEventGallery(supabase, event.id);
 
   const [{ data: ticketTypes }, { count: occupied }] = await Promise.all([
     supabase
@@ -89,6 +93,7 @@ export default async function EventoPublicoPage({
                   {event.description}
                 </p>
               ) : null}
+              <EventGallery eventName={event.name} images={gallery} />
             </div>
 
             <aside className="rounded-xl border border-byla-border bg-byla-overlay p-5">

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EventForm } from "@/components/equipe/EventForm";
+import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { TicketList } from "@/components/equipe/TicketList";
+import { loadEventGallery } from "@/lib/media/gallery";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function EventoEquipePage({
@@ -36,6 +38,8 @@ export default async function EventoEquipePage({
   ]);
 
   if (!event) notFound();
+
+  const gallery = await loadEventGallery(supabase, event.id);
 
   const fullPrice =
     ticketTypes?.find(({ kind }) => kind === "inteira")?.price_cents ?? 0;
@@ -103,6 +107,8 @@ export default async function EventoEquipePage({
           salesOpen: event.sales_open,
         }}
       />
+
+      <EventGalleryManager eventId={event.id} images={gallery} />
 
       <TicketList
         eventId={event.id}

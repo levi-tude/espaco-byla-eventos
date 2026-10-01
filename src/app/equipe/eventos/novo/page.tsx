@@ -18,6 +18,9 @@ export default function NovoEventoPage() {
         Cadastre as informações e os preços dos ingressos.
       </p>
       <EventForm />
+      <p className="mt-6 rounded-xl border border-dashed border-byla-border p-5 text-sm text-byla-muted">
+        Salve o evento para adicionar fotos à galeria.
+      </p>
     </main>
   );
 }
