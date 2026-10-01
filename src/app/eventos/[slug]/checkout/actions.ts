@@ -5,6 +5,7 @@ import {
   MAX_PEOPLE_PER_ORDER,
 } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
+import { isPublicTokenFormat } from "@/lib/domain/public-token";
 import { createPublicToken } from "@/lib/domain/tickets";
 import {
   PRIVACY_POLICY_VERSION,
@@ -121,4 +122,53 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   }
 
   return { publicToken };
+}
+
+export type PendingOrderLookup =
+  | { state: "awaiting_payment"; expiresAt: string }
+  | { state: "paid" }
+  | { state: "none" };
+
+/**
+ * Pedido guardado no carrinho do navegador: diz se ainda aguarda pagamento dentro
+ * da reserva, para o checkout oferecer "Continuar pagamento" em vez de criar outro.
+ */
+export async function findPendingOrder(
+  slug: string,
+  publicToken: string,
+): Promise<PendingOrderLookup> {
+  if (
+    typeof slug !== "string" ||
+    !slug.trim() ||
+    slug.length > 200 ||
+    !isPublicTokenFormat(publicToken)
+  ) {
+    return { state: "none" };
+  }
+  if (await isBotRequest()) return { state: "none" };
+
+  const admin = createAdminClient();
+  const { data: event } = await admin
+    .from("events")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!event) return { state: "none" };
+
+  const { data: order } = await admin
+    .from("orders")
+    .select("status, expires_at")
+    .eq("public_token", publicToken)
+    .eq("event_id", event.id)
+    .maybeSingle();
+  if (!order) return { state: "none" };
+  if (order.status === "pago") return { state: "paid" };
+  if (
+    order.status === "pendente" &&
+    order.expires_at &&
+    Date.parse(order.expires_at) > Date.now()
+  ) {
+    return { state: "awaiting_payment", expiresAt: order.expires_at };
+  }
+  return { state: "none" };
 }

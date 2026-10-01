@@ -9,6 +9,7 @@ import {
   payOrder,
   type PaymentSubmission,
 } from "@/app/pedidos/[publicToken]/actions";
+import { ChangeSelectionButton } from "@/components/public/ChangeSelectionButton";
 import { eventDateFormatter } from "@/lib/datetime";
 import type { PixData } from "@/lib/payments/types";
 
@@ -73,6 +74,7 @@ export function OrderPayment({
   const [brickKey, setBrickKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [changingSelection, setChangingSelection] = useState(false);
 
   ensureMercadoPago(publicKey);
 
@@ -92,7 +94,8 @@ export function OrderPayment({
   );
 
   useEffect(() => {
-    if (!pix && !waiting) return;
+    // Durante "Alterar seleção" o pedido vira cancelado; a consulta não deve recarregar a tela.
+    if ((!pix && !waiting) || changingSelection) return;
     let active = true;
     const timer = setInterval(async () => {
       const status = await checkOrderPayment(publicToken);
@@ -110,7 +113,7 @@ export function OrderPayment({
       active = false;
       clearInterval(timer);
     };
-  }, [pix, waiting, publicToken, router]);
+  }, [pix, waiting, changingSelection, publicToken, router]);
 
   async function handleSubmit({
     paymentType,
@@ -202,6 +205,20 @@ export function OrderPayment({
             ? "Pagamento confirmado! Abrindo seus ingressos…"
             : "Aguardando pagamento… esta página atualiza sozinha."}
         </p>
+        {confirmed ? null : (
+          <div className="mt-6 border-t border-byla-border pt-5 text-left">
+            <p className="text-sm text-byla-muted">
+              Quer mudar os ingressos? Este pedido e o PIX acima serão
+              cancelados, e você volta para a escolha com tudo preenchido. Se
+              já pagou o PIX, aguarde a confirmação.
+            </p>
+            <ChangeSelectionButton
+              className="mt-3"
+              onBusyChange={setChangingSelection}
+              publicToken={publicToken}
+            />
+          </div>
+        )}
       </section>
     );
   }
@@ -240,6 +257,19 @@ export function OrderPayment({
         onError={(error) => console.error("[pagamento] Brick:", error)}
         onSubmit={handleSubmit}
       />
+      {confirmed ? null : (
+        <div className="border-t border-byla-border pt-4">
+          <p className="text-sm text-byla-muted">
+            Quer mudar os ingressos? Este pedido será cancelado e você volta
+            para a escolha com tudo preenchido.
+          </p>
+          <ChangeSelectionButton
+            className="mt-3"
+            onBusyChange={setChangingSelection}
+            publicToken={publicToken}
+          />
+        </div>
+      )}
     </section>
   );
 }

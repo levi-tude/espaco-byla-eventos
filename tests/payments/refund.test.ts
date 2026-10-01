@@ -56,6 +56,7 @@ function makeProvider(overrides: Partial<PaymentProvider> = {}) {
     findOrderPayment: vi.fn().mockResolvedValue({ kind: "none" }),
     parseWebhook: vi.fn(),
     refundOrder: vi.fn().mockResolvedValue({ status: "refunded", providerRefundId: "REF1" }),
+    cancelPendingCharges: vi.fn().mockResolvedValue({ kind: "cleared" }),
     ...overrides,
   } satisfies PaymentProvider;
 }

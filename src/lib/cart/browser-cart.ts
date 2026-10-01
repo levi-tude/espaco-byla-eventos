@@ -1,3 +1,5 @@
+import { isPublicTokenFormat } from "@/lib/domain/public-token";
+
 export type CartKind = "inteira" | "meia";
 
 export type BrowserCart = {
@@ -5,6 +7,8 @@ export type BrowserCart = {
   name: string;
   email: string;
   phone: string;
+  /** Pedido criado a partir deste carrinho que pode ainda estar aguardando pagamento. */
+  pendingOrderToken?: string;
   updatedAt: number;
 };
 
@@ -64,12 +68,16 @@ export function parseCart(raw: string | null, now = Date.now()): BrowserCart | n
     name: cleanText(record.name, FIELD_LIMITS.name),
     email: cleanText(record.email, FIELD_LIMITS.email),
     phone: cleanText(record.phone, FIELD_LIMITS.phone),
+    ...(isPublicTokenFormat(record.pendingOrderToken)
+      ? { pendingOrderToken: record.pendingOrderToken }
+      : {}),
     updatedAt,
   };
 }
 
 export function isEmptyCart(cart: Omit<BrowserCart, "updatedAt">): boolean {
   return (
+    !cart.pendingOrderToken &&
     CART_KINDS.every((kind) => cart.quantities[kind] === 0) &&
     !cart.name.trim() &&
     !cart.email.trim() &&

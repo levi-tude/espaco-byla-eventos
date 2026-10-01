@@ -18,6 +18,8 @@ export const RATE_LIMITS = {
   checkoutPerEmail: { bucket: "checkout:email", limit: 5, windowSeconds: 3600 },
   paymentPerOrder: { bucket: "payment:order", limit: 6, windowSeconds: 1800 },
   paymentPerIp: { bucket: "payment:ip", limit: 20, windowSeconds: 600 },
+  selectionChangePerOrder: { bucket: "selection:order", limit: 5, windowSeconds: 1800 },
+  selectionChangePerIp: { bucket: "selection:ip", limit: 20, windowSeconds: 600 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =

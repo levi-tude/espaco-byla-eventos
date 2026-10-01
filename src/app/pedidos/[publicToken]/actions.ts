@@ -1,6 +1,7 @@
 "use server";
 
 import type { PaidOrderOutcome } from "@/lib/domain/orders";
+import { isPublicTokenFormat, resumeCheckoutPath } from "@/lib/domain/public-token";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -31,6 +32,18 @@ export type PayOrderResult =
   | { status: "unavailable"; message: string };
 
 export type OrderPaymentStatus = "paid" | "pending" | "unavailable";
+
+export type ChangeSelectionResult =
+  | { status: "changed"; checkoutPath: string }
+  | { status: "paid" }
+  | { status: "unavailable"; message: string }
+  | { status: "rejected"; message: string };
+
+const CHANGE_FAILURE =
+  "Não foi possível alterar a seleção agora. Tente novamente em instantes.";
+
+const PAYMENT_IN_REVIEW_MESSAGE =
+  "Seu pagamento está em análise. Aguarde a confirmação.";
 
 const GENERIC_FAILURE =
   "Não foi possível processar o pagamento agora. Tente novamente em instantes.";
@@ -244,4 +257,117 @@ export async function checkOrderPayment(
     console.error("[pagamento] Falha ao consultar pagamento.", error);
   }
   return order.status === "expirado" ? "unavailable" : "pending";
+}
+
+function settledChangeResult(status: string): ChangeSelectionResult | null {
+  if (status === "pago") return { status: "paid" };
+  if (status === "aguardando_decisao") {
+    return { status: "unavailable", message: AWAITING_DECISION_MESSAGE };
+  }
+  if (status === "pendente" || status === "expirado" || status === "cancelado") {
+    return null;
+  }
+  return {
+    status: "unavailable",
+    message: "Este pedido não pode mais ser alterado.",
+  };
+}
+
+/**
+ * "Alterar seleção": encerra as cobranças em aberto no provedor (PIX gerado),
+ * cancela o pedido pendente e libera os lugares. Pagamento aprovado é confirmado
+ * em vez de cancelado; pagamento em análise impede a troca. Se um PIX for pago
+ * depois do cancelamento, o pedido vai para a fila de decisão da equipe.
+ */
+export async function changeOrderSelection(
+  publicToken: string,
+): Promise<ChangeSelectionResult> {
+  if (await isBotRequest()) {
+    return { status: "rejected", message: BOT_BLOCKED_MESSAGE };
+  }
+  if (!isPublicTokenFormat(publicToken)) {
+    return { status: "unavailable", message: "Pedido não encontrado." };
+  }
+
+  const loaded = await loadOrder(publicToken);
+  if (!loaded) {
+    return { status: "unavailable", message: "Pedido não encontrado." };
+  }
+  const { admin, order } = loaded;
+
+  const settled = settledChangeResult(order.status);
+  if (settled) return settled;
+
+  try {
+    const { data: event } = await admin
+      .from("events")
+      .select("slug")
+      .eq("id", order.event_id)
+      .maybeSingle();
+    if (!event?.slug) return { status: "rejected", message: CHANGE_FAILURE };
+    const changed: ChangeSelectionResult = {
+      status: "changed",
+      checkoutPath: resumeCheckoutPath(event.slug, publicToken),
+    };
+
+    // Já cancelado (ex.: segundo clique ou outra aba): só volta para a escolha.
+    if (order.status === "cancelado") return changed;
+
+    const withinLimits =
+      (await consumeRateLimit(admin, RATE_LIMITS.selectionChangePerOrder, order.id)) &&
+      (await consumeRateLimit(admin, RATE_LIMITS.selectionChangePerIp, await clientIp()));
+    if (!withinLimits) return { status: "rejected", message: RATE_LIMIT_MESSAGE };
+
+    const provider = getPaymentProvider();
+    const charges = await provider.cancelPendingCharges({
+      id: order.id,
+      createdAt: order.created_at,
+    });
+    if (charges.kind === "paid") {
+      const outcome = await confirmOrderPaid(
+        admin,
+        order.id,
+        provider.name,
+        charges.amountCents,
+        charges,
+      );
+      return needsDecision(outcome)
+        ? { status: "unavailable", message: AWAITING_DECISION_MESSAGE }
+        : { status: "paid" };
+    }
+    if (charges.kind === "processing") {
+      return { status: "rejected", message: PAYMENT_IN_REVIEW_MESSAGE };
+    }
+    if (charges.kind !== "cleared") {
+      return { status: "rejected", message: CHANGE_FAILURE };
+    }
+
+    // Expirado já não segura lugar: não há o que cancelar no banco.
+    if (order.status === "pendente") {
+      const { data: cancelled, error } = await admin.rpc("cancel_pending_order", {
+        p_order_id: order.id,
+        p_reason: "alterado_pelo_comprador",
+      });
+      if (error) throw new Error("Falha ao cancelar o pedido.");
+
+      if (cancelled !== "updated") {
+        // Um pagamento pode ter sido confirmado entre a consulta e o cancelamento.
+        const { data: current } = await admin
+          .from("orders")
+          .select("status")
+          .eq("id", order.id)
+          .maybeSingle();
+        const after = current ? settledChangeResult(current.status) : null;
+        if (after) return after;
+        if (current?.status === "pendente" || !current) {
+          return { status: "rejected", message: CHANGE_FAILURE };
+        }
+      }
+    }
+
+    return changed;
+  } catch (error) {
+    console.error("[pagamento] Falha ao alterar a seleção do pedido.", error);
+    return { status: "rejected", message: CHANGE_FAILURE };
+  }
 }

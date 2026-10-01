@@ -1,5 +1,6 @@
 import { MercadoPagoPaymentProvider } from "./mercadopago";
 import type {
+  CancelChargesResult,
   CreatePaymentInput,
   CreatePaymentResult,
   OrderPaymentLookup,
@@ -17,6 +18,8 @@ export interface PaymentProvider {
   parseWebhook(req: Request): Promise<WebhookResult>;
   /** Estorno total da cobrança. Nunca lança por falha de rede: devolve `pending`. */
   refundOrder(input: RefundOrderInput): Promise<RefundOrderResult>;
+  /** Cancela no provedor as cobranças ainda pagáveis do pedido (ex.: PIX gerado). Nunca lança. */
+  cancelPendingCharges(order: OrderReference): Promise<CancelChargesResult>;
 }
 
 export function getPaymentProvider(): PaymentProvider {

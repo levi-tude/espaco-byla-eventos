@@ -11,6 +11,7 @@ import {
   readCart,
   writeCart,
 } from "@/lib/cart/browser-cart";
+import type { CheckoutResume } from "@/lib/cart/resume";
 import {
   fitSelection,
   MAX_PEOPLE_PER_ORDER,
@@ -20,7 +21,8 @@ import {
 import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
 import { useMounted } from "@/lib/use-mounted";
 
-import { startCheckout } from "./actions";
+import { findPendingOrder, startCheckout } from "./actions";
+import { PendingOrderBanner } from "./pending-order-banner";
 
 type TicketKind = CartKind;
 
@@ -37,6 +39,8 @@ type CheckoutFormProps = {
   ticketTypes: TicketType[];
   /** Lugares livres agora (descontando reservas); `null` se não foi possível consultar. */
   remaining: number | null;
+  /** Pedido anterior (`?retomar=`) que preenche a escolha e os dados. */
+  resume: CheckoutResume | null;
 };
 
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -73,6 +77,7 @@ function CheckoutFormFields({
   slug,
   ticketTypes,
   remaining: initialRemaining,
+  resume,
   restoreCart,
 }: CheckoutFormProps & { restoreCart: boolean }) {
   const kinds = ticketTypes.map(({ kind }) => kind);
@@ -80,24 +85,53 @@ function CheckoutFormFields({
   const capacityLeft = remaining ?? MAX_PEOPLE_PER_ORDER;
   const [initial] = useState(() => {
     const cart = restoreCart ? readCart(browserStorage(), slug) : null;
+    const cartToken = cart?.pendingOrderToken ?? null;
+    // Um pedido mais novo feito neste navegador vale mais que o link de retomada.
+    const preferCart = Boolean(cart && cartToken && cartToken !== resume?.publicToken);
+    const source = resume && !preferCart ? resume : null;
+    const requested = source?.quantities ?? cart?.quantities ?? EMPTY_QUANTITIES;
     const offered = Object.fromEntries(
       (Object.keys(EMPTY_QUANTITIES) as TicketKind[]).map((kind) => [
         kind,
-        kinds.includes(kind) ? (cart?.quantities[kind] ?? 0) : 0,
+        kinds.includes(kind) ? (requested[kind] ?? 0) : 0,
       ]),
     ) as Quantities;
+    // Pedido ainda reservado: os lugares dele não entram em "restantes"; mostra como está.
+    const quantities = source?.awaitingUntil
+      ? offered
+      : fitSelection(offered, kinds, capacityLeft);
+    const pendingToken = resume?.awaitingUntil
+      ? resume.publicToken
+      : cartToken && cartToken !== resume?.publicToken
+        ? cartToken
+        : null;
     return {
-      quantities: fitSelection(offered, kinds, capacityLeft),
-      buyer: cart
-        ? { name: cart.name, email: cart.email, phone: cart.phone }
-        : EMPTY_BUYER,
+      quantities,
+      buyer: source
+        ? source.buyer
+        : cart
+          ? { name: cart.name, email: cart.email, phone: cart.phone }
+          : EMPTY_BUYER,
+      adjusted:
+        source !== null &&
+        !source.awaitingUntil &&
+        (source.droppedItems ||
+          kinds.some((kind) => quantities[kind] !== source.quantities[kind])),
+      pendingToken,
+      pendingUntil: pendingToken && resume?.awaitingUntil ? resume.awaitingUntil : null,
     };
   });
   const [quantities, setQuantities] = useState<Quantities>(initial.quantities);
   const [buyer, setBuyer] = useState<Buyer>(initial.buyer);
+  const [pendingToken, setPendingToken] = useState(initial.pendingToken);
+  const [pendingUntil, setPendingUntil] = useState(initial.pendingUntil);
+  const [checkingPending, setCheckingPending] = useState(
+    restoreCart && initial.pendingToken !== null && initial.pendingUntil === null,
+  );
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const awaitingPayment = pendingToken !== null && pendingUntil !== null;
   const totalCents = ticketTypes.reduce(
     (sum, ticketType) =>
       sum + ticketType.priceCents * quantities[ticketType.kind],
@@ -118,8 +152,40 @@ function CheckoutFormFields({
 
   useEffect(() => {
     if (!restoreCart) return;
-    writeCart(browserStorage(), slug, { quantities, ...buyer });
-  }, [restoreCart, slug, quantities, buyer]);
+    writeCart(browserStorage(), slug, {
+      quantities,
+      ...buyer,
+      ...(pendingToken ? { pendingOrderToken: pendingToken } : {}),
+    });
+  }, [restoreCart, slug, quantities, buyer, pendingToken]);
+
+  // Voltar da tela de pagamento não cria outro pedido: o anterior é oferecido primeiro.
+  useEffect(() => {
+    if (!checkingPending || !pendingToken) return;
+    let active = true;
+    findPendingOrder(slug, pendingToken)
+      .then((found) => {
+        if (!active) return;
+        if (found.state === "awaiting_payment") setPendingUntil(found.expiresAt);
+        else setPendingToken(null);
+      })
+      .catch(() => {
+        // Sem resposta: segue sem o aviso; o pedido anterior vence sozinho.
+      })
+      .finally(() => {
+        if (active) setCheckingPending(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [checkingPending, pendingToken, slug]);
+
+  // Os lugares do pedido cancelado voltaram: recarrega a disponibilidade já preenchido.
+  function selectionChanged(checkoutPath: string) {
+    setPendingUntil(null);
+    setPendingToken(null);
+    router.replace(checkoutPath);
+  }
 
   function maxFor(kind: TicketKind, current: Quantities = quantities) {
     const selected = kinds.reduce((sum, item) => sum + current[item], 0);
@@ -147,6 +213,7 @@ function CheckoutFormFields({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (awaitingPayment || checkingPending) return;
     setError("");
     const data = new FormData(event.currentTarget);
 
@@ -170,6 +237,13 @@ function CheckoutFormFields({
           }
           return;
         }
+        // Gravado já, antes de sair da página: ao voltar, o pedido é reconhecido.
+        writeCart(browserStorage(), slug, {
+          quantities,
+          ...buyer,
+          pendingOrderToken: result.publicToken,
+        });
+        setPendingToken(result.publicToken);
         router.push(`/pedidos/${result.publicToken}`);
       } catch {
         setError("Não foi possível iniciar o pagamento. Tente novamente.");
@@ -184,7 +258,22 @@ function CheckoutFormFields({
 
   return (
     <form className="mt-8 grid gap-6" onSubmit={submit}>
-      <fieldset className="grid gap-3">
+      {pendingToken && pendingUntil ? (
+        <PendingOrderBanner
+          expiresAt={pendingUntil}
+          onChanged={selectionChanged}
+          publicToken={pendingToken}
+        />
+      ) : null}
+      {initial.adjusted ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+          role="status"
+        >
+          Alguns itens não estão mais disponíveis. Ajustamos sua seleção.
+        </p>
+      ) : null}
+      <fieldset className="grid gap-3" disabled={awaitingPayment}>
         <legend className="font-semibold text-foreground">
           Escolha seus ingressos
         </legend>
@@ -262,7 +351,7 @@ function CheckoutFormFields({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-4">
+      <fieldset className="grid gap-4" disabled={awaitingPayment}>
         <legend className="font-semibold text-foreground">Seus dados</legend>
         <label className="grid gap-1 text-sm text-byla-muted">
           Nome
@@ -346,11 +435,20 @@ function CheckoutFormFields({
       ) : null}
       <button
         className="min-h-12 rounded-lg bg-byla-blue px-4 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={pending || totalCents === 0}
+        disabled={pending || totalCents === 0 || awaitingPayment || checkingPending}
         type="submit"
       >
-        {pending ? "Reservando ingressos…" : "Continuar para o pagamento"}
+        {pending
+          ? "Reservando ingressos…"
+          : checkingPending
+            ? "Conferindo pedido anterior…"
+            : "Continuar para o pagamento"}
       </button>
+      {awaitingPayment ? (
+        <p className="-mt-3 text-center text-sm text-byla-muted">
+          Para mudar ingressos ou dados, toque em “Alterar seleção” acima.
+        </p>
+      ) : null}
     </form>
   );
 }

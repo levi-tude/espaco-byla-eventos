@@ -86,6 +86,42 @@ describe("carrinho no navegador", () => {
     expect(storage.data.size).toBe(0);
   });
 
+  it("guarda o pedido pendente criado a partir do carrinho", () => {
+    const storage = memoryStorage();
+    const token = "4f0c2a8e-1b2c-4d3e-9f00-112233445566";
+    writeCart(storage, "show", { ...cart, pendingOrderToken: token }, NOW);
+    expect(readCart(storage, "show", NOW)?.pendingOrderToken).toBe(token);
+  });
+
+  it("carrinho antigo (sem pedido) continua válido e token adulterado é ignorado", () => {
+    expect(parseCart(JSON.stringify({ v: 1, ...cart, updatedAt: NOW }), NOW)).not.toHaveProperty(
+      "pendingOrderToken",
+    );
+    const parsed = parseCart(
+      JSON.stringify({ v: 1, ...cart, pendingOrderToken: "../x?y", updatedAt: NOW }),
+      NOW,
+    );
+    expect(parsed).not.toBeNull();
+    expect(parsed).not.toHaveProperty("pendingOrderToken");
+  });
+
+  it("com pedido pendente, o carrinho não é apagado mesmo sem seleção", () => {
+    const storage = memoryStorage();
+    writeCart(
+      storage,
+      "show",
+      {
+        quantities: { inteira: 0, meia: 0 },
+        name: "",
+        email: "",
+        phone: "",
+        pendingOrderToken: "token-1",
+      },
+      NOW,
+    );
+    expect(readCart(storage, "show", NOW)?.pendingOrderToken).toBe("token-1");
+  });
+
   it("apaga ao confirmar o pagamento", () => {
     const storage = memoryStorage();
     writeCart(storage, "show", cart, NOW);

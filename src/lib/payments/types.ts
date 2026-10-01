@@ -63,3 +63,15 @@ export type OrderPaymentLookup =
   | ({ kind: "paid"; amountCents: number | null } & ProviderIds)
   | { kind: "pending_pix"; pix: PixData }
   | { kind: "none" };
+
+/**
+ * Resultado de encerrar as cobranças em aberto de um pedido antes de cancelá-lo.
+ * `paid`: já há pagamento aprovado (confirmar, não cancelar). `processing`: há
+ * pagamento em análise. `cleared`: nenhuma cobrança pode mais ser paga.
+ * `unavailable`: não foi possível consultar ou confirmar o cancelamento.
+ */
+export type CancelChargesResult =
+  | ({ kind: "paid"; amountCents: number | null } & ProviderIds)
+  | { kind: "processing" }
+  | { kind: "cleared" }
+  | { kind: "unavailable" };

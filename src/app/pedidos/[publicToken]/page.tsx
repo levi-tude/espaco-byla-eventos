@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
@@ -7,6 +8,7 @@ import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
 import { eventDateFormatter } from "@/lib/datetime";
 import { maskEmail } from "@/lib/domain/mask";
+import { resumeCheckoutPath } from "@/lib/domain/public-token";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -93,7 +95,7 @@ export default async function PedidoPage({
   const { data: order, error: orderError } = await admin
     .from("orders")
     .select(
-      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider",
+      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider, cancel_reason",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -165,9 +167,15 @@ export default async function PedidoPage({
                 Tempo esgotado
               </h2>
               <p className="mt-3 text-byla-muted">
-                A reserva deste pedido expirou. Volte ao evento e faça uma nova
-                compra.
+                A reserva deste pedido expirou. Você pode escolher de novo; seus
+                dados já vêm preenchidos.
               </p>
+              <Link
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-byla-blue px-5 py-3 font-semibold text-white transition hover:brightness-110"
+                href={resumeCheckoutPath(event.slug, publicToken)}
+              >
+                Escolher de novo com os mesmos dados
+              </Link>
             </section>
           ) : publicKey ? (
             <OrderPayment
@@ -269,6 +277,8 @@ export default async function PedidoPage({
   }
 
   if (order.status !== "pago") {
+    const changedByBuyer =
+      order.status === "cancelado" && order.cancel_reason === "alterado_pelo_comprador";
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
         <SiteHeader variant="equipe" />
@@ -283,8 +293,18 @@ export default async function PedidoPage({
               Ingressos indisponíveis
             </h1>
             <p className="mt-4 text-byla-muted">
-              Este pedido foi cancelado ou expirou.
+              {changedByBuyer
+                ? "Este pedido foi cancelado quando você alterou a seleção."
+                : "Este pedido foi cancelado ou expirou."}
             </p>
+            {changedByBuyer ? (
+              <Link
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-byla-blue px-5 py-3 font-semibold text-white transition hover:brightness-110"
+                href={resumeCheckoutPath(event.slug, publicToken)}
+              >
+                Escolher de novo com os mesmos dados
+              </Link>
+            ) : null}
           </section>
         </div>
       </main>

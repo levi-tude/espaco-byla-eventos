@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { classifyMercadoPagoOrder } from "./order-status";
 import type { PaymentProvider } from "./provider";
 import type {
+  CancelChargesResult,
   CreatePaymentInput,
   CreatePaymentResult,
   OrderPaymentLookup,
@@ -76,6 +77,16 @@ const REFUND_IN_PROGRESS_CODES = new Set([
   "idempotency_key_already_used",
 ]);
 const REFUND_FAILED_STATUSES = new Set(["failed", "rejected", "cancelled", "canceled"]);
+/** Orders que não podem mais ser pagas (a doc usa "canceled" e "cancelled"). */
+const CLOSED_ORDER_STATUSES = new Set([
+  "failed",
+  "canceled",
+  "cancelled",
+  "expired",
+  "refunded",
+  "charged_back",
+]);
+const CANCEL_TIMEOUT_MS = 10_000;
 
 const REJECTION_MESSAGES: Record<string, string> = {
   card_insufficient_amount:
@@ -212,30 +223,8 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   async findOrderPayment(order: OrderReference): Promise<OrderPaymentLookup> {
     if (!this.accessToken) return { kind: "none" };
 
-    const createdAt = Date.parse(order.createdAt);
-    const begin = new Date(
-      (Number.isFinite(createdAt) ? createdAt : Date.now()) - SEARCH_MARGIN_MS,
-    );
-    const end = new Date(Date.now() + SEARCH_MARGIN_MS);
-    const params = new URLSearchParams({
-      begin_date: begin.toISOString(),
-      end_date: end.toISOString(),
-      external_reference: order.id,
-      sort_by: "created_date",
-      sort_order: "desc",
-    });
-    const response = await this.request(
-      `${this.apiBaseUrl}/v1/orders?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${this.accessToken}` } },
-    );
-    if (!response.ok) return { kind: "none" };
-
-    const { data = [] } = (await response.json()) as {
-      data?: MercadoPagoOrder[];
-    };
-    const own = data.filter(
-      (found) => found.external_reference?.trim() === order.id,
-    );
+    const own = await this.searchOrders(order);
+    if (!own) return { kind: "none" };
 
     // A busca pode vir resumida (sem estornos e sem o pagamento): a order completa confirma.
     const summary = own.find((found) => classifyMercadoPagoOrder(found) === "paid");
@@ -382,6 +371,104 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     return { status: "rejected", code };
   }
 
+  async cancelPendingCharges(order: OrderReference): Promise<CancelChargesResult> {
+    if (!this.accessToken) return { kind: "unavailable" };
+
+    try {
+      const own = await this.searchOrders(order);
+      if (!own) return { kind: "unavailable" };
+
+      // Confere tudo antes de cancelar: pagamento aprovado ou em análise impede a troca.
+      const cancelable: string[] = [];
+      let processing = false;
+      for (const found of own) {
+        if (CLOSED_ORDER_STATUSES.has(found.status ?? "")) continue;
+        // A busca pode vir resumida; o estado vale pela order completa.
+        const full = found.id ? await this.fetchOrder(found.id) : null;
+        if (!full?.status) return { kind: "unavailable" };
+
+        const state = chargeState(full);
+        if (state === "paid") return paidCharge(full);
+        if (state === "processing") processing = true;
+        if (state === "cancelable") {
+          if (!full.id || !PROVIDER_ID_PATTERN.test(full.id)) return { kind: "unavailable" };
+          cancelable.push(full.id);
+        }
+      }
+      if (processing) return { kind: "processing" };
+
+      for (const providerOrderId of cancelable) {
+        const result = await this.cancelOrder(providerOrderId);
+        if (result.kind !== "cleared") return result;
+      }
+      return { kind: "cleared" };
+    } catch (error) {
+      console.warn("[pagamento] Falha ao encerrar cobranças do pedido.", {
+        error: error instanceof Error ? error.name : "desconhecido",
+      });
+      return { kind: "unavailable" };
+    }
+  }
+
+  /**
+   * `POST /v1/orders/{id}/cancel` só vale para `action_required`/`created`. Sem
+   * confirmação clara do cancelamento, a order é reconsultada: se já foi paga
+   * nesse meio-tempo, devolve `paid`; se ainda pode ser paga, `unavailable`.
+   */
+  private async cancelOrder(providerOrderId: string): Promise<CancelChargesResult> {
+    try {
+      const response = await this.request(
+        `${this.apiBaseUrl}/v1/orders/${encodeURIComponent(providerOrderId)}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": crypto.randomUUID(),
+          },
+          signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
+        },
+      );
+      if (response.ok) {
+        const body = (await response.json().catch(() => null)) as MercadoPagoOrder | null;
+        if (body?.status && chargeState(body) === "closed") return { kind: "cleared" };
+      }
+    } catch {
+      // Sem resposta: a reconsulta abaixo decide.
+    }
+
+    const current = await this.fetchOrder(providerOrderId).catch(() => null);
+    if (!current?.status) return { kind: "unavailable" };
+    const state = chargeState(current);
+    if (state === "paid") return paidCharge(current);
+    return state === "closed" ? { kind: "cleared" } : { kind: "unavailable" };
+  }
+
+  private async searchOrders(order: OrderReference): Promise<MercadoPagoOrder[] | null> {
+    const createdAt = Date.parse(order.createdAt);
+    const begin = new Date(
+      (Number.isFinite(createdAt) ? createdAt : Date.now()) - SEARCH_MARGIN_MS,
+    );
+    const end = new Date(Date.now() + SEARCH_MARGIN_MS);
+    const params = new URLSearchParams({
+      begin_date: begin.toISOString(),
+      end_date: end.toISOString(),
+      external_reference: order.id,
+      sort_by: "created_date",
+      sort_order: "desc",
+    });
+    const response = await this.request(
+      `${this.apiBaseUrl}/v1/orders?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
+    if (!response.ok) return null;
+
+    const { data = [] } = (await response.json()) as {
+      data?: MercadoPagoOrder[];
+    };
+    return data.filter((found) => found.external_reference?.trim() === order.id);
+  }
+
   private async fetchOrder(orderId: string): Promise<MercadoPagoOrder | null> {
     const response = await this.request(
       `${this.apiBaseUrl}/v1/orders/${encodeURIComponent(orderId)}`,
@@ -424,6 +511,23 @@ function rejectionReason(order: MercadoPagoOrder | null): string {
     }
   }
   return DEFAULT_REJECTION;
+}
+
+/**
+ * `cancelable`: PIX gerado ou order sem pagamento iniciado. `processing`: qualquer
+ * outro estado em aberto (ex.: cartão em análise) — não se cancela por aqui.
+ */
+function chargeState(order: MercadoPagoOrder): "paid" | "closed" | "cancelable" | "processing" {
+  const classification = classifyMercadoPagoOrder(order);
+  if (classification === "paid") return "paid";
+  if (classification === "refunded" || classification === "failed") return "closed";
+  if (CLOSED_ORDER_STATUSES.has(order.status ?? "")) return "closed";
+  if (classification === "pending_pix" || order.status === "created") return "cancelable";
+  return "processing";
+}
+
+function paidCharge(order: MercadoPagoOrder): CancelChargesResult {
+  return { kind: "paid", amountCents: amountCentsFromOrder(order), ...providerIdsFromOrder(order) };
 }
 
 function providerIdsFromOrder(order: MercadoPagoOrder): ProviderIds {
