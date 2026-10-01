@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
+import { assertStaff } from "@/lib/auth/staff";
 import { parseEventInputValue } from "@/lib/datetime";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
 import { createPublicToken } from "@/lib/domain/tickets";
+import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
+import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
+import { mediaObjectExists, removeMediaObjects } from "@/lib/media/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -19,6 +23,15 @@ export type EventInput = {
   halfPriceCents: number;
   coverImageUrl?: string | null;
 };
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 function normalizeInput(input: EventInput): EventInput {
   const normalized = {
@@ -51,12 +64,8 @@ function normalizeInput(input: EventInput): EventInput {
     throw new ActionError("Informe uma data e hora válidas.");
   }
 
-  if (normalized.coverImageUrl) {
-    try {
-      new URL(normalized.coverImageUrl);
-    } catch {
-      throw new ActionError("Informe uma URL válida para a capa.");
-    }
+  if (normalized.coverImageUrl && !isHttpUrl(normalized.coverImageUrl)) {
+    throw new ActionError("Informe uma URL válida para a capa.");
   }
 
   return { ...normalized, startsAt: startsAt.toISOString() };
@@ -99,10 +108,17 @@ function revalidateEventSurfaces(id: string, slug: string) {
   revalidatePath(`/eventos/${slug}`);
 }
 
-async function assertStaff(): Promise<void> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("is_staff");
-  if (error || !data) throw new ActionError("Acesso restrito à equipe.");
+function supabaseUrl(): string {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL!;
+}
+
+/** Capa do nosso armazenamento precisa ser de `covers/` e existir de fato. */
+async function assertCoverUploaded(coverImageUrl: string | null | undefined) {
+  if (!coverImageUrl || !isOwnMediaUrl(supabaseUrl(), coverImageUrl)) return;
+  const path = coverPathFromUrl(supabaseUrl(), coverImageUrl);
+  if (!path || !(await mediaObjectExists(path))) {
+    throw new ActionError(COVER_NOT_FOUND_MESSAGE);
+  }
 }
 
 export async function createEvent(
@@ -138,6 +154,7 @@ export async function cancelTicket(eventId: string, ticketId: string): Promise<A
 async function createEventOrThrow(input: EventInput): Promise<{ id: string }> {
   await assertStaff();
   const normalized = normalizeInput(input);
+  await assertCoverUploaded(normalized.coverImageUrl);
   const supabase = await createServerClient();
   const slug = await uniqueSlug(normalized.name);
 
@@ -194,7 +211,13 @@ async function createEventOrThrow(input: EventInput): Promise<{ id: string }> {
 async function updateEventOrThrow(id: string, input: EventInput): Promise<undefined> {
   const normalized = normalizeInput(input);
   await assertStaff();
+  await assertCoverUploaded(normalized.coverImageUrl);
   const admin = createAdminClient();
+  const { data: previous } = await admin
+    .from("events")
+    .select("cover_image_url")
+    .eq("id", id)
+    .maybeSingle();
   const { error: eventError } = await admin.rpc("update_event_with_capacity", {
     p_event_id: id,
     p_name: normalized.name,
@@ -214,6 +237,11 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
       );
     }
     throw new ActionError("Não foi possível salvar o evento.");
+  }
+
+  const previousCoverPath = coverPathFromUrl(supabaseUrl(), previous?.cover_image_url);
+  if (previousCoverPath && previous?.cover_image_url !== normalized.coverImageUrl) {
+    await removeMediaObjects([previousCoverPath]);
   }
 
   const slug = await getEventSlug(id);
