@@ -53,7 +53,11 @@ export function EventGalleryManager({ eventId, images }: EventGalleryManagerProp
     if (failed === 1) notes.push(lastError);
     if (failed > 1) notes.push(`${failed} fotos não foram enviadas. Tente de novo.`);
     if (skipped > 0) {
-      notes.push(`O limite é de ${MAX_GALLERY_IMAGES} fotos; ${skipped} ficaram de fora.`);
+      notes.push(
+        skipped === 1
+          ? `O limite é de ${MAX_GALLERY_IMAGES} fotos; 1 ficou de fora.`
+          : `O limite é de ${MAX_GALLERY_IMAGES} fotos; ${skipped} ficaram de fora.`,
+      );
     }
     setMessage(notes.join(" ") || null);
     router.refresh();
