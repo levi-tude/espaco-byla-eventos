@@ -9,6 +9,8 @@ import type {
   OrderReference,
   PixData,
   ProviderIds,
+  RefundOrderInput,
+  RefundOrderResult,
   WebhookResult,
 } from "./types";
 
@@ -54,6 +56,26 @@ const PIX_EXPIRATION = `PT${PIX_EXPIRATION_MINUTES}M`;
 /** Folga na busca por data para cobrir diferença de relógio entre servidores. */
 const SEARCH_MARGIN_MS = 10 * 60_000;
 const STATEMENT_DESCRIPTOR = "ESPACO BYLA";
+const REFUND_TIMEOUT_MS = 15_000;
+const PROVIDER_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+const ERROR_CODE_PATTERN = /^[a-z0-9_]{1,100}$/i;
+
+/**
+ * Recusas em que o estorno pode já ter acontecido (ex.: resposta anterior perdida):
+ * a order é reconsultada antes de decidir.
+ */
+const REFUND_RECHECK_CODES = new Set([
+  "order_already_refunded",
+  "cannot_refund_order",
+  "order_refund_already_in_process",
+  "idempotency_key_already_used",
+]);
+/** Se a reconsulta não mostrar estorno, estes códigos significam "ainda em andamento". */
+const REFUND_IN_PROGRESS_CODES = new Set([
+  "order_refund_already_in_process",
+  "idempotency_key_already_used",
+]);
+const REFUND_FAILED_STATUSES = new Set(["failed", "rejected", "cancelled", "canceled"]);
 
 const REJECTION_MESSAGES: Record<string, string> = {
   card_insufficient_amount:
@@ -290,7 +312,8 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     }
 
     // Recusa ou PIX expirado não cancelam o pedido: o comprador pode tentar de novo.
-    if (classifyMercadoPagoOrder(order) === "paid") {
+    const classification = classifyMercadoPagoOrder(order);
+    if (classification === "paid") {
       return {
         kind: "paid",
         externalId,
@@ -298,8 +321,65 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
         ...providerIdsFromOrder(order),
       };
     }
+    if (classification === "refunded") {
+      const { providerOrderId } = providerIdsFromOrder(order);
+      return { kind: "refunded", externalId, ...(providerOrderId ? { providerOrderId } : {}) };
+    }
 
     return { kind: "ignored", externalId };
+  }
+
+  async refundOrder({
+    providerOrderId,
+    idempotencyKey,
+  }: RefundOrderInput): Promise<RefundOrderResult> {
+    if (!this.accessToken) return { status: "rejected", code: "not_configured" };
+    if (!PROVIDER_ID_PATTERN.test(providerOrderId)) {
+      return { status: "rejected", code: "invalid_order_id" };
+    }
+    if (!idempotencyKey || idempotencyKey.length > 64) {
+      return { status: "rejected", code: "invalid_idempotency_key" };
+    }
+
+    let response: Response;
+    try {
+      // Corpo vazio = estorno total da order.
+      response = await this.request(
+        `${this.apiBaseUrl}/v1/orders/${encodeURIComponent(providerOrderId)}/refund`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": idempotencyKey,
+          },
+          signal: AbortSignal.timeout(REFUND_TIMEOUT_MS),
+        },
+      );
+    } catch (error) {
+      console.warn("[estorno] Sem resposta do Mercado Pago; estorno fica em processamento.", {
+        error: error instanceof Error ? error.name : "desconhecido",
+      });
+      return { status: "pending" };
+    }
+
+    const body = (await response.json().catch(() => null)) as MercadoPagoOrder | null;
+
+    if (response.ok) {
+      return refundResultFromOrder(body) ?? { status: "pending" };
+    }
+    if (response.status >= 500 || response.status === 408 || response.status === 429) {
+      return { status: "pending" };
+    }
+
+    const code = refundErrorCode(body, response.status);
+    if (REFUND_RECHECK_CODES.has(code)) {
+      const current = await this.fetchOrder(providerOrderId).catch(() => null);
+      const fromOrder = refundResultFromOrder(current);
+      if (fromOrder?.status === "refunded") return fromOrder;
+      if (REFUND_IN_PROGRESS_CODES.has(code)) return { status: "pending" };
+    }
+    return { status: "rejected", code };
   }
 
   private async fetchOrder(orderId: string): Promise<MercadoPagoOrder | null> {
@@ -354,6 +434,38 @@ function providerIdsFromOrder(order: MercadoPagoOrder): ProviderIds {
     ...(valid(order.id) ? { providerOrderId: order.id } : {}),
     ...(valid(paymentId) ? { providerPaymentId: paymentId } : {}),
   };
+}
+
+/**
+ * A doc mostra a order estornada como `processed/refunded` e como `refunded/refunded`;
+ * as duas (e reembolso `processed` na lista) contam como estornada. Sem estorno e
+ * sem recusa explícita, devolve `null` (resposta incerta).
+ */
+function refundResultFromOrder(order: MercadoPagoOrder | null): RefundOrderResult | null {
+  if (!order) return null;
+  const refunds = order.transactions?.refunds ?? [];
+  if (classifyMercadoPagoOrder(order) === "refunded") {
+    const done = refunds.find((refund) => refund?.status === "processed") ?? refunds[0];
+    const providerRefundId =
+      typeof done?.id === "string" && PROVIDER_ID_PATTERN.test(done.id) ? done.id : undefined;
+    return providerRefundId ? { status: "refunded", providerRefundId } : { status: "refunded" };
+  }
+  if (
+    refunds.length > 0 &&
+    refunds.every((refund) => REFUND_FAILED_STATUSES.has(refund?.status ?? ""))
+  ) {
+    return { status: "rejected", code: "refund_failed" };
+  }
+  return null;
+}
+
+function refundErrorCode(body: MercadoPagoOrder | null, httpStatus: number): string {
+  for (const candidate of [body?.errors?.[0]?.code, body?.error]) {
+    if (typeof candidate === "string" && ERROR_CODE_PATTERN.test(candidate)) {
+      return candidate.toLowerCase();
+    }
+  }
+  return `http_${httpStatus}`;
 }
 
 function amountCentsFromOrder(order: MercadoPagoOrder | null): number | null {

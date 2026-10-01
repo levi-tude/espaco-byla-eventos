@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 
 import { acceptPaidOrder } from "@/app/equipe/eventos/order-actions";
+import { RefundOrderButton } from "@/components/equipe/RefundOrderButton";
 import { eventDateFormatter } from "@/lib/datetime";
+import { refundBlock, refundBlockMessage } from "@/lib/domain/refund";
 import { decisionLabel } from "@/lib/domain/status";
 
 export type DecisionQueueItem = {
@@ -14,6 +16,10 @@ export type DecisionQueueItem = {
   paidAt: string | null;
   decisionReason: string | null;
   ticketCount: number;
+  paymentProvider: string | null;
+  hasCheckIn: boolean;
+  /** Ingressos que deixam de valer num estorno (ex.: "Inteira — Maria Souza"). */
+  ticketLabels: string[];
 };
 
 type Props = {
@@ -32,6 +38,15 @@ const dateFormatter = eventDateFormatter({ dateStyle: "short", timeStyle: "short
 
 function ticketsText(count: number) {
   return `${count} ${count === 1 ? "ingresso" : "ingressos"}`;
+}
+
+function refundBlockedMessage(order: DecisionQueueItem) {
+  const block = refundBlock({
+    paymentProvider: order.paymentProvider,
+    paidAt: order.paidAt,
+    hasCheckIn: order.hasCheckIn,
+  });
+  return block ? refundBlockMessage(block) : null;
 }
 
 export function DecisionQueue({ capacity, occupied, orders }: Props) {
@@ -83,8 +98,9 @@ export function DecisionQueue({ capacity, occupied, orders }: Props) {
         Precisa de decisão{orders.length > 0 ? ` (${orders.length})` : ""}
       </h2>
       <p className="mt-1 text-sm">
-        Estes pedidos foram pagos, mas os ingressos ainda não valem. Para
-        devolver o dinheiro, aguarde o botão “Estornar”, que chega em breve.
+        Estes pedidos foram pagos, mas os ingressos ainda não valem. Escolha
+        “Aceitar mesmo assim” para liberar os ingressos ou “Estornar” para
+        devolver 100% do valor.
       </p>
 
       <ul className="mt-4 grid gap-3 empty:hidden">
@@ -104,14 +120,27 @@ export function DecisionQueue({ capacity, occupied, orders }: Props) {
                 {decisionLabel(order.decisionReason)}
               </span>
             </div>
-            <button
-              className="min-h-11 rounded-lg bg-byla-blue px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-              disabled={isPending}
-              onClick={() => accept(order)}
-              type="button"
-            >
-              {isPending ? "Processando..." : "Aceitar mesmo assim"}
-            </button>
+            <div className="flex flex-wrap items-start gap-2">
+              <button
+                className="min-h-11 rounded-lg bg-byla-blue px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                disabled={isPending}
+                onClick={() => accept(order)}
+                type="button"
+              >
+                {isPending ? "Processando..." : "Aceitar mesmo assim"}
+              </button>
+              <RefundOrderButton
+                blockedMessage={refundBlockedMessage(order)}
+                label="Estornar"
+                onDone={setMessage}
+                order={{
+                  orderId: order.orderId,
+                  buyerName: order.buyerName,
+                  totalCents: order.totalCents,
+                  ticketLabels: order.ticketLabels,
+                }}
+              />
+            </div>
           </li>
         ))}
       </ul>

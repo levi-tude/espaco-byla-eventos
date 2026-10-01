@@ -7,12 +7,24 @@ import {
   cancelTicket,
   issueCourtesy,
 } from "@/app/equipe/eventos/actions";
+import {
+  RefundOrderButton,
+  type RefundOrderSummary,
+} from "@/components/equipe/RefundOrderButton";
 import { eventDateFormatter } from "@/lib/datetime";
+import {
+  COURTESY_PROVIDER,
+  refundBlock,
+  refundBlockMessage,
+} from "@/lib/domain/refund";
 import { decisionLabel } from "@/lib/domain/status";
 import type { Enums } from "@/types/database";
 
 export type TicketListItem = {
   id: string;
+  orderId: string;
+  orderTotalCents: number;
+  paymentProvider: string | null;
   buyerName: string;
   buyerEmail: string;
   kind: Enums<"ticket_kind">;
@@ -84,9 +96,37 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+type OrderRefundInfo = {
+  summary: RefundOrderSummary;
+  hasCheckIn: boolean;
+};
+
+/** Agrupa os ingressos por pedido: o estorno é sempre do pedido inteiro. */
+function groupOrders(tickets: TicketListItem[]): Map<string, OrderRefundInfo> {
+  const orders = new Map<string, OrderRefundInfo>();
+  for (const ticket of tickets) {
+    const info = orders.get(ticket.orderId) ?? {
+      summary: {
+        orderId: ticket.orderId,
+        buyerName: ticket.buyerName,
+        totalCents: ticket.orderTotalCents,
+        ticketLabels: [],
+      },
+      hasCheckIn: false,
+    };
+    if (ticket.status === "check_in") info.hasCheckIn = true;
+    if (ticket.status === "pago" || ticket.status === "nao_pago" || ticket.status === "cancelado") {
+      info.summary.ticketLabels.push(`${kindLabels[ticket.kind]} — ${ticket.buyerName}`);
+    }
+    orders.set(ticket.orderId, info);
+  }
+  return orders;
+}
+
 export function TicketList({ eventId, remaining, tickets }: Props) {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [listMessage, setListMessage] = useState("");
   const [lastTicketUrl, setLastTicketUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -98,6 +138,19 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
       ticket.buyerName.toLocaleLowerCase("pt-BR").includes(term),
     );
   }, [search, tickets]);
+
+  const orders = useMemo(() => groupOrders(tickets), [tickets]);
+  /** O botão de estorno aparece só na primeira linha visível de cada pedido. */
+  const firstRowOfOrder = useMemo(() => {
+    const seen = new Set<string>();
+    const first = new Set<string>();
+    for (const ticket of filteredTickets) {
+      if (seen.has(ticket.orderId)) continue;
+      seen.add(ticket.orderId);
+      first.add(ticket.id);
+    }
+    return first;
+  }, [filteredTickets]);
 
   const soldTickets = tickets.filter(
     ({ status }) => status === "pago" || status === "check_in",
@@ -144,19 +197,21 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
   function requestCancellation(ticket: TicketListItem) {
     if (
       !window.confirm(
-        `Tem certeza que deseja cancelar o ingresso de ${ticket.buyerName}?`,
+        `Tem certeza que deseja cancelar a cortesia de ${ticket.buyerName}?`,
       )
     ) {
       return;
     }
 
-    setMessage("");
+    setListMessage("");
     startTransition(async () => {
       try {
         const result = await cancelTicket(eventId, ticket.id);
-        setMessage(result.ok ? "Ingresso cancelado. A vaga foi liberada." : result.error);
+        setListMessage(
+          result.ok ? "Cortesia cancelada. A vaga foi liberada." : result.error,
+        );
       } catch {
-        setMessage("Não foi possível cancelar.");
+        setListMessage("Não foi possível cancelar.");
       }
     });
   }
@@ -250,6 +305,11 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
             <p className="mt-1 text-xs text-byla-muted">
               A lista atualiza sozinha a cada 30 segundos.
             </p>
+            {listMessage ? (
+              <p aria-live="polite" className="mt-2 text-sm font-medium">
+                {listMessage}
+              </p>
+            ) : null}
           </div>
           <label className="text-sm font-medium">
             Buscar por nome
@@ -314,32 +374,14 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                   <td className="px-3 py-4">{formatDate(ticket.paidAt)}</td>
                   <td className="px-3 py-4">{formatDate(ticket.checkedInAt)}</td>
                   <td className="px-3 py-4">
-                    <div className="flex flex-col gap-2">
-                      {ticket.status === "pago" ||
-                      ticket.status === "check_in" ? (
-                        <Link
-                          className="font-medium text-byla-blue hover:underline"
-                          href={`/pedidos/${ticket.publicToken}`}
-                          target="_blank"
-                        >
-                          Abrir ingresso
-                        </Link>
-                      ) : null}
-                      {ticket.status === "pago" ? (
-                        <button
-                          className="text-left font-medium text-red-700 disabled:opacity-50 dark:text-red-400"
-                          disabled={isPending}
-                          onClick={() => requestCancellation(ticket)}
-                          type="button"
-                        >
-                          Cancelar
-                        </button>
-                      ) : null}
-                      {ticket.status !== "pago" &&
-                      ticket.status !== "check_in" ? (
-                        <span>—</span>
-                      ) : null}
-                    </div>
+                    <TicketActions
+                      isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
+                      isPending={isPending}
+                      onCancel={() => requestCancellation(ticket)}
+                      onRefundDone={setListMessage}
+                      order={orders.get(ticket.orderId)}
+                      ticket={ticket}
+                    />
                   </td>
                 </tr>
               ))}
@@ -353,6 +395,69 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
         </div>
       </div>
     </section>
+  );
+}
+
+function TicketActions({
+  ticket,
+  order,
+  isFirstRowOfOrder,
+  isPending,
+  onCancel,
+  onRefundDone,
+}: {
+  ticket: TicketListItem;
+  order: OrderRefundInfo | undefined;
+  isFirstRowOfOrder: boolean;
+  isPending: boolean;
+  onCancel: () => void;
+  onRefundDone: (message: string) => void;
+}) {
+  const valid = ticket.status === "pago" || ticket.status === "check_in";
+  const isCourtesy =
+    ticket.kind === "cortesia" || ticket.paymentProvider === COURTESY_PROVIDER;
+  const canCancel = isCourtesy && ticket.status === "pago";
+  const showRefund =
+    !isCourtesy && ticket.orderStatus === "pago" && valid && isFirstRowOfOrder && order;
+  const block = order
+    ? refundBlock({
+        paymentProvider: ticket.paymentProvider,
+        paidAt: ticket.paidAt,
+        hasCheckIn: order.hasCheckIn,
+      })
+    : null;
+
+  if (!valid && !showRefund) return <span>—</span>;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {valid ? (
+        <Link
+          className="font-medium text-byla-blue hover:underline"
+          href={`/pedidos/${ticket.publicToken}`}
+          target="_blank"
+        >
+          Abrir ingresso
+        </Link>
+      ) : null}
+      {canCancel ? (
+        <button
+          className="text-left font-medium text-red-700 disabled:opacity-50 dark:text-red-400"
+          disabled={isPending}
+          onClick={onCancel}
+          type="button"
+        >
+          Cancelar cortesia
+        </button>
+      ) : null}
+      {showRefund ? (
+        <RefundOrderButton
+          blockedMessage={block ? refundBlockMessage(block) : null}
+          onDone={onRefundDone}
+          order={order.summary}
+        />
+      ) : null}
+    </div>
   );
 }
 

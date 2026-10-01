@@ -8,7 +8,10 @@ export type TeamAlertKind =
   | "confirmacao_falhou"
   | "email_nao_enviado"
   | "pago_sem_vaga"
-  | "pago_apos_cancelamento";
+  | "pago_apos_cancelamento"
+  | "estorno_falhou"
+  | "estorno_externo"
+  | "email_estorno_nao_enviado";
 
 const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   valor_divergente: "Pagamento com valor diferente do pedido",
@@ -16,6 +19,9 @@ const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   email_nao_enviado: "Pedido pago, mas o e-mail com os ingressos não saiu",
   pago_sem_vaga: "Pagamento recebido sem vaga no evento — decidir",
   pago_apos_cancelamento: "Pagamento recebido depois do cancelamento — decidir",
+  estorno_falhou: "Estorno recusado pelo Mercado Pago",
+  estorno_externo: "Estorno feito fora do site",
+  email_estorno_nao_enviado: "Pedido estornado, mas o e-mail ao comprador não saiu",
 };
 
 /** A página do pedido reconsulta o pagamento a cada poucos segundos: 1 alerta por pedido/tipo por dia. */

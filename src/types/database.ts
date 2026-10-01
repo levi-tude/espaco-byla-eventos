@@ -80,6 +80,65 @@ export type Database = {
           },
         ];
       };
+      order_refunds: {
+        Row: {
+          amount_cents: number;
+          completed_at: string | null;
+          created_at: string;
+          error_code: string | null;
+          id: string;
+          idempotency_key: string;
+          order_id: string;
+          previous_order_status: Database["public"]["Enums"]["order_status"];
+          previous_ticket_statuses: Json;
+          provider_refund_id: string | null;
+          reason: string;
+          requested_by: string | null;
+          requested_by_name: string | null;
+          status: Database["public"]["Enums"]["refund_status"];
+        };
+        Insert: {
+          amount_cents: number;
+          completed_at?: string | null;
+          created_at?: string;
+          error_code?: string | null;
+          id?: string;
+          idempotency_key: string;
+          order_id: string;
+          previous_order_status: Database["public"]["Enums"]["order_status"];
+          previous_ticket_statuses?: Json;
+          provider_refund_id?: string | null;
+          reason: string;
+          requested_by?: string | null;
+          requested_by_name?: string | null;
+          status?: Database["public"]["Enums"]["refund_status"];
+        };
+        Update: {
+          amount_cents?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          error_code?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          order_id?: string;
+          previous_order_status?: Database["public"]["Enums"]["order_status"];
+          previous_ticket_statuses?: Json;
+          provider_refund_id?: string | null;
+          reason?: string;
+          requested_by?: string | null;
+          requested_by_name?: string | null;
+          status?: Database["public"]["Enums"]["refund_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_refunds_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       orders: {
         Row: {
           buyer_email: string;
@@ -285,6 +344,32 @@ export type Database = {
     Functions: {
       accept_paid_order: {
         Args: { p_order_id: string; p_staff_user_id: string };
+        Returns: string;
+      };
+      begin_order_refund: {
+        Args: { p_order_id: string; p_reason: string; p_staff_user_id: string };
+        Returns: {
+          already_requested: boolean;
+          amount_cents: number;
+          idempotency_key: string;
+          provider_order_id: string | null;
+          refund_id: string;
+        }[];
+      };
+      complete_order_refund: {
+        Args: { p_provider_refund_id: string | null; p_refund_id: string };
+        Returns: string;
+      };
+      fail_order_refund: {
+        Args: { p_error_code: string; p_refund_id: string };
+        Returns: string;
+      };
+      sync_order_refunded: {
+        Args: {
+          p_external_id: string;
+          p_provider: string;
+          p_provider_order_id?: string | null;
+        };
         Returns: string;
       };
       cancel_order_by_external: {

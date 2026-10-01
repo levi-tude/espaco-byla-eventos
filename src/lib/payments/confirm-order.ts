@@ -25,7 +25,7 @@ function formatCents(cents: number | null | undefined): string {
 const SETTLED_STATUSES = new Set(["pago", "estornado", "aguardando_decisao"]);
 
 const DECIDE_HINT =
-  "Use “Aceitar mesmo assim” no painel do evento para liberar os ingressos. Para devolver o dinheiro, aguarde o botão “Estornar”.";
+  "No painel do evento, use “Aceitar mesmo assim” para liberar os ingressos ou “Estornar” para devolver o dinheiro.";
 
 const DECISION_ALERTS: Partial<
   Record<PaidOrderOutcome, { kind: TeamAlertKind; details: string }>

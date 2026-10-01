@@ -4,6 +4,8 @@ import type {
   CreatePaymentResult,
   OrderPaymentLookup,
   OrderReference,
+  RefundOrderInput,
+  RefundOrderResult,
   WebhookResult,
 } from "./types";
 
@@ -13,6 +15,8 @@ export interface PaymentProvider {
   /** Consulta o provedor pelo pedido (fallback quando o webhook não chega). */
   findOrderPayment(order: OrderReference): Promise<OrderPaymentLookup>;
   parseWebhook(req: Request): Promise<WebhookResult>;
+  /** Estorno total da cobrança. Nunca lança por falha de rede: devolve `pending`. */
+  refundOrder(input: RefundOrderInput): Promise<RefundOrderResult>;
 }
 
 export function getPaymentProvider(): PaymentProvider {

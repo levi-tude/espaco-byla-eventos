@@ -223,6 +223,51 @@ export default async function PedidoPage({
     );
   }
 
+  if (order.status === "estornado") {
+    const { data: refund } = await admin
+      .from("order_refunds")
+      .select("status, amount_cents, created_at, completed_at")
+      .eq("order_id", order.id)
+      .in("status", ["solicitado", "concluido"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const done = refund?.status !== "solicitado";
+    const when = refund?.completed_at ?? refund?.created_at ?? null;
+    const amount = moneyFormatter.format((refund?.amount_cents ?? order.total_cents) / 100);
+
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
+        <SiteHeader variant="equipe" />
+        <div className="pt-4">
+          <TicketPageNav
+            backHref={backNav.backHref}
+            backLabel={backNav.backLabel}
+            eventSlug={event.slug}
+          />
+          <section
+            className="w-full rounded-2xl border border-byla-border bg-byla-surface p-8 text-center"
+            role="status"
+          >
+            <h1 className="font-display text-4xl tracking-wide text-foreground">
+              {done ? "Pedido estornado" : "Estorno em andamento"}
+            </h1>
+            <p className="mt-4 text-foreground">
+              {done ? "Pedido estornado" : "Estorno solicitado"}
+              {when ? ` em ${dateFormatter.format(new Date(when))}` : ""}.{" "}
+              {done
+                ? `O valor de ${amount} foi devolvido para o meio de pagamento usado.`
+                : `O valor de ${amount} está sendo devolvido para o meio de pagamento usado.`}
+            </p>
+            <p className="mt-3 text-byla-muted">
+              Os ingressos deste pedido não são mais válidos.
+            </p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   if (order.status !== "pago") {
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">

@@ -40,8 +40,24 @@ export type CreatePaymentResult =
 
 export type WebhookResult =
   | ({ kind: "paid"; externalId: string; amountCents: number | null } & ProviderIds)
+  | { kind: "refunded"; externalId: string; providerOrderId?: string }
   | { kind: "ignored"; externalId?: string }
   | { kind: "invalid_signature" };
+
+export type RefundOrderInput = {
+  providerOrderId: string;
+  /** Chave guardada no banco: a mesma em toda nova tentativa do mesmo estorno. */
+  idempotencyKey: string;
+};
+
+/**
+ * `pending`: resposta incerta (rede, 5xx, estorno em processamento); tentar de novo
+ * com a mesma chave. `rejected`: recusa definitiva, com o código do provedor.
+ */
+export type RefundOrderResult =
+  | { status: "refunded"; providerRefundId?: string }
+  | { status: "pending" }
+  | { status: "rejected"; code: string };
 
 export type OrderPaymentLookup =
   | ({ kind: "paid"; amountCents: number | null } & ProviderIds)

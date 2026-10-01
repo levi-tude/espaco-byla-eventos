@@ -316,13 +316,16 @@ async function cancelTicketOrThrow(eventId: string, ticketId: string): Promise<u
     })
     .eq("id", ticketId)
     .eq("event_id", eventId)
+    .eq("kind", "cortesia")
     .eq("status", "pago")
     .select("id")
     .maybeSingle();
 
   if (error) throw new ActionError("Não foi possível cancelar o ingresso.");
   if (!ticket) {
-    throw new ActionError("Somente ingressos pagos e sem check-in podem ser cancelados.");
+    throw new ActionError(
+      "Só cortesias sem check-in podem ser canceladas. Ingresso pago se resolve com “Estornar pedido”.",
+    );
   }
 
   const slug = await getEventSlug(eventId);

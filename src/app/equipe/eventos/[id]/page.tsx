@@ -5,11 +5,13 @@ import { AutoRefresh } from "@/components/equipe/AutoRefresh";
 import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
+import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { TicketList } from "@/components/equipe/TicketList";
 import { salesState } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { isRecentlyPaid } from "@/lib/domain/status";
 import { loadEventGallery } from "@/lib/media/gallery";
+import { ticketKindLabels } from "@/lib/tickets/qr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -32,6 +34,7 @@ export default async function EventoEquipePage({
     { count: sold },
     { data: tickets },
     { data: decisionOrders },
+    { data: refunds },
   ] = await Promise.all([
     supabase.rpc("is_staff"),
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
@@ -47,18 +50,25 @@ export default async function EventoEquipePage({
     supabase
       .from("tickets")
       .select(
-        "id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at, public_token, status, decision_reason)",
+        "id, order_id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
       )
       .eq("event_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("orders")
       .select(
-        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, tickets(id)",
+        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, payment_provider, tickets(id, kind, buyer_name, status)",
       )
       .eq("event_id", id)
       .eq("status", "aguardando_decisao")
       .order("paid_at", { ascending: true }),
+    supabase
+      .from("order_refunds")
+      .select(
+        "id, order_id, status, amount_cents, reason, requested_by_name, created_at, completed_at, error_code, orders!inner(event_id, buyer_name)",
+      )
+      .eq("orders.event_id", id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!isStaff || !event) notFound();
@@ -131,7 +141,30 @@ export default async function EventoEquipePage({
           paidAt: order.paid_at,
           decisionReason: order.decision_reason,
           ticketCount: order.tickets.length,
+          paymentProvider: order.payment_provider,
+          hasCheckIn: order.tickets.some(({ status }) => status === "check_in"),
+          ticketLabels: order.tickets.map(
+            (ticket) => `${ticketKindLabels[ticket.kind]} — ${ticket.buyer_name}`,
+          ),
         }))}
+      />
+
+      <RefundHistory
+        refunds={(refunds ?? []).map((refund) => {
+          const order = Array.isArray(refund.orders) ? refund.orders[0] : refund.orders;
+          return {
+            id: refund.id,
+            orderId: refund.order_id,
+            buyerName: order?.buyer_name ?? "—",
+            amountCents: refund.amount_cents,
+            status: refund.status,
+            reason: refund.reason,
+            requestedByName: refund.requested_by_name,
+            createdAt: refund.created_at,
+            completedAt: refund.completed_at,
+            errorCode: refund.error_code,
+          };
+        })}
       />
 
       <dl className="my-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -177,6 +210,9 @@ export default async function EventoEquipePage({
             : ticket.orders;
           return {
             id: ticket.id,
+            orderId: ticket.order_id,
+            orderTotalCents: order.total_cents,
+            paymentProvider: order.payment_provider,
             buyerName: ticket.buyer_name,
             buyerEmail: order.buyer_email,
             kind: ticket.kind,

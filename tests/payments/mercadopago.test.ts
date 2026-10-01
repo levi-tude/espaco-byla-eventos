@@ -419,7 +419,11 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
   it.each([
     ["processed/refunded", { status: "processed", status_detail: "refunded" }],
     ["refunded/refunded", { status: "refunded", status_detail: "refunded" }],
-  ])("não trata order estornada (%s) como paga", async (_caso, state) => {
+    [
+      "processed com reembolso processado",
+      { status: "processed", transactions: { refunds: [{ id: "REF1", status: "processed" }] } },
+    ],
+  ])("aviso de order estornada (%s) vira estorno, nunca pagamento", async (_caso, state) => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({ id: "ORD8", external_reference: orderId, total_amount: "0.01", ...state }),
     );
@@ -429,8 +433,9 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
     );
 
     await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
-      kind: "ignored",
+      kind: "refunded",
       externalId: orderId,
+      providerOrderId: "ORD8",
     });
   });
 
@@ -445,6 +450,187 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
     await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "ignored",
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("MercadoPagoPaymentProvider.refundOrder", () => {
+  const refundInput = {
+    providerOrderId: "ORD01J49MMW3SSBK5PSV3DFR32959",
+    idempotencyKey: "00000000-0000-4000-8000-0000000000aa",
+  };
+  const refundUrl =
+    "https://api.mercadopago.com/v1/orders/ORD01J49MMW3SSBK5PSV3DFR32959/refund";
+
+  it("pede estorno total: corpo vazio e chave de idempotência vinda do banco", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          id: "ORD01J49MMW3SSBK5PSV3DFR32959",
+          status: "processed",
+          status_detail: "refunded",
+          transactions: {
+            refunds: [{ id: "REF01J49MMW3SSBK5PSV3DFR32959", status: "processed" }],
+          },
+        },
+        201,
+      ),
+    );
+
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "refunded",
+      providerRefundId: "REF01J49MMW3SSBK5PSV3DFR32959",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(refundUrl);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Idempotency-Key"]).toBe(refundInput.idempotencyKey);
+    expect(headers.Authorization).toBe("Bearer APP_USR-TOKEN");
+  });
+
+  it("repetir a chamada reusa exatamente a mesma chave", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ status: "refunded", status_detail: "refunded" }, 201));
+    const provider = makeProvider(fetchMock);
+    await provider.refundOrder(refundInput);
+    await provider.refundOrder(refundInput);
+    const keys = fetchMock.mock.calls.map(
+      (call) => ((call as [string, RequestInit])[1].headers as Record<string, string>)[
+        "X-Idempotency-Key"
+      ],
+    );
+    expect(keys).toEqual([refundInput.idempotencyKey, refundInput.idempotencyKey]);
+  });
+
+  it.each([
+    ["processed/refunded", { status: "processed", status_detail: "refunded" }],
+    ["refunded/refunded", { status: "refunded", status_detail: "refunded" }],
+    [
+      "reembolso processado na lista",
+      { status: "processed", transactions: { refunds: [{ id: "REF9", status: "processed" }] } },
+    ],
+  ])("aceita os dois formatos de estorno concluído (%s)", async (_caso, body) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body, 201));
+    const result = await makeProvider(fetchMock).refundOrder(refundInput);
+    expect(result.status).toBe("refunded");
+  });
+
+  it("201 sem estorno concluído fica em processamento", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        { status: "processed", transactions: { refunds: [{ id: "REF2", status: "in_process" }] } },
+        201,
+      ),
+    );
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "pending",
+    });
+  });
+
+  it("201 com reembolso recusado é recusa definitiva", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        { status: "processed", transactions: { refunds: [{ id: "REF3", status: "failed" }] } },
+        201,
+      ),
+    );
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "rejected",
+      code: "refund_failed",
+    });
+  });
+
+  it.each([
+    [428, "insufficient_money_for_refund"],
+    [400, "refund_amount_exceeds"],
+    [409, "refund_period_exceeded"],
+  ])("recusa %s (%s) devolve o código, sem tentar de novo", async (status, code) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ errors: [{ code, message: "recusado" }] }, status));
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "rejected",
+      code,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([500, 503, 429])("HTTP %s fica em processamento (tentar de novo com a mesma chave)", async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, status));
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "pending",
+    });
+  });
+
+  it("falha de rede ou tempo esgotado fica em processamento", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException("timeout", "TimeoutError"));
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "pending",
+    });
+  });
+
+  it("'já estornada' confere a order: se está estornada, conclui", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ errors: [{ code: "order_already_refunded" }] }, 409))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: refundInput.providerOrderId,
+          status: "refunded",
+          status_detail: "refunded",
+          transactions: { refunds: [{ id: "REF4", status: "processed" }] },
+        }),
+      );
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "refunded",
+      providerRefundId: "REF4",
+    });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `https://api.mercadopago.com/v1/orders/${refundInput.providerOrderId}`,
+    );
+  });
+
+  it("'não pode estornar' com a order ainda paga é recusa", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ errors: [{ code: "cannot_refund_order" }] }, 409))
+      .mockResolvedValueOnce(jsonResponse({ id: "ORD1", status: "action_required" }));
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "rejected",
+      code: "cannot_refund_order",
+    });
+  });
+
+  it("estorno já em andamento fica em processamento", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ errors: [{ code: "order_refund_already_in_process" }] }, 400),
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: "ORD1", status: "processed" }));
+    await expect(makeProvider(fetchMock).refundOrder(refundInput)).resolves.toEqual({
+      status: "pending",
+    });
+  });
+
+  it("sem credencial ou com ID inválido recusa sem chamar a API", async () => {
+    const fetchMock = vi.fn();
+    const noToken = new MercadoPagoPaymentProvider({
+      accessToken: "",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    await expect(noToken.refundOrder(refundInput)).resolves.toEqual({
+      status: "rejected",
+      code: "not_configured",
+    });
+    await expect(
+      makeProvider(fetchMock).refundOrder({ ...refundInput, providerOrderId: "../x" }),
+    ).resolves.toEqual({ status: "rejected", code: "invalid_order_id" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

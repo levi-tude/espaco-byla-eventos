@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
+import { syncOrderRefunded } from "@/lib/payments/refund";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function handleWebhook(request: Request) {
@@ -11,6 +12,15 @@ async function handleWebhook(request: Request) {
   if (result.kind === "invalid_signature") {
     console.warn("[pagamento] Aviso de pagamento com assinatura inválida recusado.");
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
+  if (result.kind === "refunded") {
+    const outcome = await syncOrderRefunded(
+      createAdminClient(),
+      result.externalId,
+      provider.name,
+      result.providerOrderId,
+    );
+    return NextResponse.json({ received: true, outcome });
   }
   if (result.kind !== "paid") {
     return NextResponse.json({ received: true });
