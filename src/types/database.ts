@@ -51,6 +51,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      event_images: {
+        Row: {
+          created_at: string;
+          event_id: string;
+          id: string;
+          storage_path: string;
+        };
+        Insert: {
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          storage_path: string;
+        };
+        Update: {
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          storage_path?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_images_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       orders: {
         Row: {
           buyer_email: string;
