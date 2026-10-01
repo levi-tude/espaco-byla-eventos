@@ -70,7 +70,7 @@ export default async function EventoPublicoPage({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               alt={`Capa de ${event.name}`}
-              className="max-h-[28rem] w-full object-cover"
+              className="aspect-video w-full object-cover"
               src={event.cover_image_url}
             />
           ) : (

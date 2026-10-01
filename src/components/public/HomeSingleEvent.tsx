@@ -74,11 +74,11 @@ export function HomeSingleEvent({ event }: { event: EventCard }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               alt=""
-              className="aspect-[16/9] w-full object-cover sm:aspect-[21/9]"
+              className="aspect-video w-full object-cover"
               src={event.coverImageUrl}
             />
           ) : (
-            <div className="aspect-[16/9] bg-gradient-to-br from-byla-navy to-byla-blue/80 sm:aspect-[21/9]" />
+            <div className="aspect-video bg-gradient-to-br from-byla-navy to-byla-blue/80" />
           )}
           <div className="p-6 sm:p-10">
             <h1 className="font-display text-5xl tracking-wide text-foreground sm:text-6xl">

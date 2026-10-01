@@ -79,11 +79,11 @@ export default async function Home() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       alt=""
-                      className="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-[1.02] sm:aspect-video"
+                      className="aspect-video w-full object-cover transition duration-500 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                       src={event.cover_image_url}
                     />
                   ) : (
-                    <div className="aspect-[4/5] bg-gradient-to-br from-byla-navy to-black sm:aspect-video" />
+                    <div className="aspect-video bg-gradient-to-br from-byla-navy to-black" />
                   )}
                   <div className="p-5">
                     <h2 className="font-display text-2xl tracking-wide text-foreground">
