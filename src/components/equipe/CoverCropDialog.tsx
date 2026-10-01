@@ -54,6 +54,7 @@ export function CoverCropDialog({ src, onCancel, onConfirm }: CoverCropDialogPro
             image={src}
             maxZoom={MAX_ZOOM}
             minZoom={1}
+            objectFit="cover"
             onCropChange={setCrop}
             onCropComplete={(_area, pixels) => setArea(pixels)}
             onZoomChange={setZoom}
