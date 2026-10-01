@@ -51,6 +51,7 @@ describe("MercadoPagoPaymentProvider.createPayment", () => {
     await expect(makeProvider(fetchMock).createPayment(cardInput)).resolves.toEqual({
       status: "approved",
       paymentId: "ORD1",
+      providerOrderId: "ORD1",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -223,6 +224,7 @@ describe("MercadoPagoPaymentProvider.findOrderPayment", () => {
     await expect(makeProvider(fetchMock).findOrderPayment(orderRef)).resolves.toEqual({
       kind: "paid",
       amountCents: 2500,
+      providerOrderId: "ORD4",
     });
 
     const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
@@ -230,6 +232,56 @@ describe("MercadoPagoPaymentProvider.findOrderPayment", () => {
     expect(url.searchParams.get("external_reference")).toBe(orderId);
     expect(url.searchParams.get("begin_date")).toBe("2026-09-30T14:50:00.000Z");
     expect(Date.parse(url.searchParams.get("end_date")!)).toBeGreaterThan(Date.now());
+  });
+
+  it("confirma na order completa e devolve os IDs da order e do pagamento", async () => {
+    const summary = {
+      id: "ORD4",
+      status: "processed",
+      external_reference: orderId,
+      total_amount: "25.00",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ data: [summary] }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...summary,
+          status_detail: "accredited",
+          total_paid_amount: "25.00",
+          transactions: { payments: [{ id: "PAY01", status: "processed" }] },
+        }),
+      );
+
+    await expect(makeProvider(fetchMock).findOrderPayment(orderRef)).resolves.toEqual({
+      kind: "paid",
+      amountCents: 2500,
+      providerOrderId: "ORD4",
+      providerPaymentId: "PAY01",
+    });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.mercadopago.com/v1/orders/ORD4");
+  });
+
+  it("não considera paga a order que a consulta completa mostra estornada", async () => {
+    const summary = {
+      id: "ORD4",
+      status: "processed",
+      external_reference: orderId,
+      total_amount: "25.00",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ data: [summary] }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...summary,
+          transactions: { refunds: [{ id: "REF01", status: "processed" }] },
+        }),
+      );
+
+    await expect(makeProvider(fetchMock).findOrderPayment(orderRef)).resolves.toEqual({
+      kind: "none",
+    });
   });
 
   it("recupera PIX pendente consultando a order completa quando a busca vem sem QR", async () => {
@@ -359,8 +411,27 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
       kind: "paid",
       externalId: orderId,
       amountCents: 1,
+      providerOrderId: "ORD8",
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.mercadopago.com/v1/orders/ORD8");
+  });
+
+  it.each([
+    ["processed/refunded", { status: "processed", status_detail: "refunded" }],
+    ["refunded/refunded", { status: "refunded", status_detail: "refunded" }],
+  ])("não trata order estornada (%s) como paga", async (_caso, state) => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ id: "ORD8", external_reference: orderId, total_amount: "0.01", ...state }),
+    );
+    const request = new Request(
+      "https://eventos.example/api/payments/webhook?data.id=ORD8&type=order",
+      { method: "POST", body: JSON.stringify({ type: "order", data: { id: "ORD8" } }) },
+    );
+
+    await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
+      kind: "ignored",
+      externalId: orderId,
+    });
   });
 
   it("ignora avisos que não são de order sem consultar a API", async () => {
@@ -432,7 +503,12 @@ describe("MercadoPagoPaymentProvider.parseWebhook com chave secreta", () => {
     );
     await expect(
       makeSignedProvider(fetchMock).parseWebhook(signedRequest(`ts=${ts},v1=${validV1}`)),
-    ).resolves.toEqual({ kind: "paid", externalId: orderId, amountCents: 1000 });
+    ).resolves.toEqual({
+      kind: "paid",
+      externalId: orderId,
+      amountCents: 1000,
+      providerOrderId: "ORD01ABC",
+    });
   });
 
   it.each([

@@ -65,6 +65,16 @@ describe("alertTeam", () => {
     expect(body.text).toContain("https://site.example/equipe");
   });
 
+  it.each([
+    ["pago_sem_vaga", "sem vaga"],
+    ["pago_apos_cancelamento", "depois do cancelamento"],
+  ] as const)("alerta %s tem assunto claro", async (kind, subject) => {
+    await alertTeam(admin, kind, orderId, "detalhes");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toContain(subject);
+    expect(body.subject).toContain("decidir");
+  });
+
   it("manda no máximo um alerta por pedido e tipo no período", async () => {
     mocks.consumeRateLimit.mockResolvedValue(false);
     await alertTeam(admin, "valor_divergente", orderId, "detalhes");

@@ -8,6 +8,7 @@ import {
   issueCourtesy,
 } from "@/app/equipe/eventos/actions";
 import { eventDateFormatter } from "@/lib/datetime";
+import { decisionLabel } from "@/lib/domain/status";
 import type { Enums } from "@/types/database";
 
 export type TicketListItem = {
@@ -16,6 +17,8 @@ export type TicketListItem = {
   buyerEmail: string;
   kind: Enums<"ticket_kind">;
   status: Enums<"ticket_status">;
+  orderStatus: Enums<"order_status">;
+  decisionReason: string | null;
   priceCents: number;
   paidAt: string | null;
   /** Pago nas últimas 24 h (calculado no servidor). */
@@ -41,6 +44,7 @@ const statusLabels: Record<Enums<"ticket_status">, string> = {
   pago: "Pago",
   cancelado: "Cancelado",
   check_in: "Check-in",
+  estornado: "Estornado",
 };
 
 const statusBadgeClasses: Record<Enums<"ticket_status">, string> = {
@@ -49,7 +53,22 @@ const statusBadgeClasses: Record<Enums<"ticket_status">, string> = {
     "border-sky-600/40 bg-sky-500/15 text-sky-800 dark:border-sky-400/40 dark:text-sky-300",
   nao_pago: "border-byla-border bg-byla-overlay text-byla-muted",
   cancelado: "border-byla-border bg-byla-overlay text-byla-muted",
+  estornado: "border-byla-border bg-byla-overlay text-byla-muted line-through",
 };
+
+const decisionBadgeClass =
+  "border-amber-600/40 bg-amber-500/15 text-amber-800 dark:border-amber-400/40 dark:text-amber-300";
+
+/** Pedido aguardando decisão aparece pelo estado do pedido, não do ingresso (ainda não pago). */
+function statusBadge(ticket: TicketListItem) {
+  if (ticket.orderStatus === "aguardando_decisao") {
+    return { label: decisionLabel(ticket.decisionReason), className: decisionBadgeClass };
+  }
+  return {
+    label: statusLabels[ticket.status],
+    className: statusBadgeClasses[ticket.status],
+  };
+}
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -275,9 +294,9 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                   <td className="px-3 py-4">
                     <span className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClasses[ticket.status]}`}
+                        className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadge(ticket).className}`}
                       >
-                        {statusLabels[ticket.status]}
+                        {statusBadge(ticket).label}
                       </span>
                       {ticket.recentlyPaid ? (
                         <span

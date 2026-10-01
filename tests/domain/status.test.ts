@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canEnter, countsTowardCapacity, isRecentlyPaid } from "@/lib/domain/status";
+import {
+  canEnter,
+  countsTowardCapacity,
+  decisionLabel,
+  isRecentlyPaid,
+} from "@/lib/domain/status";
 
 describe("status", () => {
   it("só pago pode entrar", () => {
@@ -7,13 +12,23 @@ describe("status", () => {
     expect(canEnter("nao_pago")).toBe(false);
     expect(canEnter("cancelado")).toBe(false);
     expect(canEnter("check_in")).toBe(false);
+    expect(canEnter("estornado")).toBe(false);
   });
 
-  it("pago e cortesia-check_in contam capacidade; nao_pago e cancelado não", () => {
+  it("pago e cortesia-check_in contam capacidade; nao_pago, cancelado e estornado não", () => {
     expect(countsTowardCapacity("pago")).toBe(true);
     expect(countsTowardCapacity("check_in")).toBe(true);
     expect(countsTowardCapacity("nao_pago")).toBe(false);
     expect(countsTowardCapacity("cancelado")).toBe(false);
+    expect(countsTowardCapacity("estornado")).toBe(false);
+  });
+
+  it("texto do pedido aguardando decisão segue o motivo", () => {
+    expect(decisionLabel("sem_vaga")).toBe("Pago sem vaga — decidir");
+    expect(decisionLabel("pago_apos_cancelamento")).toBe(
+      "Pago após cancelamento — decidir",
+    );
+    expect(decisionLabel(null)).toBe("Pago sem vaga — decidir");
   });
 
   it("selo 'Novo' só para pagamento nas últimas 24 h", () => {

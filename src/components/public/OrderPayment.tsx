@@ -9,9 +9,23 @@ import {
   payOrder,
   type PaymentSubmission,
 } from "@/app/pedidos/[publicToken]/actions";
+import { eventDateFormatter } from "@/lib/datetime";
 import type { PixData } from "@/lib/payments/types";
 
 const POLL_INTERVAL_MS = 4000;
+
+const timeFormatter = eventDateFormatter({ timeStyle: "short" });
+
+function ReservationNotice({ expiresAt }: { expiresAt: string | null }) {
+  const time = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  if (!Number.isFinite(time)) return null;
+  return (
+    <p className="text-sm text-byla-muted">
+      Reserva válida até{" "}
+      <strong className="text-foreground">{timeFormatter.format(new Date(time))}</strong>
+    </p>
+  );
+}
 
 type BrickFormData = {
   payment_method_id?: string;
@@ -41,15 +55,19 @@ export function OrderPayment({
   amountCents,
   buyerEmail,
   initialPix,
+  reservationExpiresAt,
 }: {
   publicKey: string;
   publicToken: string;
   amountCents: number;
   buyerEmail: string;
   initialPix: PixData | null;
+  /** Fim da reserva; ao gerar o PIX ela passa a acompanhar o vencimento dele. */
+  reservationExpiresAt: string | null;
 }) {
   const router = useRouter();
   const [pix, setPix] = useState<PixData | null>(initialPix);
+  const [holdExpiresAt, setHoldExpiresAt] = useState(reservationExpiresAt);
   const [message, setMessage] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [brickKey, setBrickKey] = useState(0);
@@ -125,6 +143,7 @@ export function OrderPayment({
     }
     if (result.status === "pix") {
       setPix(result.pix);
+      if (result.holdExpiresAt) setHoldExpiresAt(result.holdExpiresAt);
       return;
     }
     if (result.status === "processing") {
@@ -158,6 +177,9 @@ export function OrderPayment({
           Abra o app do seu banco, escolha PIX e escaneie o código ou use o
           “copia e cola”.
         </p>
+        <div className="mt-2">
+          <ReservationNotice expiresAt={holdExpiresAt} />
+        </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt="QR Code PIX"
@@ -204,6 +226,7 @@ export function OrderPayment({
       <p aria-live="polite" className="sr-only">
         {confirmed ? "Pagamento confirmado! Abrindo seus ingressos…" : ""}
       </p>
+      <ReservationNotice expiresAt={holdExpiresAt} />
       {message ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           {message}

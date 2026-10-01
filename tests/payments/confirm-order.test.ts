@@ -17,7 +17,7 @@ vi.mock("@/lib/alerts/team-alert", () => ({
   alertTeam: mocks.alertTeam,
 }));
 
-import { confirmOrderPaid } from "@/lib/payments/confirm-order";
+import { confirmOrderPaid, sendOrderTicketsEmail } from "@/lib/payments/confirm-order";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
 
 const orderId = "00000000-0000-4000-8000-000000000010";
@@ -44,6 +44,7 @@ function fakeAdmin(rows: Record<string, Row>) {
 
 const paidOrderRows = {
   orders: {
+    status: "pendente",
     total_cents: 5000,
     buyer_email: "comprador@example.com",
     buyer_name: "Comprador Teste",
@@ -54,9 +55,9 @@ const paidOrderRows = {
   tickets: [{ code: "codigo-1", buyer_name: "Comprador Teste", kind: "inteira" }],
 };
 
-function adminWithOrderTotal(totalCents: number | null) {
+function adminWithOrder(totalCents: number | null, status = "pendente") {
   return fakeAdmin({
-    orders: totalCents === null ? null : { total_cents: totalCents },
+    orders: totalCents === null ? null : { status, total_cents: totalCents },
   });
 }
 
@@ -67,13 +68,25 @@ describe("confirmOrderPaid confere o valor pago", () => {
   });
 
   it("confirma quando o valor pago é igual ao total do pedido", async () => {
-    await confirmOrderPaid(adminWithOrderTotal(5000), orderId, "mercadopago", 5000);
+    await confirmOrderPaid(adminWithOrder(5000), orderId, "mercadopago", 5000);
     expect(mocks.markOrderPaidIfPending).toHaveBeenCalledWith(
       expect.anything(),
       orderId,
       "mercadopago",
+      {},
     );
     expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("repassa os IDs do Mercado Pago", async () => {
+    const ids = { providerOrderId: "ORD01", providerPaymentId: "PAY01" };
+    await confirmOrderPaid(adminWithOrder(5000), orderId, "mercadopago", 5000, ids);
+    expect(mocks.markOrderPaidIfPending).toHaveBeenCalledWith(
+      expect.anything(),
+      orderId,
+      "mercadopago",
+      ids,
+    );
   });
 
   it.each([
@@ -82,7 +95,7 @@ describe("confirmOrderPaid confere o valor pago", () => {
     ["valor desconhecido", null],
   ])("não marca como pago com %s e avisa a equipe", async (_caso, paid) => {
     await expect(
-      confirmOrderPaid(adminWithOrderTotal(5000), orderId, "mercadopago", paid),
+      confirmOrderPaid(adminWithOrder(5000), orderId, "mercadopago", paid),
     ).rejects.toThrow("Valor pago não confere");
     expect(mocks.markOrderPaidIfPending).not.toHaveBeenCalled();
     expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
@@ -94,9 +107,30 @@ describe("confirmOrderPaid confere o valor pago", () => {
     );
   });
 
+  it.each(["expirado", "cancelado", "status_desconhecido"])(
+    "confere o valor quando o pedido está %s",
+    async (status) => {
+      await expect(
+        confirmOrderPaid(adminWithOrder(5000, status), orderId, "mercadopago", 100),
+      ).rejects.toThrow("Valor pago não confere");
+      expect(mocks.markOrderPaidIfPending).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["pago", "estornado", "aguardando_decisao"])(
+    "não compara valor nem dá alerta falso quando o pedido já está %s",
+    async (status) => {
+      await expect(
+        confirmOrderPaid(adminWithOrder(5000, status), orderId, "mercadopago", null),
+      ).resolves.toBe("noop");
+      expect(mocks.alertTeam).not.toHaveBeenCalled();
+      expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
+    },
+  );
+
   it("não marca como pago se o pedido não existe", async () => {
     await expect(
-      confirmOrderPaid(adminWithOrderTotal(null), orderId, "mercadopago", 5000),
+      confirmOrderPaid(adminWithOrder(null), orderId, "mercadopago", 5000),
     ).rejects.toThrow("Valor pago não confere");
     expect(mocks.markOrderPaidIfPending).not.toHaveBeenCalled();
   });
@@ -119,18 +153,44 @@ describe("confirmOrderPaid avisa a equipe quando algo falha", () => {
 
   it("avisa quando o pagamento chega mas o ingresso não é liberado", async () => {
     mocks.markOrderPaidIfPending.mockRejectedValue(
-      new Error("Pagamento recebido após a capacidade esgotar."),
+      new Error("Não foi possível confirmar o pagamento do pedido."),
     );
     await expect(
       confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000),
-    ).rejects.toThrow("capacidade esgotar");
+    ).rejects.toThrow("Não foi possível confirmar");
     expect(mocks.alertTeam).toHaveBeenCalledWith(
       expect.anything(),
       "confirmacao_falhou",
       orderId,
-      expect.stringContaining("capacidade esgotar"),
+      expect.stringContaining("Não foi possível confirmar"),
     );
   });
+
+  it.each([
+    ["needs_decision_capacity", "pago_sem_vaga", "Pago sem vaga — decidir"],
+    [
+      "needs_decision_cancelled",
+      "pago_apos_cancelamento",
+      "Pago após cancelamento — decidir",
+    ],
+  ])(
+    "%s avisa a equipe e não envia ingressos",
+    async (outcome, kind, label) => {
+      mocks.markOrderPaidIfPending.mockResolvedValue(outcome);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      await expect(
+        confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000),
+      ).resolves.toBe(outcome);
+      expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
+      expect(mocks.alertTeam).toHaveBeenCalledTimes(1);
+      expect(mocks.alertTeam).toHaveBeenCalledWith(
+        expect.anything(),
+        kind,
+        orderId,
+        expect.stringContaining(label),
+      );
+    },
+  );
 
   it.each([
     ["failed", "recusou ou falhou"],
@@ -153,5 +213,31 @@ describe("confirmOrderPaid avisa a equipe quando algo falha", () => {
     await confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000);
     expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
     expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendOrderTicketsEmail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("devolve true quando o e-mail sai", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await expect(sendOrderTicketsEmail(fakeAdmin(paidOrderRows), orderId)).resolves.toBe(true);
+    expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("devolve false e avisa a equipe quando não há ingressos pagos", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      sendOrderTicketsEmail(fakeAdmin({ ...paidOrderRows, tickets: [] }), orderId),
+    ).resolves.toBe(false);
+    expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
+    expect(mocks.alertTeam).toHaveBeenCalledWith(
+      expect.anything(),
+      "email_nao_enviado",
+      orderId,
+      expect.stringContaining("ingressos não encontrados"),
+    );
   });
 });

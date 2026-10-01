@@ -85,15 +85,22 @@ export type Database = {
           buyer_email: string;
           buyer_name: string;
           buyer_phone: string | null;
+          cancel_reason: string | null;
           created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          decision_reason: string | null;
           event_id: string;
           expires_at: string | null;
+          hold_extended_at: string | null;
           id: string;
           paid_at: string | null;
           payment_external_id: string | null;
           payment_provider: string | null;
           privacy_accepted_at: string | null;
           privacy_policy_version: string | null;
+          provider_order_id: string | null;
+          provider_payment_id: string | null;
           public_token: string;
           status: Database["public"]["Enums"]["order_status"];
           total_cents: number;
@@ -102,15 +109,22 @@ export type Database = {
           buyer_email: string;
           buyer_name: string;
           buyer_phone?: string | null;
+          cancel_reason?: string | null;
           created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_reason?: string | null;
           event_id: string;
           expires_at?: string | null;
+          hold_extended_at?: string | null;
           id?: string;
           paid_at?: string | null;
           payment_external_id?: string | null;
           payment_provider?: string | null;
           privacy_accepted_at?: string | null;
           privacy_policy_version?: string | null;
+          provider_order_id?: string | null;
+          provider_payment_id?: string | null;
           public_token: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents: number;
@@ -119,15 +133,22 @@ export type Database = {
           buyer_email?: string;
           buyer_name?: string;
           buyer_phone?: string | null;
+          cancel_reason?: string | null;
           created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_reason?: string | null;
           event_id?: string;
           expires_at?: string | null;
+          hold_extended_at?: string | null;
           id?: string;
           paid_at?: string | null;
           payment_external_id?: string | null;
           payment_provider?: string | null;
           privacy_accepted_at?: string | null;
           privacy_policy_version?: string | null;
+          provider_order_id?: string | null;
+          provider_payment_id?: string | null;
           public_token?: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents?: number;
@@ -262,8 +283,16 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      accept_paid_order: {
+        Args: { p_order_id: string; p_staff_user_id: string };
+        Returns: string;
+      };
       cancel_order_by_external: {
         Args: { p_external_id: string; p_provider: string };
+        Returns: string;
+      };
+      cancel_pending_order: {
+        Args: { p_order_id: string; p_reason: string };
         Returns: string;
       };
       consume_rate_limit: {
@@ -296,6 +325,10 @@ export type Database = {
         Args: { p_event_id: string; p_exclude_order_id?: string | null };
         Returns: number;
       };
+      extend_order_hold_for_pix: {
+        Args: { p_order_id: string; p_pix_expires_at: string };
+        Returns: string | null;
+      };
       issue_courtesy_ticket: {
         Args: {
           p_buyer_email: string;
@@ -310,7 +343,12 @@ export type Database = {
         Returns: boolean;
       };
       mark_order_paid_by_external: {
-        Args: { p_external_id: string; p_provider: string };
+        Args: {
+          p_external_id: string;
+          p_provider: string;
+          p_provider_order_id?: string | null;
+          p_provider_payment_id?: string | null;
+        };
         Returns: string;
       };
       purge_rate_limit_hits: {
@@ -333,9 +371,16 @@ export type Database = {
       };
     };
     Enums: {
-      order_status: "pendente" | "pago" | "cancelado" | "expirado";
+      order_status:
+        | "pendente"
+        | "pago"
+        | "cancelado"
+        | "expirado"
+        | "estornado"
+        | "aguardando_decisao";
+      refund_status: "solicitado" | "concluido" | "falhou";
       ticket_kind: "inteira" | "meia" | "cortesia";
-      ticket_status: "nao_pago" | "pago" | "cancelado" | "check_in";
+      ticket_status: "nao_pago" | "pago" | "cancelado" | "check_in" | "estornado";
     };
     CompositeTypes: Record<string, never>;
   };

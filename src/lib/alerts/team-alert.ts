@@ -6,12 +6,16 @@ import { consumeRateLimit, type RateLimitRule } from "@/lib/security/rate-limit"
 export type TeamAlertKind =
   | "valor_divergente"
   | "confirmacao_falhou"
-  | "email_nao_enviado";
+  | "email_nao_enviado"
+  | "pago_sem_vaga"
+  | "pago_apos_cancelamento";
 
 const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   valor_divergente: "Pagamento com valor diferente do pedido",
   confirmacao_falhou: "Pagamento recebido, mas o ingresso não foi liberado",
   email_nao_enviado: "Pedido pago, mas o e-mail com os ingressos não saiu",
+  pago_sem_vaga: "Pagamento recebido sem vaga no evento — decidir",
+  pago_apos_cancelamento: "Pagamento recebido depois do cancelamento — decidir",
 };
 
 /** A página do pedido reconsulta o pagamento a cada poucos segundos: 1 alerta por pedido/tipo por dia. */

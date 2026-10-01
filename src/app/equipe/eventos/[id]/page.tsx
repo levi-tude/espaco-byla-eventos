@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/equipe/AutoRefresh";
+import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { TicketList } from "@/components/equipe/TicketList";
@@ -30,6 +31,7 @@ export default async function EventoEquipePage({
     { data: ticketTypes },
     { count: sold },
     { data: tickets },
+    { data: decisionOrders },
   ] = await Promise.all([
     supabase.rpc("is_staff"),
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
@@ -45,10 +47,18 @@ export default async function EventoEquipePage({
     supabase
       .from("tickets")
       .select(
-        "id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at, public_token)",
+        "id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at, public_token, status, decision_reason)",
       )
       .eq("event_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("orders")
+      .select(
+        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, tickets(id)",
+      )
+      .eq("event_id", id)
+      .eq("status", "aguardando_decisao")
+      .order("paid_at", { ascending: true }),
   ]);
 
   if (!isStaff || !event) notFound();
@@ -110,6 +120,20 @@ export default async function EventoEquipePage({
         </Link>
       </div>
 
+      <DecisionQueue
+        capacity={event.capacity}
+        occupied={availability ? availability.sold + availability.held : null}
+        orders={(decisionOrders ?? []).map((order) => ({
+          orderId: order.id,
+          buyerName: order.buyer_name,
+          buyerEmail: order.buyer_email,
+          totalCents: order.total_cents,
+          paidAt: order.paid_at,
+          decisionReason: order.decision_reason,
+          ticketCount: order.tickets.length,
+        }))}
+      />
+
       <dl className="my-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {cards.map((card) => (
           <div
@@ -157,10 +181,13 @@ export default async function EventoEquipePage({
             buyerEmail: order.buyer_email,
             kind: ticket.kind,
             status: ticket.status,
+            orderStatus: order.status,
+            decisionReason: order.decision_reason,
             priceCents: ticket.price_cents,
             paidAt: order.paid_at,
             recentlyPaid:
               ticket.kind !== "cortesia" &&
+              order.status === "pago" &&
               (ticket.status === "pago" || ticket.status === "check_in") &&
               isRecentlyPaid(order.paid_at),
             checkedInAt: ticket.checked_in_at,

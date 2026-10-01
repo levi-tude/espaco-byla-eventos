@@ -8,6 +8,7 @@ import { TicketQr } from "@/components/public/TicketQr";
 import { eventDateFormatter } from "@/lib/datetime";
 import { maskEmail } from "@/lib/domain/mask";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
+import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import type { OrderReference, PixData } from "@/lib/payments/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -69,7 +70,7 @@ async function lookupPendingPayment(
   try {
     const existing = await provider.findOrderPayment(order);
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
+      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents, existing);
       return { paid: true, pix: null };
     }
     return {
@@ -101,13 +102,24 @@ export default async function PedidoPage({
   if (!order) notFound();
 
   let initialPix: PixData | null = null;
-  if (order.status === "pendente") {
+  if (order.status === "pendente" || order.status === "expirado") {
     const pending = await lookupPendingPayment(admin, {
       id: order.id,
       createdAt: order.created_at,
     });
-    if (pending.paid) order.status = "pago";
-    initialPix = pending.pix;
+    if (pending.paid) {
+      // Sem vaga, o pagamento deixa o pedido aguardando a equipe: o status vem do banco.
+      const { data: updated } = await admin
+        .from("orders")
+        .select("status")
+        .eq("id", order.id)
+        .maybeSingle();
+      order.status = updated?.status ?? order.status;
+    } else if (order.status === "pendente" && pending.pix) {
+      initialPix = pending.pix;
+      order.expires_at =
+        (await extendHoldForPix(admin, order.id, pending.pix)) ?? order.expires_at;
+    }
   }
 
   const { data: event, error: eventError } = await admin
@@ -120,9 +132,11 @@ export default async function PedidoPage({
 
   const backNav = await resolveStaffBackNav(order.event_id, event.slug);
 
-  if (order.status === "pendente") {
+  if (order.status === "pendente" || order.status === "expirado") {
     const publicKey = process.env.MERCADOPAGO_PUBLIC_KEY;
-    const expired = !initialPix && isReservationExpired(order.expires_at);
+    const expired =
+      order.status === "expirado" ||
+      (!initialPix && isReservationExpired(order.expires_at));
 
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
@@ -162,6 +176,7 @@ export default async function PedidoPage({
               initialPix={initialPix}
               publicKey={publicKey}
               publicToken={publicToken}
+              reservationExpiresAt={order.expires_at}
             />
           ) : (
             <p className="rounded-lg border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
@@ -169,6 +184,40 @@ export default async function PedidoPage({
               no ambiente.
             </p>
           )}
+        </div>
+      </main>
+    );
+  }
+
+  if (order.status === "aguardando_decisao") {
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
+        <SiteHeader variant="equipe" />
+        <div className="pt-4">
+          <TicketPageNav
+            backHref={backNav.backHref}
+            backLabel={backNav.backLabel}
+            eventSlug={event.slug}
+          />
+          <section
+            className="w-full rounded-2xl border border-amber-600/40 bg-amber-50 p-8 text-center text-amber-950 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-50"
+            role="status"
+          >
+            <h1 className="font-display text-4xl tracking-wide">
+              Pagamento recebido
+            </h1>
+            <p className="mt-4">
+              Seu pagamento de{" "}
+              <strong>{moneyFormatter.format(order.total_cents / 100)}</strong>{" "}
+              chegou, mas precisa ser conferido pela nossa equipe antes de os
+              ingressos serem liberados.
+            </p>
+            <p className="mt-3">
+              Se os ingressos forem liberados, você recebe os QR Codes por
+              e-mail em <strong>{maskEmail(order.buyer_email)}</strong>. Se não
+              houver lugar, o valor será devolvido.
+            </p>
+          </section>
         </div>
       </main>
     );

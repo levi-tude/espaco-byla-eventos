@@ -1,12 +1,13 @@
 import "server-only";
 
-import { alertTeam } from "@/lib/alerts/team-alert";
+import { alertTeam, type TeamAlertKind } from "@/lib/alerts/team-alert";
 import {
   markOrderPaidIfPending,
   type PaidOrderOutcome,
   type SupabaseAdmin,
 } from "@/lib/domain/orders";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
+import type { ProviderIds } from "@/lib/payments/types";
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -18,38 +19,64 @@ function formatCents(cents: number | null | undefined): string {
 }
 
 /**
+ * Pedidos em que um novo aviso de pagamento não muda o estado: não há o que
+ * conferir e um alerta de valor seria falso (ex.: aviso repetido ou após estorno).
+ */
+const SETTLED_STATUSES = new Set(["pago", "estornado", "aguardando_decisao"]);
+
+const DECIDE_HINT =
+  "Use “Aceitar mesmo assim” no painel do evento para liberar os ingressos. Para devolver o dinheiro, aguarde o botão “Estornar”.";
+
+const DECISION_ALERTS: Partial<
+  Record<PaidOrderOutcome, { kind: TeamAlertKind; details: string }>
+> = {
+  needs_decision_capacity: {
+    kind: "pago_sem_vaga",
+    details: `Os lugares do evento acabaram antes de o pagamento ser confirmado. O pedido está em “Pago sem vaga — decidir” e os ingressos ainda não valem. ${DECIDE_HINT}`,
+  },
+  needs_decision_cancelled: {
+    kind: "pago_apos_cancelamento",
+    details: `O pagamento chegou depois de o pedido ter sido cancelado. O pedido está em “Pago após cancelamento — decidir” e os ingressos ainda não valem. ${DECIDE_HINT}`,
+  },
+};
+
+/**
  * Marca o pedido como pago e envia os ingressos por e-mail na primeira confirmação.
- * Só confirma se o valor pago no provedor for exatamente o total do pedido.
+ * Quando o pagamento muda o pedido, só confirma se o valor pago no provedor for
+ * exatamente o total do pedido. Sem vaga (ou pedido cancelado) não libera ingresso:
+ * o pedido fica para a equipe decidir e ela é avisada.
  */
 export async function confirmOrderPaid(
   admin: SupabaseAdmin,
   orderId: string,
   providerName: string,
   paidAmountCents: number | null,
+  ids: ProviderIds = {},
 ): Promise<PaidOrderOutcome> {
-  const { data: expected } = await admin
+  const { data: current } = await admin
     .from("orders")
-    .select("total_cents")
+    .select("status, total_cents")
     .eq("id", orderId)
     .maybeSingle();
-  if (!expected || paidAmountCents !== expected.total_cents) {
+  const settled = current ? SETTLED_STATUSES.has(current.status) : false;
+  if (!settled && (!current || paidAmountCents !== current.total_cents)) {
     console.error("[pagamento] Valor pago não confere com o pedido.", {
       orderId,
       paidAmountCents,
-      expectedCents: expected?.total_cents ?? null,
+      expectedCents: current?.total_cents ?? null,
     });
     await alertTeam(
       admin,
       "valor_divergente",
       orderId,
-      `Valor pago: ${formatCents(paidAmountCents)} · Valor do pedido: ${formatCents(expected?.total_cents)}. O pedido NÃO foi marcado como pago.`,
+      `Valor pago: ${formatCents(paidAmountCents)} · Valor do pedido: ${formatCents(current?.total_cents)}. O pedido NÃO foi marcado como pago.`,
     );
     throw new Error("Valor pago não confere com o pedido; confirmação bloqueada.");
   }
 
   let outcome: PaidOrderOutcome;
   try {
-    outcome = await markOrderPaidIfPending(admin, orderId, providerName);
+    outcome = await markOrderPaidIfPending(admin, orderId, providerName, ids);
   } catch (error) {
     await alertTeam(
       admin,
@@ -59,15 +86,39 @@ export async function confirmOrderPaid(
     );
     throw error;
   }
+
+  const decision = DECISION_ALERTS[outcome];
+  if (decision) {
+    console.warn("[pagamento] Pagamento recebido aguardando decisão da equipe.", {
+      orderId,
+      outcome,
+    });
+    await alertTeam(admin, decision.kind, orderId, decision.details);
+    return outcome;
+  }
   if (outcome === "noop") return outcome;
 
-  const emailNotSent = (reason: string) =>
-    alertTeam(
+  await sendOrderTicketsEmail(admin, orderId);
+  return outcome;
+}
+
+/**
+ * Envia ao comprador o e-mail com os ingressos pagos do pedido. Em qualquer falha
+ * avisa a equipe e devolve `false`; nunca lança.
+ */
+export async function sendOrderTicketsEmail(
+  admin: SupabaseAdmin,
+  orderId: string,
+): Promise<boolean> {
+  const emailNotSent = async (reason: string) => {
+    await alertTeam(
       admin,
       "email_nao_enviado",
       orderId,
       `Motivo: ${reason}. Os ingressos estão pagos e válidos; envie o link do pedido ao comprador.`,
     );
+    return false;
+  };
 
   const { data: order, error: orderError } = await admin
     .from("orders")
@@ -79,8 +130,7 @@ export async function confirmOrderPaid(
     console.error(
       "[email] Pedido pago, mas os dados para envio não foram encontrados.",
     );
-    await emailNotSent("dados do pedido não encontrados");
-    return outcome;
+    return emailNotSent("dados do pedido não encontrados");
   }
 
   const [eventResult, ticketsResult] = await Promise.all([
@@ -101,16 +151,14 @@ export async function confirmOrderPaid(
     console.error(
       "[email] Pedido pago, mas o evento para envio não foi encontrado.",
     );
-    await emailNotSent("evento não encontrado");
-    return outcome;
+    return emailNotSent("evento não encontrado");
   }
 
   if (ticketsResult.error || !ticketsResult.data?.length) {
     console.error(
       "[email] Pedido pago, mas os ingressos para envio não foram encontrados.",
     );
-    await emailNotSent("ingressos não encontrados");
-    return outcome;
+    return emailNotSent("ingressos não encontrados");
   }
 
   const event = eventResult.data;
@@ -130,12 +178,12 @@ export async function confirmOrderPaid(
   });
 
   if (emailResult !== "sent") {
-    await emailNotSent(
+    return emailNotSent(
       emailResult === "skipped"
         ? "envio de e-mail não configurado"
         : "o serviço de e-mail recusou ou falhou",
     );
   }
 
-  return outcome;
+  return true;
 }

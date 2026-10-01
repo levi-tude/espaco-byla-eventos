@@ -1,6 +1,8 @@
 "use server";
 
+import type { PaidOrderOutcome } from "@/lib/domain/orders";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
+import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import type { CardPaymentType, PixData } from "@/lib/payments/types";
 import { BOT_BLOCKED_MESSAGE, isBotRequest } from "@/lib/security/bot";
@@ -23,7 +25,7 @@ export type PaymentSubmission = {
 
 export type PayOrderResult =
   | { status: "paid" }
-  | { status: "pix"; pix: PixData }
+  | { status: "pix"; pix: PixData; holdExpiresAt: string | null }
   | { status: "processing" }
   | { status: "rejected"; message: string }
   | { status: "unavailable"; message: string };
@@ -33,6 +35,12 @@ export type OrderPaymentStatus = "paid" | "pending" | "unavailable";
 const GENERIC_FAILURE =
   "Não foi possível processar o pagamento agora. Tente novamente em instantes.";
 
+const AWAITING_DECISION_MESSAGE =
+  "Recebemos seu pagamento. Nossa equipe vai conferir o pedido e avisar você por e-mail.";
+
+const PIX_ALREADY_USED_MESSAGE =
+  "O PIX deste pedido venceu. Pague com cartão ou faça uma nova compra.";
+
 async function loadOrder(publicToken: string) {
   if (typeof publicToken !== "string" || !publicToken || publicToken.length > 100) {
     return null;
@@ -40,7 +48,9 @@ async function loadOrder(publicToken: string) {
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("id, event_id, status, total_cents, buyer_email, expires_at, created_at")
+    .select(
+      "id, event_id, status, total_cents, buyer_email, expires_at, created_at, hold_extended_at",
+    )
     .eq("public_token", publicToken)
     .maybeSingle();
   return order ? { admin, order } : null;
@@ -48,6 +58,18 @@ async function loadOrder(publicToken: string) {
 
 function isExpired(expiresAt: string | null) {
   return expiresAt !== null && Date.parse(expiresAt) <= Date.now();
+}
+
+function needsDecision(outcome: PaidOrderOutcome) {
+  return (
+    outcome === "needs_decision_capacity" || outcome === "needs_decision_cancelled"
+  );
+}
+
+function paidResult(outcome: PaidOrderOutcome): PayOrderResult {
+  return needsDecision(outcome)
+    ? { status: "unavailable", message: AWAITING_DECISION_MESSAGE }
+    : { status: "paid" };
 }
 
 function sanitizeSubmission(raw: PaymentSubmission, fallbackEmail: string) {
@@ -107,6 +129,9 @@ export async function payOrder(
   const { admin, order } = loaded;
 
   if (order.status === "pago") return { status: "paid" };
+  if (order.status === "aguardando_decisao") {
+    return { status: "unavailable", message: AWAITING_DECISION_MESSAGE };
+  }
   if (order.status !== "pendente") {
     return {
       status: "unavailable",
@@ -129,11 +154,13 @@ export async function payOrder(
       createdAt: order.created_at,
     });
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
-      return { status: "paid" };
+      return paidResult(
+        await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents, existing),
+      );
     }
     if (existing.kind === "pending_pix" && payment.paymentMethodId === "pix") {
-      return { status: "pix", pix: existing.pix };
+      const holdExpiresAt = await extendHoldForPix(admin, order.id, existing.pix);
+      return { status: "pix", pix: existing.pix, holdExpiresAt };
     }
 
     if (isExpired(order.expires_at)) {
@@ -141,6 +168,10 @@ export async function payOrder(
         status: "unavailable",
         message: "O tempo para pagar este pedido acabou. Faça uma nova compra.",
       };
+    }
+    // A reserva só acompanha um PIX; vencido, não se gera outro.
+    if (payment.paymentMethodId === "pix" && order.hold_extended_at) {
+      return { status: "rejected", message: PIX_ALREADY_USED_MESSAGE };
     }
 
     const withinLimits =
@@ -162,13 +193,17 @@ export async function payOrder(
     });
 
     if (result.status === "approved") {
-      await confirmOrderPaid(admin, order.id, provider.name, order.total_cents);
-      return { status: "paid" };
+      return paidResult(
+        await confirmOrderPaid(admin, order.id, provider.name, order.total_cents, {
+          providerOrderId: result.providerOrderId ?? result.paymentId,
+          providerPaymentId: result.providerPaymentId,
+        }),
+      );
     }
     if (result.status === "pending") {
-      return result.pix
-        ? { status: "pix", pix: result.pix }
-        : { status: "processing" };
+      if (!result.pix) return { status: "processing" };
+      const holdExpiresAt = await extendHoldForPix(admin, order.id, result.pix);
+      return { status: "pix", pix: result.pix, holdExpiresAt };
     }
     return { status: "rejected", message: result.reason };
   } catch (error) {
@@ -187,7 +222,7 @@ export async function checkOrderPayment(
   const { admin, order } = loaded;
 
   if (order.status === "pago") return "paid";
-  if (order.status !== "pendente") return "unavailable";
+  if (order.status !== "pendente" && order.status !== "expirado") return "unavailable";
 
   const provider = getPaymentProvider();
   try {
@@ -196,11 +231,17 @@ export async function checkOrderPayment(
       createdAt: order.created_at,
     });
     if (existing.kind === "paid") {
-      await confirmOrderPaid(admin, order.id, provider.name, existing.amountCents);
-      return "paid";
+      const outcome = await confirmOrderPaid(
+        admin,
+        order.id,
+        provider.name,
+        existing.amountCents,
+        existing,
+      );
+      return needsDecision(outcome) ? "unavailable" : "paid";
     }
   } catch (error) {
     console.error("[pagamento] Falha ao consultar pagamento.", error);
   }
-  return "pending";
+  return order.status === "expirado" ? "unavailable" : "pending";
 }

@@ -1,7 +1,7 @@
 export const MAX_PEOPLE_PER_ORDER = 10;
 
 /** Duração da reserva criada por `create_checkout_order`. */
-export const RESERVATION_MINUTES = 30;
+export const RESERVATION_MINUTES = 15;
 
 const LOW_AVAILABILITY_THRESHOLD = 20;
 

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { classifyMercadoPagoOrder } from "./order-status";
 import type { PaymentProvider } from "./provider";
 import type {
   CreatePaymentInput,
@@ -7,6 +8,7 @@ import type {
   OrderPaymentLookup,
   OrderReference,
   PixData,
+  ProviderIds,
   WebhookResult,
 } from "./types";
 
@@ -30,7 +32,10 @@ type MercadoPagoOrder = {
   external_reference?: string;
   total_amount?: string | number;
   total_paid_amount?: string | number;
-  transactions?: { payments?: MercadoPagoOrderPayment[] } | null;
+  transactions?: {
+    payments?: MercadoPagoOrderPayment[];
+    refunds?: Array<{ id?: string; status?: string }>;
+  } | null;
   errors?: Array<{ code?: string; message?: string; details?: string[] }>;
   message?: string;
   error?: string;
@@ -43,7 +48,9 @@ type MercadoPagoOptions = {
   fetch?: typeof fetch;
 };
 
-const PIX_EXPIRATION = "PT30M";
+/** Mínimo aceito pelo Mercado Pago; a reserva do pedido acompanha o PIX. */
+export const PIX_EXPIRATION_MINUTES = 30;
+const PIX_EXPIRATION = `PT${PIX_EXPIRATION_MINUTES}M`;
 /** Folga na busca por data para cobrir diferença de relógio entre servidores. */
 const SEARCH_MARGIN_MS = 10 * 60_000;
 const STATEMENT_DESCRIPTOR = "ESPACO BYLA";
@@ -161,11 +168,12 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       );
     }
 
-    if (order.status === "processed") {
-      return { status: "approved", paymentId: order.id };
+    const classification = classifyMercadoPagoOrder(order);
+    if (classification === "paid") {
+      return { status: "approved", paymentId: order.id, ...providerIdsFromOrder(order) };
     }
 
-    if (order.status === "failed") {
+    if (classification === "failed") {
       return {
         status: "rejected",
         paymentId: order.id,
@@ -207,22 +215,22 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       (found) => found.external_reference?.trim() === order.id,
     );
 
-    const processed = own.find((found) => found.status === "processed");
-    if (processed) {
-      let amountCents = amountCentsFromOrder(processed);
-      if (amountCents === null && processed.id) {
-        amountCents = amountCentsFromOrder(await this.fetchOrder(processed.id));
+    // A busca pode vir resumida (sem estornos e sem o pagamento): a order completa confirma.
+    const summary = own.find((found) => classifyMercadoPagoOrder(found) === "paid");
+    if (summary) {
+      const full = summary.id ? await this.fetchOrder(summary.id) : null;
+      const paid = full?.status ? full : summary;
+      if (classifyMercadoPagoOrder(paid) === "paid") {
+        return {
+          kind: "paid",
+          amountCents: amountCentsFromOrder(paid) ?? amountCentsFromOrder(summary),
+          ...providerIdsFromOrder(paid),
+        };
       }
-      return { kind: "paid", amountCents };
     }
 
     for (const found of own) {
-      if (
-        found.status !== "action_required" ||
-        found.transactions?.payments?.[0]?.payment_method?.id !== "pix"
-      ) {
-        continue;
-      }
+      if (classifyMercadoPagoOrder(found) !== "pending_pix") continue;
 
       // A busca vem sem QR e sem validade; nesse caso a order completa é consultada.
       const full =
@@ -282,8 +290,13 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     }
 
     // Recusa ou PIX expirado não cancelam o pedido: o comprador pode tentar de novo.
-    if (order.status === "processed") {
-      return { kind: "paid", externalId, amountCents: amountCentsFromOrder(order) };
+    if (classifyMercadoPagoOrder(order) === "paid") {
+      return {
+        kind: "paid",
+        externalId,
+        amountCents: amountCentsFromOrder(order),
+        ...providerIdsFromOrder(order),
+      };
     }
 
     return { kind: "ignored", externalId };
@@ -331,6 +344,16 @@ function rejectionReason(order: MercadoPagoOrder | null): string {
     }
   }
   return DEFAULT_REJECTION;
+}
+
+function providerIdsFromOrder(order: MercadoPagoOrder): ProviderIds {
+  const valid = (value: unknown): value is string =>
+    typeof value === "string" && value.length > 0 && value.length <= 100;
+  const paymentId = order.transactions?.payments?.[0]?.id;
+  return {
+    ...(valid(order.id) ? { providerOrderId: order.id } : {}),
+    ...(valid(paymentId) ? { providerPaymentId: paymentId } : {}),
+  };
 }
 
 function amountCentsFromOrder(order: MercadoPagoOrder | null): number | null {

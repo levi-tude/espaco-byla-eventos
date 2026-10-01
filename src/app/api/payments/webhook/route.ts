@@ -21,6 +21,7 @@ async function handleWebhook(request: Request) {
     result.externalId,
     provider.name,
     result.amountCents,
+    { providerOrderId: result.providerOrderId, providerPaymentId: result.providerPaymentId },
   );
   return NextResponse.json({ received: true, outcome });
 }

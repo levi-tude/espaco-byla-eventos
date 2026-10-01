@@ -21,6 +21,12 @@ export type OrderReference = {
   createdAt: string;
 };
 
+/** IDs da cobrança no provedor (order ORD… e pagamento PAY… no Mercado Pago). */
+export type ProviderIds = {
+  providerOrderId?: string;
+  providerPaymentId?: string;
+};
+
 export type PixData = {
   qrCode: string;
   qrCodeBase64: string;
@@ -28,16 +34,16 @@ export type PixData = {
 };
 
 export type CreatePaymentResult =
-  | { status: "approved"; paymentId: string }
+  | ({ status: "approved"; paymentId: string } & ProviderIds)
   | { status: "pending"; paymentId: string; pix?: PixData }
   | { status: "rejected"; paymentId?: string; reason: string };
 
 export type WebhookResult =
-  | { kind: "paid"; externalId: string; amountCents: number | null }
+  | ({ kind: "paid"; externalId: string; amountCents: number | null } & ProviderIds)
   | { kind: "ignored"; externalId?: string }
   | { kind: "invalid_signature" };
 
 export type OrderPaymentLookup =
-  | { kind: "paid"; amountCents: number | null }
+  | ({ kind: "paid"; amountCents: number | null } & ProviderIds)
   | { kind: "pending_pix"; pix: PixData }
   | { kind: "none" };
