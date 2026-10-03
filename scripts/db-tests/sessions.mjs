@@ -571,6 +571,17 @@ try {
   await rejects("preço 0 na sessão: recusado",
     () => db.query("update public.session_ticket_types set price_cents = 0 where session_id = $1", [s1.id]), /check/);
 
+  // A API (PostgREST) recusa embutir tabelas com mais de uma chave entre elas; o
+  // painel embute pedidos em ingressos e vice-versa.
+  const { rows: fkCount } = await db.query(
+    `select conrelid::regclass::text as t, confrelid::regclass::text as r, count(*)::int as n
+     from pg_constraint where contype = 'f'
+       and conrelid in ('public.tickets'::regclass, 'public.orders'::regclass, 'public.event_sessions'::regclass,
+                        'public.session_ticket_types'::regclass)
+     group by 1, 2`);
+  check("no máximo uma chave entre cada par de tabelas (embutir na API sem ambiguidade)",
+    fkCount.every((x) => x.n === 1), JSON.stringify(fkCount.filter((x) => x.n !== 1)));
+
   // ---------- 10) lembrete pela sessão ----------
   const remind = await newEvent({ name: "Lembrete", capacity: 10 });
   const rs = (await db.query("update public.event_sessions set name = 'Sessão da tarde' where event_id = $1 returning id", [remind.eventId])).rows[0].id;

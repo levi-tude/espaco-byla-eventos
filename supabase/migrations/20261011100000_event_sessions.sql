@@ -192,9 +192,14 @@ alter table public.orders
   add constraint orders_session_event_fkey foreign key (session_id, event_id)
     references public.event_sessions (id, event_id);
 
+-- A chave do ingresso para o pedido passa a incluir a sessão (ingresso sempre na
+-- sessão do pedido). Substitui a chave simples com o MESMO nome: continua havendo
+-- uma só ligação ingressos → pedidos, e as consultas da API que embutem um no
+-- outro (painel do evento) seguem sem ambiguidade.
 alter table public.tickets
   alter column session_id set not null,
-  add constraint tickets_order_session_fkey foreign key (order_id, session_id)
+  drop constraint tickets_order_id_fkey,
+  add constraint tickets_order_id_fkey foreign key (order_id, session_id)
     references public.orders (id, session_id) on delete cascade,
   add constraint tickets_session_event_fkey foreign key (session_id, event_id)
     references public.event_sessions (id, event_id);
