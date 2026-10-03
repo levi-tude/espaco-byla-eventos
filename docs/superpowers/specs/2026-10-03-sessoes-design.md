@@ -15,7 +15,8 @@ Ponto de partida (dono, 2026-10-03): um evento pode ter **mais de uma sessão** 
 - **Mudou o horário:** a equipe avisa todos os compradores por e-mail com um botão.
 - **Cancelar sessão:** não apaga nada e não devolve dinheiro sozinho. A equipe estorna um por um ou "todos de uma vez", com confirmação forte, e cada comprador recebe e-mail.
 - **E-mails:** respeitam o limite grátis de 100 por dia; se acabar, o resto sai sozinho quando o limite renova (21h), com botão de reserva.
-- **Prazo:** 13,5 a 20,5 dias de trabalho no total. Para vender um evento de 2 sessões bastam as fases 1 a 4 (8 a 12 dias). A ordem considera o redesign mobile-first (seção 16).
+- **Ingresso:** mostra evento, sessão (nome, se houver), data e horário da sessão, local, titular, tipo, QR, código, número do pedido e status — na página, no PDF, no e-mail e na portaria (seção 8.4).
+- **Prazo:** 14 a 21 dias de trabalho no total. Para vender um evento de 2 sessões bastam as fases 1 a 4 (8,5 a 12,5 dias). A ordem considera o redesign mobile-first (seção 16).
 
 ---
 
@@ -58,6 +59,7 @@ Ponto de partida (dono, 2026-10-03): um evento pode ter **mais de uma sessão** 
 | 13 | E-mail na hora do cancelamento | **Sim** (2026-10-03 20:15): caixa "Avisar os compradores por e-mail agora" **já marcada**; a equipe pode desmarcar. Texto: a sessão foi cancelada e o valor será devolvido. Mesmo controle do limite diário (sai depois se estourar). Seção 9.4.5. |
 | 14 | Reembolso para quem não pode ir no novo horário | **Adiada** (2026-10-03 20:15: "ainda não pode ser confirmado"). O e-mail de mudança de horário **não promete reembolso**: texto neutro, com "Em caso de dúvidas, responda este e-mail". A equipe continua podendo estornar caso a caso pelo botão que já existe. Não bloqueia a implementação; será decidida junto com os **Termos de compra** (pendentes). Seções 10.5 e 17. |
 | 15 | Envio que para no limite diário | **Sim** (2026-10-03 20:15): continua **sozinho** quando o limite renova, com botão **"Continuar envio"** de reserva. Depende do agendador (`pg_cron` + `pg_net`) estar ligado: item do plano de ativação (seção 16.4). Vale para aviso de horário, aviso de cancelamento e e-mails de estorno. |
+| 16 | Conteúdo do ingresso | (2026-10-03 20:18) "No ingresso deve informar a sessão e o horário, além de todas as outras informações." Vale para página do pedido, PDF, e-mail de ingressos e "Pode entrar" da portaria. Lista completa na seção 8.4. |
 
 ---
 
@@ -229,6 +231,7 @@ Todas com `set search_path = ''`, `revoke … from public, anon, authenticated` 
 - **`check_in_ticket` v2:** nova assinatura `(p_event_id, p_session_id, p_code, p_staff_user_id)`, evoluindo a função atual (mesma trava do ingresso, mesmo registro de `checked_in_by`). Novos resultados:
   - **`sessao_cancelada`**: ingresso de sessão cancelada, qualquer que seja a sessão escolhida na portaria;
   - **`sessao_errada`**: devolve só `other_session_name` e `other_session_starts_at` (nada do comprador), como `evento_errado` devolve só o nome do outro evento.
+  - no resultado `ok`, devolve também `session_name`, `session_starts_at` e `event_name` para o "Pode entrar" (seção 8.4); continua sem e-mail, telefone ou token do comprador;
   - A assinatura antiga continua na janela de deploy e **recusa qualquer ingresso de evento com mais de uma sessão ou de sessão cancelada** (falha fechada); sai na limpeza.
 - **`cancel_event_session(p_session_id, p_staff_user_id, p_reason, p_confirmation, p_notify)`** (seção 9.4): trava a sessão e, numa transação só, marca `cancelada`, fecha a venda, cancela pedidos pendentes e devolve a lista de cobranças PIX abertas para o servidor cancelar no Mercado Pago. Grava auditoria.
 - **`reactivate_event_session(p_session_id, p_staff_user_id, p_reason)`**: só sem nenhum estorno iniciado na sessão. Grava auditoria.
@@ -316,9 +319,100 @@ A regra de ouro (decisão 5): **a sessão escolhida aparece em todos os passos**
 ### 8.3 Pagamento, pedido, ingressos, e-mail e PDF
 
 - **Página de pagamento:** cabeçalho com evento + sessão no formato padrão; resumo repete a sessão.
-- **Página do pedido pago, bloco de sucesso, `TicketQr`, `DownloadTicketPdf`:** sessão em destaque acima do QR ("Sessão das 19h00 · sáb, 10/10"); é o que a portaria confere.
-- **E-mail de ingressos:** assunto "Seus ingressos — <Evento> · sáb 10/10 às 19h00"; corpo com a sessão no topo, antes dos QRs.
+- **Página do pedido pago, bloco de sucesso, `TicketQr`, `DownloadTicketPdf`, e-mail de ingressos e "Pode entrar" da portaria:** conteúdo completo na seção 8.4 (decisão 16).
+- **E-mail de ingressos:** assunto "Seus ingressos — <Evento> · sáb 10/10 às 19h00".
 - **E-mail de estorno e lembrete:** mostram a sessão.
+
+### 8.4 Conteúdo do ingresso (decisão 16) — vale para todos os lugares
+
+Pedido do dono (2026-10-03 20:18): "No ingresso deve informar a sessão e o horário, além de todas as outras informações." Esta seção é a lista única do que o ingresso mostra. Vale para: **página do pedido/ingresso** (`TicketQr`), **PDF** (`DownloadTicketPdf`), **e-mail de ingressos** (`tickets-template.ts`) e **resultado "Pode entrar" da portaria** (`CheckInScanner` + `api/check-in`).
+
+#### 8.4.1 O que o ingresso mostra hoje [V] (código em `origin/feat/mvp`)
+
+| Informação | Página (`TicketQr`) | PDF | E-mail | "Pode entrar" |
+| --- | --- | --- | --- | --- |
+| "Espaço Byla Eventos" | sim | sim | "Espaço Byla" no topo | — |
+| Nome do evento | sim | sim | sim | — (a portaria já está no evento) |
+| Data e horário | só no cabeçalho da página, não no cartão; formato "10 de outubro de 2026 às 19:00" | sim ("Quando") | sim ("Quando", data completa) | — |
+| Local | só no cabeçalho da página | sim | sim ("Onde") | — |
+| Nome do titular | sim | sim ("Participante") | sim | sim |
+| Tipo ("Casadinha — Inteira") | sim | sim | sim | sim |
+| QR Code | sim | sim | sim (imagem anexada) | — |
+| Código manual | sim | sim | sim | — |
+| Status | "Pago" / "Check-in" | sim | — | — |
+| Número do pedido | **não** | **não** | **não** | — |
+| Sessão | **não existe ainda** | | | |
+| Orientação de meia-entrada (documento) | **não existe** em nenhum lugar | | | |
+
+Ingressos estornados ou cancelados não aparecem hoje: a página do pedido mostra só a tela "Pedido estornado" / "Pedido cancelado".
+
+#### 8.4.2 Lista final do conteúdo do ingresso
+
+| # | Informação | Como aparece | Página | PDF | E-mail | "Pode entrar" |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Marca | "Espaço Byla Eventos" (continua) | sim | sim | sim | — |
+| 2 | Nome do evento | continua | sim | sim | sim | sim (linha pequena) |
+| 3 | **Nome da sessão** (novo) | só se a sessão tiver nome (ex.: "Sessão infantil") | sim | sim | sim | sim |
+| 4 | **Data e horário de início da sessão** (novo: da sessão, não do evento) | formato longo, sempre em `America/Sao_Paulo`: **"Sábado, 10 de outubro de 2026 · 19h00"** | sim, **no cartão**, acima do QR | sim | sim, em cada ingresso | sim (formato curto: "sáb, 10/10 · 19h00") |
+| 5 | **Término** (novo, se houver) | "Sábado, 10 de outubro de 2026 · 19h00 – 21h30"; término no dia seguinte: "… · 23h00 – 01h00 (domingo)" | sim | sim | sim | — |
+| 6 | Local | continua; passa para dentro do cartão | sim | sim | sim | — |
+| 7 | Nome do titular | continua | sim | sim | sim | sim |
+| 8 | Tipo do ingresso | continua: "Casadinha — Inteira", "Meia-entrada", "Cortesia" | sim | sim | sim | sim |
+| 9 | QR Code | continua | sim | sim | sim | — |
+| 10 | Código manual | continua | sim | sim | sim | — |
+| 11 | **Número do pedido** (novo) | "Pedido nº A1B2C3D4" = 8 primeiros caracteres do `orders.id` em maiúsculas. **Nunca** o `public_token` (ele é a chave de acesso à página do pedido) | sim | sim | sim (uma vez, no topo) | — |
+| 12 | Status | ver 8.4.3 | sim | sim | — (o e-mail só sai quando o pedido é pago) | o próprio resultado |
+| 13 | Ingresso X de Y | "Ingresso 2 de 4" quando o pedido tem mais de um (o e-mail já faz; entra na página e no PDF) | sim | sim | sim | — |
+
+- **Destaque:** no cartão da página e no PDF, nome da sessão + data + horário ficam num bloco destacado logo abaixo do nome do evento e **acima do QR**: é o que a portaria confere.
+- **Evento de sessão única:** mostra data e horário do mesmo jeito (como hoje), no formato novo; o nome da sessão aparece só se existir. Nenhuma palavra "Sessão" sobra sozinha.
+- **Uma função para todos:** `formatSessionWhen(startsAt, endsAt)` (formato longo) e `formatSessionShort(startsAt)` (formato curto) em `src/lib/datetime.ts`, usando `America/Sao_Paulo` e o "h" brasileiro ("19h00", não "19:00"). Página, PDF, e-mail e portaria usam as mesmas funções, para nunca haver duas versões do horário.
+- **Nada além disso:** sem e-mail, telefone ou CPF do comprador em nenhum ingresso; na portaria, só o que já aparece hoje mais a sessão.
+- **Orientação de meia-entrada:** **não existe hoje**, então não entra nesta spec. Sugestão registrada para decidir com os Termos de compra (seção 17): frase "Meia-entrada: apresente na entrada o documento que comprova o direito" no ingresso de tipo meia.
+
+#### 8.4.3 Status no ingresso
+
+| Situação | Etiqueta | QR, código e PDF |
+| --- | --- | --- |
+| Pago | "Pago" (verde) | aparecem |
+| Entrada registrada | "Check-in" (neutra) + "Entrou em 10/10 às 19h12" | aparecem (a portaria recusa "Já usado") |
+| Estornado | "Estornado — não vale para entrada" (vermelha) | **não aparecem** |
+| Cancelado | "Cancelado — não vale para entrada" (vermelha) | **não aparecem** |
+| Sessão cancelada (seção 9.4) | **"Sessão cancelada — não vale para entrada"** (vermelha), mesmo com o ingresso ainda "pago" à espera do estorno | **não aparecem** |
+
+- Nas telas "Pedido estornado", "Pedido cancelado" e "Sessão cancelada", a página passa a listar abaixo os ingressos do pedido em cartões simples (evento, sessão, data e horário, titular, tipo, número do pedido e a etiqueta vermelha), **sem QR, sem código e sem PDF**. Assim o comprador vê o que foi cancelado sem ter nada que pareça válido.
+- "Pode entrar" na portaria só aparece para ingresso válido da sessão escolhida; os outros casos são as recusas da seção 11.
+
+#### 8.4.4 Exemplo (cartão no celular)
+
+```
+ESPAÇO BYLA EVENTOS
+NOME DO EVENTO
+┌──────────────────────────────┐
+│ Sessão infantil              │
+│ Sábado, 10 de outubro de 2026│
+│ 16h00 – 17h30                │
+└──────────────────────────────┘
+Casadinha — Inteira · Ingresso 1 de 2
+[ QR CODE ]
+Maria Exemplo
+Código para digitação manual: ……
+[ Pago ]
+Local: Espaço Byla · Pedido nº A1B2C3D4
+[ Baixar ingresso (PDF) ]
+```
+
+Portaria: **"Pode entrar"** — "Maria Exemplo · Casadinha — Inteira" e, abaixo, "Sessão infantil · sáb, 10/10 · 16h00 · <Evento>".
+
+#### 8.4.5 Critérios de aceite e testes
+
+- **Unidade (`datetime`):** `2026-10-10T22:00:00Z` → "Sábado, 10 de outubro de 2026 · 19h00"; com término `2026-10-11T00:30:00Z` → "· 19h00 – 21h30"; término depois da meia-noite → "(domingo)"; formato curto "sáb, 10/10 · 19h00"; mesmo resultado rodando com o fuso do servidor em UTC.
+- **Unidade (e-mail):** HTML e texto têm, em cada ingresso, evento, nome da sessão (se houver), data e horário de início (e término), local, titular, tipo, código e número do pedido; sessão sem nome não gera rótulo vazio.
+- **Unidade (PDF):** extrair as linhas do PDF para uma função pura (`ticketPdfLines`) e testar que tem todos os itens da lista 8.4.2; acentos ("Sábado", "Espaço") saem certos no PDF gerado.
+- **Rota de check-in:** resposta `ok` traz nome da sessão e horário; nunca e-mail, telefone ou `public_token`.
+- **Página:** pedido pago mostra QR com todos os itens; estornado, cancelado e sessão cancelada mostram os cartões sem QR, sem código e sem botão de PDF; o `public_token` não aparece como texto em lugar nenhum.
+- **Navegador (360 px e computador, tema claro e escuro):** evento de sessão única sem nome; evento com 2 sessões, uma com nome; pedido com 2 ingressos ("Ingresso 1 de 2"); cortesia; PDF baixado e aberto no celular; e-mail de teste recebido; "Pode entrar" com a sessão na portaria.
+- **Aceite do dono:** comparar um ingresso de teste com esta lista, item por item.
 
 ---
 
@@ -598,7 +692,7 @@ Cada fase vai para produção sozinha. Fases com banco exigem aprovação de cad
 | Fase | Conteúdo | Banco | Depende de | Esforço |
 | --- | --- | --- | --- | --- |
 | **1. Base, preços na sessão e fim automático** | `event_sessions` e `session_ticket_types`; `session_id` em pedidos e ingressos; migração (1 sessão por evento, preços atuais); contagens e disponibilidade por sessão; checkout v4, pagamento v4, extensão do PIX, cortesia v3, lembrete v2; **venda fecha 5 min após o início**; "Pago após o fim das vendas — decidir"; o formulário atual grava na sessão única. Comprador e equipe não veem diferença, exceto o fechamento automático | Sim (estrutura + dados) | — | M-G (2–3 dias) |
-| **2. Sessão na portaria e nos ingressos** | `check_in_ticket` v2 ("Sessão errada"); rota de check-in com sessão; sessão no pedido, pagamento, `TicketQr`, PDF, e-mails de ingresso, estorno e lembrete; alertas | Sim (`check_in_ticket` v2) | 1 | M (1–2 dias) |
+| **2. Sessão na portaria e nos ingressos** | `check_in_ticket` v2 ("Sessão errada"); rota de check-in com sessão; **conteúdo do ingresso da seção 8.4** (sessão, data e horário no formato novo, número do pedido, "Ingresso X de Y", status com cartões sem QR) na página, PDF, e-mail de ingressos e "Pode entrar"; sessão no pagamento e nos e-mails de estorno e lembrete; alertas | Sim (`check_in_ticket` v2) | 1 | M (1,5–2,5 dias) |
 | **3. Equipe cria sessões e preços por sessão** | Editor de sessões (nome, início, término, lotação, cotas, preços/à venda/limite por sessão, copiar, aplicar a todas); painel por sessão; "Encerrar vendas desta sessão"; cortesia com sessão; `/equipe`; "Remover sessão" só sem vendas (apagar/arquivar, seção 9.4.1); com vendas, bloqueado até a fase 6 | Sim (`save_event_sessions`, `set_session_sales_open`) | 2 | G (3–4 dias) |
 | **4. Comprador escolhe a sessão** | Escolha de sessão na página do evento; sessão repetida no checkout, barra e pagamento; carrinho `v3` com troca de preços; `?retomar=` com sessão; card da home com chips e "A partir de" | Não | 3; layout mobile-first estável nessas telas | M-G (2–3 dias) |
 | **5. Aviso de alteração de horário** | Registro das alterações; fila de comunicados (`session_notices` + entregas idempotentes); botão de envio; limite diário e continuação; progresso e histórico; e-mail | Sim (3 tabelas + funções; job do agendador se aprovado) | 3 | M (1–2 dias) |
@@ -606,7 +700,7 @@ Cada fase vai para produção sozinha. Fases com banco exigem aprovação de cad
 | **7. Limpeza** | Remover `events.capacity`/cotas, `ticket_types.price_cents`/`max_units`, funções antigas e a assinatura antiga de `check_in_ticket` | Sim | 1–5 em produção | P (0,5 dia) |
 
 - Estimativas de trabalho do agente, sem a espera por aprovações e testes do dono.
-- **Para vender um evento de 2 sessões:** fases 1 a 4 (cerca de 8 a 12 dias). Com o aviso de horário: + fase 5 (9 a 14 dias). Com cancelar sessão e estornos: + fase 6 (**13 a 20 dias**). Limpeza: + 0,5 dia (**total de 13,5 a 20,5 dias**).
+- **Para vender um evento de 2 sessões:** fases 1 a 4 (cerca de 8,5 a 12,5 dias). Com o aviso de horário: + fase 5 (9,5 a 14,5 dias). Com cancelar sessão e estornos: + fase 6 (**13,5 a 20,5 dias**). Limpeza: + 0,5 dia (**total de 14 a 21 dias**).
 - A fase 6 pode ir ao ar depois das vendas de várias sessões começarem: até lá, sessão com vendas simplesmente não pode ser removida, e um cancelamento de emergência é feito encerrando as vendas e estornando um por um pelo botão que já existe.
 - **A fase 6 só vai para produção depois** do ensaio completo com as credenciais de teste do Mercado Pago (vendedor de teste `APP_USR-`, cartões de teste) e da aprovação do dono; o primeiro "Estornar todos" real deve ser acompanhado (sugestão: lote pequeno).
 
@@ -637,7 +731,7 @@ Cada fase vai para produção sozinha. Fases com banco exigem aprovação de cad
   - e-mails: cada pedido estornado gera 1 entrega só; com o uso do dia em 80, o estorno conclui e o e-mail fica `pendente`; falha no e-mail nunca muda o resultado do estorno;
   - quem não é equipe é recusado em todas as ações antes de chegar ao banco.
 - **Ensaio com o Mercado Pago de teste:** sessão de teste com ~5 pedidos pagos com cartão de teste → cancelar → estornar 1 um por um → "Estornar todos" → fechar a aba no meio → continuar → conferir no painel de teste do Mercado Pago que cada pagamento tem **um** estorno só e que os e-mails chegaram uma vez.
-- **Navegador (360 px, tema claro e escuro):** evento de sessão única parecido com hoje; evento com 3 sessões com preços diferentes (uma esgotada, uma encerrada); chips na home; trocar sessão no checkout (preços mudam); pagamento de teste; ingresso e e-mail com a sessão; check-in com QR de outra sessão; mudar horário e enviar aviso para pedidos de teste.
+- **Navegador (360 px, tema claro e escuro):** evento de sessão única parecido com hoje; evento com 3 sessões com preços diferentes (uma esgotada, uma encerrada); chips na home; trocar sessão no checkout (preços mudam); pagamento de teste; ingresso, PDF, e-mail e "Pode entrar" conferidos item por item com a seção 8.4.5; check-in com QR de outra sessão; mudar horário e enviar aviso para pedidos de teste.
 
 ### 15.3 Riscos e conflitos
 
@@ -717,4 +811,5 @@ Se o mobile-first atrasar, as fases 2 e 3 podem ir antes, desde que a outra fren
 
 - **Decisão 14 — reembolso para quem não pode ir no novo horário: adiada.** Enquanto isso: o e-mail de mudança de horário é neutro ("Em caso de dúvidas, responda este e-mail"), sem prometer reembolso; a equipe decide caso a caso e estorna pelo botão "Estornar pedido". Deve ser decidida junto com os **Termos de compra** (página ainda pendente no projeto, com as regras de reembolso e cancelamento). Quando decidida, muda só a frase do e-mail e o texto dos Termos.
 - **Termos de compra (pendente do projeto, fora desta spec):** devem incluir também o que acontece quando uma sessão é cancelada (devolução integral) e quando o horário muda (decisão 14).
+- **Orientação de meia-entrada no ingresso** (não existe hoje; seção 8.4.2): sugestão de frase "apresente na entrada o documento que comprova o direito" no ingresso de tipo meia, a decidir com os Termos de compra. Não bloqueia.
 - **E-mail de reativação de sessão:** fora de escopo (seção 9.4.2); a tela alerta a equipe para avisar por fora.
