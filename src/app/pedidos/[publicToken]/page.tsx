@@ -7,13 +7,15 @@ import { OrderPayment } from "@/components/public/OrderPayment";
 import { PaymentConfirmed } from "@/components/public/PaymentConfirmed";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
+import { type VoidTicket, VoidTicketList } from "@/components/public/VoidTicketList";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
-import { eventDateFormatter } from "@/lib/datetime";
+import { eventDateFormatter, formatSessionWhen } from "@/lib/datetime";
 import { maskEmail } from "@/lib/domain/mask";
 import { resumeCheckoutPath } from "@/lib/domain/public-token";
-import { orderItemName } from "@/lib/domain/ticket-types";
+import { orderNumber, sessionName } from "@/lib/domain/sessions";
+import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -141,7 +143,7 @@ export default async function PedidoPage({
   const { data: order, error: orderError } = await admin
     .from("orders")
     .select(
-      "id, event_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider, cancel_reason",
+      "id, event_id, session_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider, cancel_reason",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -178,6 +180,43 @@ export default async function PedidoPage({
 
   if (eventError) throw new Error("Não foi possível carregar o evento.");
 
+  const { data: session, error: sessionError } = await admin
+    .from("event_sessions")
+    .select("name, starts_at, ends_at, status")
+    .eq("id", order.session_id)
+    .single();
+
+  if (sessionError) throw new Error("Não foi possível carregar a sessão.");
+
+  const sessionHeading = [sessionName(session.name), formatSessionWhen(session.starts_at, session.ends_at)]
+    .filter(Boolean)
+    .join(" · ");
+  const number = orderNumber(order.id);
+  const sessionCancelled = session.status === "cancelada";
+  const orderId = order.id;
+
+  async function voidTickets(): Promise<VoidTicket[]> {
+    const { data, error } = await admin
+      .from("tickets")
+      .select("id, buyer_name, kind, order_items(name)")
+      .eq("order_id", orderId)
+      .order("created_at");
+    if (error) throw new Error("Não foi possível carregar os ingressos.");
+    return (data ?? []).map((ticket) => ({
+      id: ticket.id,
+      holderName: ticket.buyer_name,
+      typeLabel: ticketTypeLabel(orderItemName(ticket.order_items), ticket.kind),
+    }));
+  }
+
+  const voidListProps = {
+    eventName: event.name,
+    sessionName: session.name,
+    startsAt: session.starts_at,
+    endsAt: session.ends_at,
+    orderNumber: number,
+  };
+
   const backNav = await resolveStaffBackNav(order.event_id, event.slug);
 
   if (order.status === "pendente" || order.status === "expirado") {
@@ -201,9 +240,7 @@ export default async function PedidoPage({
             <h1 className="mt-1 font-display text-4xl tracking-wide text-foreground">
               {event.name}
             </h1>
-            <p className="mt-2 text-base text-byla-muted">
-              {dateFormatter.format(new Date(event.starts_at))}
-            </p>
+            <p className="mt-2 text-base text-byla-muted">{sessionHeading}</p>
             <p className="mt-3 flex items-baseline justify-between gap-3 rounded-xl border border-byla-border bg-byla-surface px-4 py-3 text-base text-foreground">
               Total
               <strong className="text-xl">
@@ -308,6 +345,11 @@ export default async function PedidoPage({
           </p>
           <p>Os ingressos deste pedido não são mais válidos.</p>
         </StatusCard>
+        <VoidTicketList
+          {...voidListProps}
+          label="Estornado — não vale para entrada"
+          tickets={await voidTickets()}
+        />
       </OrderShell>
     );
   }
@@ -315,6 +357,9 @@ export default async function PedidoPage({
   if (order.status !== "pago") {
     const changedByBuyer =
       order.status === "cancelado" && order.cancel_reason === "alterado_pelo_comprador";
+    const issuedThenCancelled =
+      order.status === "cancelado" &&
+      (order.cancel_reason === "equipe" || order.cancel_reason === "sessao_cancelada");
     return (
       <OrderShell>
         <TicketPageNav
@@ -340,13 +385,45 @@ export default async function PedidoPage({
             </div>
           ) : null}
         </StatusCard>
+        {issuedThenCancelled ? (
+          <VoidTicketList
+            {...voidListProps}
+            label={
+              sessionCancelled
+                ? "Sessão cancelada — não vale para entrada"
+                : "Cancelado — não vale para entrada"
+            }
+            tickets={await voidTickets()}
+          />
+        ) : null}
+      </OrderShell>
+    );
+  }
+
+  if (sessionCancelled) {
+    return (
+      <OrderShell>
+        <TicketPageNav
+          backHref={backNav.backHref}
+          backLabel={backNav.backLabel}
+          eventSlug={event.slug}
+        />
+        <StatusCard icon={Ban} title="Sessão cancelada" tone="neutral">
+          <p className="text-foreground">Esta sessão foi cancelada.</p>
+          <p>Os ingressos deste pedido não valem para entrada.</p>
+        </StatusCard>
+        <VoidTicketList
+          {...voidListProps}
+          label="Sessão cancelada — não vale para entrada"
+          tickets={await voidTickets()}
+        />
       </OrderShell>
     );
   }
 
   const { data: tickets, error: ticketsError } = await admin
     .from("tickets")
-    .select("code, buyer_name, kind, status, order_items(name)")
+    .select("code, buyer_name, kind, status, checked_in_at, order_items(name)")
     .eq("order_id", order.id)
     .in("status", ["pago", "check_in"])
     .order("created_at");
@@ -377,7 +454,7 @@ export default async function PedidoPage({
             Seus ingressos
           </h2>
           <p className="mt-3 text-base text-foreground">
-            {event.name} · {dateFormatter.format(new Date(event.starts_at))}
+            {event.name} · {sessionHeading}
           </p>
           <p className="mt-1 text-base text-byla-muted">{event.venue}</p>
           <p className="mt-4 text-base text-byla-muted">
@@ -388,15 +465,21 @@ export default async function PedidoPage({
 
         {tickets?.length ? (
           <section className="mt-8 grid gap-6 md:grid-cols-2">
-            {tickets.map((ticket) => (
+            {tickets.map((ticket, i) => (
               <TicketQr
+                checkedInAt={ticket.checked_in_at}
                 code={ticket.code}
+                endsAt={session.ends_at}
                 eventName={event.name}
-                eventWhen={dateFormatter.format(new Date(event.starts_at))}
                 holderName={ticket.buyer_name}
+                index={i + 1}
                 key={ticket.code}
                 kind={ticket.kind}
+                orderNumber={number}
+                sessionName={session.name}
+                startsAt={session.starts_at}
                 status={ticket.status as "pago" | "check_in"}
+                total={tickets.length}
                 typeName={orderItemName(ticket.order_items)}
                 venue={event.venue}
               />

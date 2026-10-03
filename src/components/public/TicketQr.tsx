@@ -1,18 +1,31 @@
 import { DownloadTicketPdf } from "@/components/public/DownloadTicketPdf";
+import { formatSessionWhen } from "@/lib/datetime";
+import { sessionName as cleanSessionName } from "@/lib/domain/sessions";
 import { ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { ticketQrDataUrl } from "@/lib/tickets/qr";
+import {
+  checkedInLabel,
+  ticketPdfLines,
+  ticketPositionLabel,
+} from "@/lib/tickets/ticket-content";
 import type { Enums } from "@/types/database";
 
 type TicketQrProps = {
   code: string;
   eventName: string;
-  eventWhen: string;
+  sessionName: string | null;
+  startsAt: string;
+  endsAt: string | null;
   venue: string;
   holderName: string;
   kind: Enums<"ticket_kind">;
   /** Nome do tipo gravado no pedido (ex.: "Casadinha"). */
   typeName?: string | null;
   status: "pago" | "check_in";
+  checkedInAt?: string | null;
+  orderNumber: string;
+  index: number;
+  total: number;
 };
 
 const statusLabels: Record<TicketQrProps["status"], string> = {
@@ -34,15 +47,25 @@ function safeFileName(value: string) {
 export async function TicketQr({
   code,
   eventName,
-  eventWhen,
+  sessionName,
+  startsAt,
+  endsAt,
   venue,
   holderName,
   kind,
   typeName,
   status,
+  checkedInAt,
+  orderNumber,
+  index,
+  total,
 }: TicketQrProps) {
   const qrDataUrl = await ticketQrDataUrl(code);
   const typeLabel = ticketTypeLabel(typeName, kind);
+  const named = cleanSessionName(sessionName);
+  const when = formatSessionWhen(startsAt, endsAt);
+  const position = ticketPositionLabel(index, total);
+  const entered = status === "check_in" ? checkedInLabel(checkedInAt) : null;
   const fileName = `ingresso-${safeFileName(eventName)}-${safeFileName(holderName)}-${kind}`;
 
   return (
@@ -53,7 +76,14 @@ export async function TicketQr({
       <h2 className="mt-2 font-display text-3xl tracking-wide text-foreground">
         {eventName}
       </h2>
-      <p className="mt-1 text-sm text-byla-muted">{typeLabel}</p>
+      <div className="mt-3 rounded-xl border border-byla-border bg-byla-overlay px-4 py-3 text-foreground">
+        {named ? <p className="text-base font-semibold">{named}</p> : null}
+        <p className="text-base">{when}</p>
+      </div>
+      <p className="mt-3 text-sm text-byla-muted">
+        {typeLabel}
+        {position ? ` · ${position}` : ""}
+      </p>
       <div className="mx-auto my-5 inline-block rounded-xl bg-white p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -82,17 +112,28 @@ export async function TicketQr({
       >
         {statusLabels[status]}
       </p>
+      {entered ? <p className="mt-1 text-sm text-byla-muted">{entered}</p> : null}
+      <p className="mt-3 text-sm text-byla-muted">
+        Local: {venue} · Pedido nº {orderNumber}
+      </p>
       <DownloadTicketPdf
         ticket={{
           code,
-          eventName,
-          eventWhen,
-          venue,
           fileName: fileName || "ingresso",
-          holderName,
-          kindLabel: typeLabel,
+          lines: ticketPdfLines({
+            eventName,
+            sessionName: named,
+            startsAt,
+            endsAt,
+            venue,
+            holderName,
+            typeLabel,
+            orderNumber,
+            index,
+            total,
+            statusLabel: entered ? `${statusLabels[status]} (${entered})` : statusLabels[status],
+          }),
           qrDataUrl,
-          statusLabel: statusLabels[status],
         }}
       />
     </article>

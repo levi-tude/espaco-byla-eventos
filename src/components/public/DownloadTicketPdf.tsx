@@ -5,14 +5,11 @@ import { Download } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import type { TicketPdfLine } from "@/lib/tickets/ticket-content";
 
 export type TicketPdfPayload = {
-  eventName: string;
-  eventWhen: string;
-  venue: string;
-  holderName: string;
-  kindLabel: string;
-  statusLabel: string;
+  /** Linhas já prontas (`ticketPdfLines`), com texto seguro para as fontes do PDF. */
+  lines: TicketPdfLine[];
   code: string;
   qrDataUrl: string;
   fileName: string;
@@ -43,7 +40,7 @@ export function DownloadTicketPdf({ ticket }: Props) {
       doc.setTextColor(255, 189, 56);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
-      doc.text("ESPACO BYLA EVENTOS", margin, y);
+      doc.text("ESPAÇO BYLA EVENTOS", margin, y);
       y += 12;
 
       doc.setTextColor(255, 255, 255);
@@ -52,16 +49,7 @@ export function DownloadTicketPdf({ ticket }: Props) {
       y += 14;
 
       doc.setFontSize(11);
-      const lines = [
-        ["Evento", ticket.eventName],
-        ["Quando", ticket.eventWhen],
-        ["Local", ticket.venue],
-        ["Participante", ticket.holderName],
-        ["Tipo", ticket.kindLabel],
-        ["Status", ticket.statusLabel],
-      ] as const;
-
-      for (const [label, value] of lines) {
+      for (const [label, value] of ticket.lines) {
         doc.setTextColor(161, 161, 170);
         doc.setFont("helvetica", "bold");
         doc.text(`${label}:`, margin, y);
@@ -87,7 +75,7 @@ export function DownloadTicketPdf({ ticket }: Props) {
       doc.setTextColor(161, 161, 170);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text("Codigo manual", margin, y);
+      doc.text("Código manual", margin, y);
       y += 5;
       doc.setTextColor(255, 255, 255);
       doc.setFont("courier", "normal");
@@ -100,7 +88,7 @@ export function DownloadTicketPdf({ ticket }: Props) {
       doc.setFontSize(9);
       doc.setTextColor(161, 161, 170);
       doc.text(
-        "Cada ingresso deve ser usado uma unica vez. Guarde este PDF no celular.",
+        "Cada ingresso deve ser usado uma única vez. Guarde este PDF no celular.",
         margin,
         y,
       );
