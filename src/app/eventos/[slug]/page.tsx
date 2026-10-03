@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { EventGallery } from "@/components/public/EventGallery";
 import { eventDateFormatter } from "@/lib/datetime";
-import { salesState, salesStateMessages } from "@/lib/domain/availability";
+import {
+  NO_CATEGORY_LIMIT,
+  salesState,
+  salesStateMessages,
+  toCheckoutAvailability,
+  typeUnitsLeft,
+} from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { unitContentsLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
@@ -50,10 +56,26 @@ export default async function EventoPublicoPage({
   ]);
 
   const state = salesState(event.sales_open, availability);
+  const typeRemaining = new Map(
+    (availability?.types ?? []).map((type) => [type.ticketTypeId, type.remainingUnits]),
+  );
+  const categoryRemaining = availability
+    ? toCheckoutAvailability(availability).categoryRemaining
+    : NO_CATEGORY_LIMIT;
   const soldOutTypes = new Set(
-    (availability?.types ?? [])
-      .filter((type) => type.remainingUnits === 0)
-      .map((type) => type.ticketTypeId),
+    (ticketTypes ?? [])
+      .filter(
+        (type) =>
+          typeUnitsLeft(
+            {
+              kind: type.kind,
+              peoplePerUnit: type.people_per_unit,
+              remainingUnits: typeRemaining.get(type.id) ?? null,
+            },
+            categoryRemaining,
+          ) === 0,
+      )
+      .map((type) => type.id),
   );
 
   return (

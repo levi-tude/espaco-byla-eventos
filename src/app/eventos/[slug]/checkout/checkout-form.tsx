@@ -12,12 +12,14 @@ import {
 } from "@/lib/cart/browser-cart";
 import type { CheckoutResume } from "@/lib/cart/resume";
 import {
+  type CategoryRemaining,
   fitSelection,
   MAX_PEOPLE_PER_ORDER,
   maxSelectableUnits,
   remainingNotice,
   type SelectableType,
   typeRemainingNotice,
+  typeUnitsLeft,
 } from "@/lib/domain/availability";
 import {
   ticketKindLabels,
@@ -49,6 +51,8 @@ type CheckoutFormProps = {
   ticketTypes: CheckoutTicketType[];
   /** Lugares livres agora (descontando reservas); `null` se não foi possível consultar. */
   remaining: number | null;
+  /** Pessoas restantes nas cotas de inteiras e meias (`null` = sem cota). */
+  categoryRemaining: CategoryRemaining;
   /** Pedido anterior (`?retomar=`) que preenche a escolha e os dados. */
   resume: CheckoutResume | null;
 };
@@ -89,11 +93,13 @@ function CheckoutFormFields({
   slug,
   ticketTypes,
   remaining: initialRemaining,
+  categoryRemaining: initialCategoryRemaining,
   resume,
   restoreCart,
 }: CheckoutFormProps & { restoreCart: boolean }) {
   const ids = ticketTypes.map(({ id }) => id);
   const [remaining, setRemaining] = useState(initialRemaining);
+  const [categoryRemaining, setCategoryRemaining] = useState(initialCategoryRemaining);
   const [typeRemaining, setTypeRemaining] = useState<Record<string, number | null>>(
     () => Object.fromEntries(ticketTypes.map((type) => [type.id, type.remainingUnits])),
   );
@@ -101,6 +107,7 @@ function CheckoutFormFields({
   const selectable = (limits: Record<string, number | null>): SelectableType[] =>
     ticketTypes.map((type) => ({
       id: type.id,
+      kind: type.kind,
       peoplePerUnit: type.peoplePerUnit,
       remainingUnits: limits[type.id] ?? null,
     }));
@@ -128,7 +135,7 @@ function CheckoutFormFields({
     // Pedido ainda reservado: os lugares dele não entram em "restantes"; mostra como está.
     const quantities = source?.awaitingUntil
       ? offered
-      : fitSelection(offered, selectable(typeRemaining), capacityLeft);
+      : fitSelection(offered, selectable(typeRemaining), capacityLeft, categoryRemaining);
     const pendingToken = resume?.awaitingUntil
       ? resume.publicToken
       : cartToken && cartToken !== resume?.publicToken
@@ -168,9 +175,12 @@ function CheckoutFormFields({
     (sum, type) => sum + type.priceCents * qtyOf(quantities, type.id),
     0,
   );
-  const peopleIn = (current: Quantities) =>
+  const peopleIn = (current: Quantities, kind?: string) =>
     ticketTypes.reduce(
-      (sum, type) => sum + type.peoplePerUnit * qtyOf(current, type.id),
+      (sum, type) =>
+        kind === undefined || type.kind === kind
+          ? sum + type.peoplePerUnit * qtyOf(current, type.id)
+          : sum,
       0,
     );
   const totalPeople = peopleIn(quantities);
@@ -221,12 +231,17 @@ function CheckoutFormFields({
   }
 
   function maxFor(type: CheckoutTicketType, current: Quantities = quantities) {
+    const own = type.peoplePerUnit * qtyOf(current, type.id);
     return maxSelectableUnits({
       remaining: capacityLeft,
-      peopleSelectedElsewhere:
-        peopleIn(current) - type.peoplePerUnit * qtyOf(current, type.id),
+      peopleSelectedElsewhere: peopleIn(current) - own,
       peoplePerUnit: type.peoplePerUnit,
       typeRemainingUnits: typeRemaining[type.id] ?? null,
+      categoryRemaining:
+        type.kind === "inteira" || type.kind === "meia"
+          ? categoryRemaining[type.kind]
+          : null,
+      categoryPeopleSelectedElsewhere: peopleIn(current, type.kind) - own,
     });
   }
 
@@ -272,9 +287,15 @@ function CheckoutFormFields({
           if (updated) {
             const limits = { ...typeRemaining, ...updated.typeRemaining };
             setRemaining(updated.remaining);
+            setCategoryRemaining(updated.categoryRemaining);
             setTypeRemaining(limits);
             setQuantities((current) =>
-              fitSelection(current, selectable(limits), updated.remaining),
+              fitSelection(
+                current,
+                selectable(limits),
+                updated.remaining,
+                updated.categoryRemaining,
+              ),
             );
           }
           return;
@@ -327,7 +348,12 @@ function CheckoutFormFields({
         {ticketTypes.map((type) => {
           const qty = qtyOf(quantities, type.id);
           const max = maxFor(type);
-          const typeNotice = typeRemainingNotice(typeRemaining[type.id] ?? null);
+          const typeNotice = typeRemainingNotice(
+            typeUnitsLeft(
+              { ...type, remainingUnits: typeRemaining[type.id] ?? null },
+              categoryRemaining,
+            ),
+          );
           const showContents =
             type.peoplePerUnit > 1 || type.name !== ticketKindLabels[type.kind];
           return (

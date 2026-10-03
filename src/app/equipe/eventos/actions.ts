@@ -12,6 +12,7 @@ import {
   type TicketTypeRpcItem,
   ticketTypesErrorMessage,
 } from "@/lib/domain/ticket-types";
+import { quotaDbErrorMessage, quotasError } from "@/lib/domain/quotas";
 import { createPublicToken } from "@/lib/domain/tickets";
 import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
 import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
@@ -25,6 +26,9 @@ export type EventInput = {
   venue: string;
   description: string;
   capacity: number;
+  /** Cotas opcionais em ingressos (`null` = sem quantidade separada). */
+  inteiraQuota: number | null;
+  meiaQuota: number | null;
   /** Tipos à venda na ordem de exibição; a cortesia o banco garante sozinho. */
   ticketTypes: TicketTypeInput[];
   coverImageUrl?: string | null;
@@ -60,6 +64,10 @@ function normalizeInput(input: EventInput): NormalizedEventInput {
     throw new ActionError("Informe uma capacidade válida.");
   }
 
+  const quotas = { inteiraQuota: input.inteiraQuota, meiaQuota: input.meiaQuota };
+  const quotaError = quotasError(normalized.capacity, quotas);
+  if (quotaError) throw new ActionError(quotaError);
+
   const ticketTypes = normalizeTicketTypes(input.ticketTypes);
   if (!ticketTypes.ok) throw new ActionError(ticketTypes.error);
 
@@ -74,6 +82,7 @@ function normalizeInput(input: EventInput): NormalizedEventInput {
 
   return {
     ...normalized,
+    ...quotas,
     ticketTypes: ticketTypes.items,
     startsAt: startsAt.toISOString(),
   };
@@ -175,6 +184,8 @@ async function createEventOrThrow(input: EventInput): Promise<{ id: string }> {
       venue: normalized.venue,
       description: normalized.description,
       capacity: normalized.capacity,
+      inteira_quota: normalized.inteiraQuota,
+      meia_quota: normalized.meiaQuota,
       cover_image_url: normalized.coverImageUrl,
       sales_open: true,
     })
@@ -222,6 +233,8 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
     p_capacity: normalized.capacity,
     p_cover_image_url: normalized.coverImageUrl ?? null,
     p_ticket_types: normalized.ticketTypes,
+    p_inteira_quota: normalized.inteiraQuota,
+    p_meia_quota: normalized.meiaQuota,
   });
 
   if (eventError) {
@@ -231,7 +244,9 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
       );
     }
     throw new ActionError(
-      ticketTypesErrorMessage(eventError.message) ?? "Não foi possível salvar o evento.",
+      quotaDbErrorMessage(eventError.message) ??
+        ticketTypesErrorMessage(eventError.message) ??
+        "Não foi possível salvar o evento.",
     );
   }
 

@@ -112,6 +112,27 @@ export default async function EventoEquipePage({
     },
     { label: "Restantes", value: remaining, hint: null },
   ];
+  const categoryCards = availability
+    ? (["inteira", "meia"] as const).map((kind) => {
+        const category = availability.categories[kind];
+        const held = category.taken - category.sold;
+        return {
+          label: kind === "inteira" ? "Inteiras vendidas" : "Meias vendidas",
+          value:
+            category.quota === null
+              ? String(category.sold)
+              : `${category.sold} / ${category.quota}`,
+          hint: [
+            held > 0 ? `${held} reservada${held === 1 ? "" : "s"} agora` : null,
+            category.quota === null
+              ? "sem quantidade separada"
+              : `restam ${category.remaining ?? 0}`,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        };
+      })
+    : [];
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -203,6 +224,21 @@ export default async function EventoEquipePage({
         ))}
       </dl>
 
+      {categoryCards.length ? (
+        <dl className="-mt-4 mb-8 grid grid-cols-2 gap-4">
+          {categoryCards.map((card) => (
+            <div
+              className="rounded-xl border border-byla-border bg-byla-surface p-5"
+              key={card.label}
+            >
+              <dt className="text-sm text-byla-muted">{card.label}</dt>
+              <dd className="mt-1 text-2xl font-semibold text-foreground">{card.value}</dd>
+              <dd className="mt-1 text-xs text-byla-muted">{card.hint}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
       <EventForm
         event={{
           id: event.id,
@@ -211,6 +247,8 @@ export default async function EventoEquipePage({
           venue: event.venue,
           description: event.description,
           capacity: event.capacity,
+          inteiraQuota: event.inteira_quota,
+          meiaQuota: event.meia_quota,
           ticketTypes: editorTypes,
           coverImageUrl: event.cover_image_url,
           salesOpen: event.sales_open,

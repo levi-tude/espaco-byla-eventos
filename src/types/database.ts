@@ -16,6 +16,8 @@ export type Database = {
           created_at: string;
           description: string;
           id: string;
+          inteira_quota: number | null;
+          meia_quota: number | null;
           name: string;
           sales_open: boolean;
           slug: string;
@@ -29,6 +31,8 @@ export type Database = {
           created_at?: string;
           description?: string;
           id?: string;
+          inteira_quota?: number | null;
+          meia_quota?: number | null;
           name: string;
           sales_open?: boolean;
           slug: string;
@@ -42,6 +46,8 @@ export type Database = {
           created_at?: string;
           description?: string;
           id?: string;
+          inteira_quota?: number | null;
+          meia_quota?: number | null;
           name?: string;
           sales_open?: boolean;
           slug?: string;
@@ -496,6 +502,14 @@ export type Database = {
         Args: { p_event_id: string; p_exclude_order_id?: string | null };
         Returns: number;
       };
+      event_kind_occupied_count: {
+        Args: {
+          p_event_id: string;
+          p_exclude_order_id?: string | null;
+          p_kind: Database["public"]["Enums"]["ticket_kind"];
+        };
+        Returns: number;
+      };
       extend_order_hold_for_pix: {
         Args: { p_order_id: string; p_pix_expires_at: string };
         Returns: string | null;
@@ -540,6 +554,8 @@ export type Database = {
           p_cover_image_url: string | null;
           p_description: string;
           p_event_id: string;
+          p_inteira_quota: number | null;
+          p_meia_quota: number | null;
           p_name: string;
           p_starts_at: string;
           p_ticket_types: Json;

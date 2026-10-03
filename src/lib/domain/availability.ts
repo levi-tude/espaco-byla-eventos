@@ -25,15 +25,43 @@ export type TypeAvailability = {
   hasSales: boolean;
 };
 
+/** Categorias com cota opcional no evento (a cortesia conta só na lotação). */
+export type QuotaKind = "inteira" | "meia";
+
+export const QUOTA_KINDS: readonly QuotaKind[] = ["inteira", "meia"];
+
+/** Cota de uma categoria, em pessoas (cada pessoa de Casadinha conta como inteira). */
+export type CategoryAvailability = {
+  /** `null` = sem cota própria (vale só a lotação). */
+  quota: number | null;
+  sold: number;
+  /** Vendidos + reservas ativas. */
+  taken: number;
+  remaining: number | null;
+};
+
+export type CategoryRemaining = Record<QuotaKind, number | null>;
+
 export type EventAvailabilityWithTypes = EventAvailability & {
+  categories: Record<QuotaKind, CategoryAvailability>;
   types: TypeAvailability[];
 };
 
 /** O mínimo que o checkout precisa para refazer os limites depois de uma recusa. */
 export type CheckoutAvailability = {
   remaining: number;
+  categoryRemaining: CategoryRemaining;
   typeRemaining: Record<string, number | null>;
 };
+
+export const NO_CATEGORY_LIMIT: CategoryRemaining = { inteira: null, meia: null };
+
+function categoryRemainingOf(
+  categoryRemaining: Partial<CategoryRemaining>,
+  kind: string,
+): number | null {
+  return kind === "inteira" || kind === "meia" ? (categoryRemaining[kind] ?? null) : null;
+}
 
 export type SalesState = "open" | "closed" | "sold_out" | "held";
 
@@ -83,15 +111,24 @@ export function maxSelectableUnits({
   peopleSelectedElsewhere,
   peoplePerUnit = 1,
   typeRemainingUnits = null,
+  categoryRemaining = null,
+  categoryPeopleSelectedElsewhere = 0,
 }: {
   remaining: number;
   peopleSelectedElsewhere: number;
   peoplePerUnit?: number;
   typeRemainingUnits?: number | null;
+  /** Pessoas restantes na cota da categoria do tipo; `null` = sem cota. */
+  categoryRemaining?: number | null;
+  /** Pessoas da mesma categoria já escolhidas nos outros tipos. */
+  categoryPeopleSelectedElsewhere?: number;
 }): number {
   const perUnit = Math.max(1, Math.trunc(peoplePerUnit) || 1);
-  const people =
+  let people =
     Math.min(remaining, MAX_PEOPLE_PER_ORDER) - peopleSelectedElsewhere;
+  if (categoryRemaining !== null) {
+    people = Math.min(people, categoryRemaining - categoryPeopleSelectedElsewhere);
+  }
   const units = Math.floor(Math.max(people, 0) / perUnit);
   return typeRemainingUnits === null
     ? units
@@ -100,31 +137,60 @@ export function maxSelectableUnits({
 
 export type SelectableType = {
   id: string;
+  kind: string;
   peoplePerUnit: number;
   remainingUnits: number | null;
 };
 
 /**
- * Reduz a seleção, na ordem dos tipos, para caber nos lugares restantes, no
- * limite de cada tipo e no máximo de pessoas por compra. Tipos que não estão na
- * lista saem da seleção.
+ * Reduz a seleção, na ordem dos tipos, para caber nos lugares restantes, na cota
+ * da categoria, no limite de cada tipo e no máximo de pessoas por compra. Tipos
+ * que não estão na lista saem da seleção.
  */
 export function fitSelection(
   quantities: Readonly<Record<string, number>>,
   types: readonly SelectableType[],
   remaining: number,
+  categoryRemaining: Partial<CategoryRemaining> = NO_CATEGORY_LIMIT,
 ): Record<string, number> {
   let budget = Math.max(0, Math.min(remaining, MAX_PEOPLE_PER_ORDER));
+  const categoryBudget: Partial<Record<string, number>> = {};
+  for (const kind of QUOTA_KINDS) {
+    const left = categoryRemaining[kind];
+    if (left !== null && left !== undefined) categoryBudget[kind] = Math.max(0, left);
+  }
   const fitted: Record<string, number> = {};
   for (const type of types) {
     const perUnit = Math.max(1, Math.trunc(type.peoplePerUnit) || 1);
     let qty = Math.max(0, Math.trunc(quantities[type.id] ?? 0) || 0);
     if (type.remainingUnits !== null) qty = Math.min(qty, Math.max(type.remainingUnits, 0));
     qty = Math.min(qty, Math.floor(budget / perUnit));
+    const categoryLeft = categoryBudget[type.kind];
+    if (categoryLeft !== undefined) {
+      qty = Math.min(qty, Math.floor(categoryLeft / perUnit));
+      categoryBudget[type.kind] = categoryLeft - qty * perUnit;
+    }
     fitted[type.id] = qty;
     budget -= qty * perUnit;
   }
   return fitted;
+}
+
+/**
+ * Unidades que ainda cabem no limite do tipo e na cota da categoria (o menor
+ * vale); `null` = nenhum dos dois limita. A lotação do evento é avisada à parte.
+ */
+export function typeUnitsLeft(
+  type: { kind: string; peoplePerUnit: number; remainingUnits: number | null },
+  categoryRemaining: Partial<CategoryRemaining>,
+): number | null {
+  const perUnit = Math.max(1, Math.trunc(type.peoplePerUnit) || 1);
+  const categoryLeft = categoryRemainingOf(categoryRemaining, type.kind);
+  const byCategory =
+    categoryLeft === null ? null : Math.floor(Math.max(categoryLeft, 0) / perUnit);
+  if (type.remainingUnits === null) return byCategory;
+  const byType = Math.max(type.remainingUnits, 0);
+  return byCategory === null ? byType : Math.min(byType, byCategory);
 }
 
 export function remainingNotice(remaining: number): string | null {
@@ -146,11 +212,28 @@ export function typeRefusalMessage(name: string, remainingUnits: number): string
     : `Restam apenas ${remainingUnits} “${name}”. Ajustamos sua seleção.`;
 }
 
+const categoryNames: Record<QuotaKind, string> = {
+  inteira: "inteira",
+  meia: "meia-entrada",
+};
+
+export function categoryRefusalMessage(kind: QuotaKind, remaining: number): string {
+  const name = categoryNames[kind];
+  if (remaining <= 0) return `Os ingressos ${name} esgotaram. Ajustamos sua seleção.`;
+  return remaining === 1
+    ? `Resta apenas 1 ingresso ${name}. Ajustamos sua seleção.`
+    : `Restam apenas ${remaining} ingressos ${name}. Ajustamos sua seleção.`;
+}
+
 export function toCheckoutAvailability(
   availability: EventAvailabilityWithTypes,
 ): CheckoutAvailability {
   return {
     remaining: availability.remaining,
+    categoryRemaining: {
+      inteira: availability.categories.inteira.remaining,
+      meia: availability.categories.meia.remaining,
+    },
     typeRemaining: Object.fromEntries(
       availability.types.map((type) => [type.ticketTypeId, type.remainingUnits]),
     ),

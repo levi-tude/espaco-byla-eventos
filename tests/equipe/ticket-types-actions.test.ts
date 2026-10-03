@@ -57,6 +57,8 @@ const input = {
   venue: "Espaço Byla",
   description: "",
   capacity: 100,
+  inteiraQuota: 60 as number | null,
+  meiaQuota: 40 as number | null,
   ticketTypes: [
     { preset: "inteira" as const, priceCents: 5000, maxUnits: null },
     { preset: "casadinha" as const, priceCents: 9000, maxUnits: 20 },
@@ -86,10 +88,13 @@ beforeEach(() => {
 });
 
 describe("tipos de ingresso ao criar evento", () => {
-  it("cria o evento sem preços e grava os tipos pela função do banco", async () => {
+  it("cria o evento com as cotas e grava os tipos pela função do banco", async () => {
     expect(await createEvent(input)).toEqual({ ok: true, data: { id: "evento-novo" } });
     expect(mocks.insert).toHaveBeenCalledWith(
       expect.not.objectContaining({ full_price_cents: expect.anything() }),
+    );
+    expect(mocks.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ capacity: 100, inteira_quota: 60, meia_quota: 40 }),
     );
     expect(mocks.adminRpc).toHaveBeenCalledWith("save_event_ticket_types", {
       p_event_id: "evento-novo",
@@ -118,12 +123,46 @@ describe("tipos de ingresso ao criar evento", () => {
 });
 
 describe("tipos de ingresso ao editar evento", () => {
-  it("salva evento e tipos juntos, na mesma função", async () => {
+  it("salva evento, cotas e tipos juntos, na mesma função", async () => {
     expect(await updateEvent(eventId, input)).toEqual({ ok: true, data: undefined });
     expect(mocks.adminRpc).toHaveBeenCalledWith(
       "update_event_with_capacity",
-      expect.objectContaining({ p_event_id: eventId, p_ticket_types: rpcTypes }),
+      expect.objectContaining({
+        p_event_id: eventId,
+        p_ticket_types: rpcTypes,
+        p_inteira_quota: 60,
+        p_meia_quota: 40,
+      }),
     );
+  });
+
+  it("cotas vazias seguem como sem quantidade separada", async () => {
+    await updateEvent(eventId, { ...input, inteiraQuota: null, meiaQuota: null });
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "update_event_with_capacity",
+      expect.objectContaining({ p_inteira_quota: null, p_meia_quota: null }),
+    );
+  });
+
+  it.each([
+    [{ inteiraQuota: 70, meiaQuota: 40 }, "Inteiras + meias não podem passar do total de ingressos (100)."],
+    [{ inteiraQuota: 101, meiaQuota: null }, "A quantidade de inteiras não pode passar do total de ingressos."],
+    [{ inteiraQuota: 0, meiaQuota: null }, "Informe uma quantidade de inteiras válida ou deixe em branco."],
+    [{ inteiraQuota: null, meiaQuota: 2.5 }, "Informe uma quantidade de meias válida ou deixe em branco."],
+    [{ inteiraQuota: null, meiaQuota: undefined }, "Informe uma quantidade de meias válida ou deixe em branco."],
+  ])("cota inválida %o é recusada antes do banco", async (quotas, error) => {
+    expect(
+      await updateEvent(eventId, { ...input, ...(quotas as { inteiraQuota: number | null; meiaQuota: number | null }) }),
+    ).toEqual({ ok: false, error });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("cota abaixo do já vendido é recusada com o número", async () => {
+    mocks.adminRpc.mockResolvedValue({ error: { message: "COTA_MENOR:inteira:62" } });
+    expect(await updateEvent(eventId, input)).toEqual({
+      ok: false,
+      error: "A quantidade de inteiras não pode ser menor que 62 (já vendidos ou reservados).",
+    });
   });
 
   it("tipo com vendas não pode mudar o número de pessoas", async () => {

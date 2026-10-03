@@ -2,8 +2,10 @@
 
 import {
   capacityRefusalMessage,
+  categoryRefusalMessage,
   type CheckoutAvailability,
   MAX_PEOPLE_PER_ORDER,
+  type QuotaKind,
   toCheckoutAvailability,
   typeRefusalMessage,
 } from "@/lib/domain/availability";
@@ -132,10 +134,16 @@ async function checkoutRefusal(
   message: string,
 ): Promise<CheckoutResult> {
   const typeSoldOut = message.match(/ESGOTADO_TIPO:([0-9a-f-]{36}):(\d+)/i);
-  if (message.includes("ESGOTADO_EVENTO") || typeSoldOut) {
+  const categorySoldOut = message.match(/ESGOTADO_CATEGORIA:(inteira|meia):(\d+)/);
+  if (message.includes("ESGOTADO_EVENTO") || typeSoldOut || categorySoldOut) {
     const availability = await loadEventAvailability(admin, { id: eventId });
     let error = capacityRefusalMessage(availability);
-    if (typeSoldOut) {
+    if (categorySoldOut) {
+      error = categoryRefusalMessage(
+        categorySoldOut[1] as QuotaKind,
+        Number(categorySoldOut[2]),
+      );
+    } else if (typeSoldOut) {
       const { data: type } = await admin
         .from("ticket_types")
         .select("name")

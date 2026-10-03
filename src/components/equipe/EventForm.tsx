@@ -17,6 +17,7 @@ import {
   TicketTypesEditor,
 } from "@/components/equipe/TicketTypesEditor";
 import { toEventInputValue } from "@/lib/datetime";
+import { parseQuotaInput, quotaSummary, quotasError } from "@/lib/domain/quotas";
 
 type EventFormProps = {
   event?: {
@@ -26,11 +27,23 @@ type EventFormProps = {
     venue: string;
     description: string;
     capacity: number;
+    inteiraQuota: number | null;
+    meiaQuota: number | null;
     ticketTypes: EditorTicketType[];
     coverImageUrl: string | null;
     salesOpen: boolean;
   };
 };
+
+type Counts = { capacity: string; inteiraQuota: string; meiaQuota: string };
+
+function initialCounts(event: EventFormProps["event"]): Counts {
+  return {
+    capacity: event ? String(event.capacity) : "",
+    inteiraQuota: event?.inteiraQuota == null ? "" : String(event.inteiraQuota),
+    meiaQuota: event?.meiaQuota == null ? "" : String(event.meiaQuota),
+  };
+}
 
 export function EventForm({ event }: EventFormProps) {
   const router = useRouter();
@@ -58,6 +71,31 @@ export function EventForm({ event }: EventFormProps) {
     setLoadedTypesKey(savedTypesKey);
     setTicketTypes(initialTicketTypesState(event?.ticketTypes));
   }
+  const savedCounts = initialCounts(event);
+  const [counts, setCounts] = useState(savedCounts);
+  const savedCountsKey = JSON.stringify(savedCounts);
+  const [loadedCountsKey, setLoadedCountsKey] = useState(savedCountsKey);
+  if (loadedCountsKey !== savedCountsKey) {
+    setLoadedCountsKey(savedCountsKey);
+    setCounts(savedCounts);
+  }
+  const capacityValue = Number(counts.capacity);
+  const inteiraQuota = parseQuotaInput(counts.inteiraQuota);
+  const meiaQuota = parseQuotaInput(counts.meiaQuota);
+  const quotaProblem =
+    inteiraQuota === undefined || meiaQuota === undefined
+      ? "Use números inteiros nas quantidades de inteiras e meias, ou deixe em branco."
+      : Number.isInteger(capacityValue) && capacityValue > 0
+        ? quotasError(capacityValue, { inteiraQuota, meiaQuota })
+        : null;
+  const summary =
+    inteiraQuota === undefined || meiaQuota === undefined
+      ? null
+      : quotaSummary(capacityValue, { inteiraQuota, meiaQuota });
+
+  function setCount(field: keyof Counts, value: string) {
+    setCounts((current) => ({ ...current, [field]: value }));
+  }
   const sales = Object.fromEntries(
     (event?.ticketTypes ?? []).map((type) => [
       type.preset ? `preset:${type.preset}` : `id:${type.id}`,
@@ -74,6 +112,10 @@ export function EventForm({ event }: EventFormProps) {
       setMessage(types.error);
       return;
     }
+    if (quotaProblem || inteiraQuota === undefined || meiaQuota === undefined) {
+      setMessage(quotaProblem);
+      return;
+    }
 
     const data = new FormData(formEvent.currentTarget);
     const input: EventInput = {
@@ -81,7 +123,9 @@ export function EventForm({ event }: EventFormProps) {
       startsAt: String(data.get("startsAt") ?? ""),
       venue: String(data.get("venue") ?? ""),
       description: String(data.get("description") ?? ""),
-      capacity: Number(data.get("capacity")),
+      capacity: capacityValue,
+      inteiraQuota,
+      meiaQuota,
       ticketTypes: types.types,
       coverImageUrl: String(data.get("coverImageUrl") ?? ""),
     };
@@ -156,20 +200,62 @@ export function EventForm({ event }: EventFormProps) {
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium">
-          Capacidade
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={event?.capacity}
-            min="1"
-            name="capacity"
-            required
-            step="1"
-            type="number"
-          />
-        </label>
-
       </div>
+
+      <fieldset className="grid gap-4 rounded-lg border border-byla-border p-4">
+        <legend className="px-1 text-sm font-semibold">Quantidade de ingressos</legend>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <label className="grid gap-2 text-sm font-medium">
+            Total de ingressos
+            <input
+              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
+              min="1"
+              name="capacity"
+              onChange={(change) => setCount("capacity", change.target.value)}
+              required
+              step="1"
+              type="number"
+              value={counts.capacity}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            Quantidade de inteiras
+            <input
+              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
+              inputMode="numeric"
+              name="inteiraQuota"
+              onChange={(change) => setCount("inteiraQuota", change.target.value)}
+              placeholder="Sem quantidade separada"
+              value={counts.inteiraQuota}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            Quantidade de meias
+            <input
+              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
+              inputMode="numeric"
+              name="meiaQuota"
+              onChange={(change) => setCount("meiaQuota", change.target.value)}
+              placeholder="Sem quantidade separada"
+              value={counts.meiaQuota}
+            />
+          </label>
+        </div>
+        <p className="text-xs text-byla-muted">
+          Cada pessoa de Casadinha, Pacote família ou tipo novo conta como inteira. Cortesias
+          contam só no total. Deixe em branco para não separar.
+        </p>
+        {summary ? (
+          <p aria-live="polite" className="text-sm">
+            <span className="font-medium text-foreground">{summary.line}</span>
+            <span className="block text-byla-muted">{quotaProblem ?? summary.detail}</span>
+          </p>
+        ) : quotaProblem ? (
+          <p aria-live="polite" className="text-sm text-byla-muted">
+            {quotaProblem}
+          </p>
+        ) : null}
+      </fieldset>
 
       <TicketTypesEditor
         disabled={isPending}

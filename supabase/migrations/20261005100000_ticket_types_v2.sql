@@ -4,7 +4,8 @@
 -- fixas e preço sempre definido pela equipe; a equipe também cria tipos próprios
 -- (sempre categoria inteira). O pedido guarda os itens com nome e preço do momento
 -- da compra e gera um ingresso (um QR) por pessoa. Tipo nunca é apagado: sai da
--- venda (arquivado) e continua no histórico.
+-- venda (arquivado) e continua no histórico. O evento pode ter cotas opcionais de
+-- inteiras e de meias (pessoas), dentro da lotação.
 
 -- 1) Tipos de ingresso v2 ----------------------------------------------------
 
@@ -116,6 +117,23 @@ create policy ticket_types_public_read on public.ticket_types
       )
     )
     or public.is_staff()
+  );
+
+-- Cotas por categoria (decisão de 2026-10-03), em pessoas: a de inteiras conta
+-- todo ingresso inteira (Inteira, cada pessoa de Casadinha, Pacote família e
+-- tipos da equipe); a de meias, os ingressos meia. Vazio = sem cota própria
+-- (vale só a lotação). A cortesia conta só na lotação, como antes.
+alter table public.events
+  add column inteira_quota integer,
+  add column meia_quota integer,
+  add constraint events_inteira_quota_range check (
+    inteira_quota is null or inteira_quota between 1 and capacity
+  ),
+  add constraint events_meia_quota_range check (
+    meia_quota is null or meia_quota between 1 and capacity
+  ),
+  add constraint events_quotas_within_capacity check (
+    coalesce(inteira_quota, 0) + coalesce(meia_quota, 0) <= capacity
   );
 
 -- 2) Itens do pedido ---------------------------------------------------------
@@ -231,7 +249,46 @@ as $$
   ) x;
 $$;
 
--- Lotação do evento (pessoas) e situação de cada tipo à venda ou de cortesia.
+-- Pessoas de uma categoria que ocupam lugar (para as cotas): mesma regra de
+-- event_occupied_count, filtrada pela categoria do ingresso.
+create function public.event_kind_occupied_count(
+  p_event_id uuid,
+  p_kind public.ticket_kind,
+  p_exclude_order_id uuid default null
+)
+returns bigint
+language sql
+stable
+set search_path = ''
+as $$
+  select count(*)
+  from public.tickets t
+  join public.orders o on o.id = t.order_id
+  where t.event_id = p_event_id
+    and t.kind = p_kind
+    and (p_exclude_order_id is null or t.order_id <> p_exclude_order_id)
+    and (
+      t.status in ('pago', 'check_in')
+      or (
+        t.status = 'nao_pago'
+        and o.status = 'pendente'
+        and o.expires_at > now()
+      )
+      or (
+        t.status = 'estornado'
+        and exists (
+          select 1
+          from public.order_refunds r
+          where r.order_id = t.order_id
+            and r.status = 'solicitado'
+            and r.previous_ticket_statuses ->> t.id::text = 'pago'
+        )
+      )
+    );
+$$;
+
+-- Lotação do evento (pessoas), cotas por categoria e situação de cada tipo à
+-- venda ou de cortesia.
 create function public.event_availability(p_event_id uuid)
 returns jsonb
 language plpgsql
@@ -239,21 +296,45 @@ stable
 set search_path = ''
 as $$
 declare
+  v_event public.events%rowtype;
   v_capacity integer;
   v_sold bigint;
   v_occupied bigint;
   v_types jsonb;
+  v_categories jsonb := '{}'::jsonb;
+  v_kind public.ticket_kind;
+  v_quota integer;
+  v_kind_sold bigint;
+  v_kind_taken bigint;
 begin
-  select e.capacity into v_capacity from public.events e where e.id = p_event_id;
+  select * into v_event from public.events e where e.id = p_event_id;
   if not found then
     return null;
   end if;
+  v_capacity := v_event.capacity;
 
   select count(*) into v_sold
   from public.tickets t
   where t.event_id = p_event_id and t.status in ('pago', 'check_in');
 
   v_occupied := greatest(public.event_occupied_count(p_event_id), v_sold);
+
+  foreach v_kind in array array['inteira', 'meia']::public.ticket_kind[] loop
+    v_quota := case v_kind when 'inteira' then v_event.inteira_quota else v_event.meia_quota end;
+    select count(*) into v_kind_sold
+    from public.tickets t
+    where t.event_id = p_event_id and t.kind = v_kind and t.status in ('pago', 'check_in');
+    v_kind_taken := greatest(public.event_kind_occupied_count(p_event_id, v_kind), v_kind_sold);
+    v_categories := v_categories || jsonb_build_object(
+      v_kind::text,
+      jsonb_build_object(
+        'quota', v_quota,
+        'sold', v_kind_sold,
+        'taken', v_kind_taken,
+        'remaining', case when v_quota is null then null else greatest(v_quota - v_kind_taken, 0) end
+      )
+    );
+  end loop;
 
   select coalesce(
     jsonb_agg(
@@ -296,6 +377,7 @@ begin
     'sold', v_sold,
     'held', v_occupied - v_sold,
     'remaining', greatest(v_capacity - v_occupied, 0),
+    'categories', v_categories,
     'types', v_types
   );
 end;
@@ -307,7 +389,8 @@ $$;
 -- [{ "kind": "inteira" | "meia", "qty" }] continua aceito para a versão do site
 -- que estiver no ar enquanto esta migration é aplicada.
 -- Erros com prefixo estável para a ação traduzir: TIPO_INDISPONIVEL,
--- LIMITE_PESSOAS, ESGOTADO_EVENTO:<restantes>, ESGOTADO_TIPO:<tipo>:<restantes>.
+-- LIMITE_PESSOAS, ESGOTADO_EVENTO:<restantes>, ESGOTADO_CATEGORIA:<inteira|meia>:<restantes>,
+-- ESGOTADO_TIPO:<tipo>:<restantes>.
 create or replace function public.create_checkout_order(
   p_event_id uuid,
   p_buyer_name text,
@@ -340,6 +423,7 @@ declare
   v_total_cents integer;
   v_occupied bigint;
   v_taken bigint;
+  v_quota integer;
   v_line record;
   v_item_id uuid;
   v_ticket_count integer;
@@ -420,6 +504,24 @@ begin
   if v_occupied + v_people > v_event.capacity then
     raise exception 'ESGOTADO_EVENTO:%', greatest(v_event.capacity - v_occupied, 0);
   end if;
+
+  for v_line in
+    select tt.kind, sum(r.qty * tt.people_per_unit)::integer as people
+    from unnest(v_type_ids, v_qtys) as r(ticket_type_id, qty)
+    join public.ticket_types tt on tt.id = r.ticket_type_id
+    group by tt.kind
+  loop
+    v_quota := case v_line.kind
+      when 'inteira' then v_event.inteira_quota
+      when 'meia' then v_event.meia_quota
+    end;
+    if v_quota is not null then
+      v_taken := public.event_kind_occupied_count(p_event_id, v_line.kind);
+      if v_taken + v_line.people > v_quota then
+        raise exception 'ESGOTADO_CATEGORIA:%:%', v_line.kind, greatest(v_quota - v_taken, 0);
+      end if;
+    end if;
+  end loop;
 
   for v_line in
     select tt.id, tt.max_units, r.qty
@@ -781,8 +883,9 @@ begin
 end;
 $$;
 
--- v3: sem os preços fixos de inteira/meia. Os tipos são salvos na mesma
--- transação (save_event_ticket_types), então evento e tipos mudam juntos ou não mudam.
+-- v3: sem os preços fixos de inteira/meia e com as cotas por categoria. Os tipos
+-- são salvos na mesma transação (save_event_ticket_types), então evento, cotas e
+-- tipos mudam juntos ou não mudam. Erros: COTA_INVALIDA, COTA_MENOR:<categoria>:<ocupado>.
 drop function public.update_event_with_capacity(
   uuid, text, timestamptz, text, text, integer, text, integer, integer
 );
@@ -795,12 +898,16 @@ create function public.update_event_with_capacity(
   p_description text,
   p_capacity integer,
   p_cover_image_url text,
-  p_ticket_types jsonb
+  p_ticket_types jsonb,
+  p_inteira_quota integer,
+  p_meia_quota integer
 )
 returns void
 language plpgsql
 set search_path = ''
 as $$
+declare
+  v_taken bigint;
 begin
   perform 1 from public.events e where e.id = p_event_id for update;
   if not found then
@@ -809,6 +916,23 @@ begin
   if p_capacity < public.event_occupied_count(p_event_id) then
     raise exception 'A capacidade não pode ser menor que os ingressos já reservados.';
   end if;
+  if (p_inteira_quota is not null and p_inteira_quota not between 1 and p_capacity)
+    or (p_meia_quota is not null and p_meia_quota not between 1 and p_capacity)
+    or coalesce(p_inteira_quota, 0) + coalesce(p_meia_quota, 0) > p_capacity then
+    raise exception 'COTA_INVALIDA: As cotas precisam caber na lotação.';
+  end if;
+  if p_inteira_quota is not null then
+    v_taken := public.event_kind_occupied_count(p_event_id, 'inteira');
+    if p_inteira_quota < v_taken then
+      raise exception 'COTA_MENOR:inteira:%', v_taken;
+    end if;
+  end if;
+  if p_meia_quota is not null then
+    v_taken := public.event_kind_occupied_count(p_event_id, 'meia');
+    if p_meia_quota < v_taken then
+      raise exception 'COTA_MENOR:meia:%', v_taken;
+    end if;
+  end if;
 
   update public.events e
   set name = p_name,
@@ -816,6 +940,8 @@ begin
       venue = p_venue,
       description = p_description,
       capacity = p_capacity,
+      inteira_quota = p_inteira_quota,
+      meia_quota = p_meia_quota,
       cover_image_url = p_cover_image_url,
       updated_at = now()
   where e.id = p_event_id;
@@ -824,8 +950,9 @@ begin
 end;
 $$;
 
--- 7) Pagamento v3: além da lotação, confere o limite de cada tipo quando a
--- reserva já tinha vencido (pedido expirado). Sem lugar → aguardando decisão.
+-- 7) Pagamento v3: além da lotação, confere a cota da categoria e o limite de
+-- cada tipo quando a reserva já tinha vencido (pedido expirado). Sem lugar →
+-- aguardando decisão.
 create or replace function public.mark_order_paid_by_external(
   p_provider text,
   p_external_id text,
@@ -917,6 +1044,23 @@ begin
       where oi.order_id = v_order.id
         and tt.max_units is not null
         and public.ticket_type_units_taken(tt.id, v_order.id) + oi.quantity > tt.max_units
+    )
+    or exists (
+      select 1
+      from (
+        select t.kind, count(*) as people
+        from public.tickets t
+        where t.order_id = v_order.id and t.status = 'nao_pago'
+        group by t.kind
+      ) k
+      cross join lateral (
+        select case k.kind
+          when 'inteira' then v_event.inteira_quota
+          when 'meia' then v_event.meia_quota
+        end as quota
+      ) q
+      where q.quota is not null
+        and public.event_kind_occupied_count(v_order.event_id, k.kind, v_order.id) + k.people > q.quota
     ) then
     -- Ingressos seguem "nao_pago" (não ocupam vaga) até a equipe decidir.
     update public.orders
@@ -947,6 +1091,8 @@ $$;
 
 revoke all on function public.ticket_type_units_taken(uuid, uuid)
   from public, anon, authenticated;
+revoke all on function public.event_kind_occupied_count(uuid, public.ticket_kind, uuid)
+  from public, anon, authenticated;
 revoke all on function public.event_availability(uuid)
   from public, anon, authenticated;
 revoke all on function public.create_checkout_order(uuid, text, text, text, text, text, jsonb, text)
@@ -955,12 +1101,14 @@ revoke all on function public.issue_courtesy_ticket(uuid, text, text, text)
   from public, anon, authenticated;
 revoke all on function public.save_event_ticket_types(uuid, jsonb)
   from public, anon, authenticated;
-revoke all on function public.update_event_with_capacity(uuid, text, timestamptz, text, text, integer, text, jsonb)
+revoke all on function public.update_event_with_capacity(uuid, text, timestamptz, text, text, integer, text, jsonb, integer, integer)
   from public, anon, authenticated;
 revoke all on function public.mark_order_paid_by_external(text, text, text, text)
   from public, anon, authenticated;
 
 grant execute on function public.ticket_type_units_taken(uuid, uuid)
+  to service_role;
+grant execute on function public.event_kind_occupied_count(uuid, public.ticket_kind, uuid)
   to service_role;
 grant execute on function public.event_availability(uuid)
   to service_role;
@@ -970,7 +1118,7 @@ grant execute on function public.issue_courtesy_ticket(uuid, text, text, text)
   to service_role;
 grant execute on function public.save_event_ticket_types(uuid, jsonb)
   to service_role;
-grant execute on function public.update_event_with_capacity(uuid, text, timestamptz, text, text, integer, text, jsonb)
+grant execute on function public.update_event_with_capacity(uuid, text, timestamptz, text, text, integer, text, jsonb, integer, integer)
   to service_role;
 grant execute on function public.mark_order_paid_by_external(text, text, text, text)
   to service_role;

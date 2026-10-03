@@ -282,6 +282,13 @@ Os status abaixo são **novos ou mudam de uso**.
 > - Casadinha e Pacote família geram ingressos da categoria **Inteira**. Rótulo na lista da equipe, portaria, e-mail, PDF e página do pedido: "Casadinha — Inteira".
 > - Eventos que já existem mantêm Inteira, Meia e Cortesia com os preços atuais; Casadinha e Pacote família começam **desmarcadas**.
 >
+> - **Quantidade de inteiras e de meias** (pedido do dono em 2026-10-03; regra padrão adotada pela coordenação, ajustável pelo dono): junto do **total de ingressos** (lotação, em pessoas), o formulário tem "Quantidade de inteiras" e "Quantidade de meias", ambos opcionais (vazio = sem quantidade separada; a categoria divide o total).
+>   - As cotas contam **ingressos (pessoas) por categoria**: a de inteiras inclui Inteira avulsa e cada pessoa de Casadinha, Pacote família e tipos novos; a de meias conta os ingressos meia. A **cortesia** conta só no total, como antes.
+>   - Regras (servidor e banco): cada cota de 1 até o total; inteiras + meias ≤ total; baixar a cota abaixo do já vendido/reservado é recusado com o número ("não pode ser menor que N"), no mesmo padrão da lotação.
+>   - O formulário mostra "Total 100 · Inteiras 60 · Meias 40" e "Faltam X para distribuir".
+>   - No checkout, um tipo para no menor entre: cota da categoria, limite próprio do tipo, total do evento e 10 pessoas por compra. Reservas pendentes contam como na lotação; a checagem roda sob a mesma trava do evento. O comprador vê "Esgotado"/"Resta N" coerentes; a equipe vê vendidos/cota por categoria na página do evento.
+>   - Eventos existentes ficam sem cotas (nada muda).
+>
 > Escolhas de implementação (opção mais segura, reportadas ao dono):
 > - Tipo criado pela equipe é sempre da categoria **Inteira** (meia só pelo tipo pronto "Meia-entrada"); por isso o enum `outro` foi descartado e `ticket_kind` não muda.
 > - Os nomes dos tipos prontos e "Cortesia" são reservados: tipo novo não pode usá-los.
@@ -356,6 +363,7 @@ Os status abaixo são **novos ou mudam de uso**.
   - garante a cortesia;
   - exige de 1 a 20 tipos vendáveis com preço > 0.
 - **`update_event_with_capacity`:** nova versão com `p_ticket_types` no lugar dos preços; salva evento e tipos na mesma transação. A checagem "capacidade não pode ser menor que o ocupado" continua.
+- **`events`, cotas:** `inteira_quota` e `meia_quota` (`int`, nulos = sem cota) com checks `1..capacity` e soma `≤ capacity`. Nova `event_kind_occupied_count(evento, categoria)` (mesma regra de `event_occupied_count`, por categoria do ingresso; só `service_role`). `create_checkout_order` recusa com `ESGOTADO_CATEGORIA:<inteira|meia>:<restantes>`; `mark_order_paid_by_external` manda para decisão quando a reserva venceu e a cota acabou; `update_event_with_capacity` ganha `p_inteira_quota`/`p_meia_quota` (obrigatórios) e recusa com `COTA_INVALIDA` ou `COTA_MENOR:<categoria>:<ocupado>`; `event_availability` devolve `categories` (cota, vendidos, ocupados, restantes).
 - **Dados atuais:** Inteira → tipo pronto `inteira`, Meia → `meia`, mesmos preços; Cortesia continua; Casadinha e Pacote família não são criados (= desmarcados). Cada pedido antigo ganha uma linha em `order_items` por categoria, e cada ingresso antigo aponta para ela.
 - **Compatibilidade na janela do deploy:** `create_checkout_order` ainda aceita o formato antigo `{kind, qty}` (só Inteira/Meia prontas). **Aplicar a migration antes do deploy do código.**
 - **`issue_courtesy_ticket`:** busca a cortesia não arquivada e cria um `order_items` de 1 unidade.

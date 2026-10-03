@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   capacityRefusalMessage,
+  categoryRefusalMessage,
   computeAvailability,
   fitSelection,
   HELD_MESSAGE,
@@ -11,6 +12,7 @@ import {
   toCheckoutAvailability,
   typeRefusalMessage,
   typeRemainingNotice,
+  typeUnitsLeft,
 } from "@/lib/domain/availability";
 
 describe("limite próprio de cada tipo", () => {
@@ -29,13 +31,17 @@ describe("limite próprio de cada tipo", () => {
     );
   });
 
-  it("resume para o checkout só o restante do evento e de cada tipo", () => {
+  it("resume para o checkout só o restante do evento, das cotas e de cada tipo", () => {
     expect(
       toCheckoutAvailability({
         capacity: 50,
         sold: 10,
         held: 0,
         remaining: 40,
+        categories: {
+          inteira: { quota: 30, sold: 8, taken: 10, remaining: 20 },
+          meia: { quota: null, sold: 2, taken: 2, remaining: null },
+        },
         types: [
           {
             ticketTypeId: "a",
@@ -55,7 +61,69 @@ describe("limite próprio de cada tipo", () => {
           },
         ],
       }),
-    ).toEqual({ remaining: 40, typeRemaining: { a: 1, b: null } });
+    ).toEqual({
+      remaining: 40,
+      categoryRemaining: { inteira: 20, meia: null },
+      typeRemaining: { a: 1, b: null },
+    });
+  });
+});
+
+describe("cotas de inteiras e meias", () => {
+  const types = [
+    { id: "casadinha", kind: "inteira", peoplePerUnit: 2, remainingUnits: null },
+    { id: "inteira", kind: "inteira", peoplePerUnit: 1, remainingUnits: null },
+    { id: "meia", kind: "meia", peoplePerUnit: 1, remainingUnits: null },
+  ];
+
+  it("casadinha consome a cota de inteiras e a meia tem a sua", () => {
+    expect(
+      fitSelection({ casadinha: 2, inteira: 3, meia: 4 }, types, 100, { inteira: 5, meia: 2 }),
+    ).toEqual({ casadinha: 2, inteira: 1, meia: 2 });
+  });
+
+  it("sem cota, vale só o total e o máximo por compra", () => {
+    expect(fitSelection({ casadinha: 2, inteira: 3, meia: 4 }, types, 100)).toEqual({
+      casadinha: 2,
+      inteira: 3,
+      meia: 3,
+    });
+  });
+
+  it("o botão + para na cota da categoria, descontando o que já foi escolhido", () => {
+    expect(
+      maxSelectableUnits({
+        remaining: 50,
+        peopleSelectedElsewhere: 2,
+        peoplePerUnit: 1,
+        categoryRemaining: 3,
+        categoryPeopleSelectedElsewhere: 2,
+      }),
+    ).toBe(1);
+    expect(
+      maxSelectableUnits({
+        remaining: 50,
+        peopleSelectedElsewhere: 0,
+        peoplePerUnit: 2,
+        categoryRemaining: 3,
+      }),
+    ).toBe(1);
+  });
+
+  it("o menor entre limite do tipo e cota da categoria define 'Esgotado'/'Resta N'", () => {
+    expect(typeUnitsLeft({ kind: "inteira", peoplePerUnit: 4, remainingUnits: 10 }, { inteira: 3, meia: null })).toBe(0);
+    expect(typeUnitsLeft({ kind: "inteira", peoplePerUnit: 2, remainingUnits: 1 }, { inteira: 9, meia: null })).toBe(1);
+    expect(typeUnitsLeft({ kind: "meia", peoplePerUnit: 1, remainingUnits: null }, { inteira: 0, meia: null })).toBeNull();
+    expect(typeUnitsLeft({ kind: "meia", peoplePerUnit: 1, remainingUnits: null }, { inteira: null, meia: 7 })).toBe(7);
+  });
+
+  it("explica a recusa pela categoria", () => {
+    expect(categoryRefusalMessage("inteira", 0)).toBe(
+      "Os ingressos inteira esgotaram. Ajustamos sua seleção.",
+    );
+    expect(categoryRefusalMessage("meia", 4)).toBe(
+      "Restam apenas 4 ingressos meia-entrada. Ajustamos sua seleção.",
+    );
   });
 });
 
@@ -127,8 +195,8 @@ describe("máximo selecionável por tipo", () => {
 
 describe("ajuste da seleção", () => {
   const simple = [
-    { id: "inteira", peoplePerUnit: 1, remainingUnits: null },
-    { id: "meia", peoplePerUnit: 1, remainingUnits: null },
+    { id: "inteira", kind: "inteira", peoplePerUnit: 1, remainingUnits: null },
+    { id: "meia", kind: "meia", peoplePerUnit: 1, remainingUnits: null },
   ];
 
   it("reduz na ordem dos tipos até caber no restante", () => {
@@ -158,8 +226,8 @@ describe("ajuste da seleção", () => {
 
   it("pacotes contam pessoas: 2 famílias (8) + casadinha (2) = 10, a terceira família sai", () => {
     const types = [
-      { id: "familia", peoplePerUnit: 4, remainingUnits: null },
-      { id: "casadinha", peoplePerUnit: 2, remainingUnits: null },
+      { id: "familia", kind: "inteira", peoplePerUnit: 4, remainingUnits: null },
+      { id: "casadinha", kind: "inteira", peoplePerUnit: 2, remainingUnits: null },
     ];
     expect(fitSelection({ familia: 3, casadinha: 1 }, types, 50)).toEqual({
       familia: 2,
@@ -168,7 +236,7 @@ describe("ajuste da seleção", () => {
   });
 
   it("respeita o limite próprio do tipo e remove tipos que saíram da venda", () => {
-    const types = [{ id: "casadinha", peoplePerUnit: 2, remainingUnits: 1 }];
+    const types = [{ id: "casadinha", kind: "inteira", peoplePerUnit: 2, remainingUnits: 1 }];
     expect(fitSelection({ casadinha: 3, arquivado: 2 }, types, 50)).toEqual({ casadinha: 1 });
   });
 });

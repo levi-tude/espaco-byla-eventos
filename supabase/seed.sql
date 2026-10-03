@@ -8,6 +8,8 @@ insert into public.events (
   venue,
   starts_at,
   capacity,
+  inteira_quota,
+  meia_quota,
   sales_open
 ) values (
   '10000000-0000-4000-8000-000000000001',
@@ -17,6 +19,8 @@ insert into public.events (
   'Espaço de Teste',
   '2027-01-23 22:00:00-03',
   120,
+  80,
+  40,
   true
 )
 on conflict (id) do update set
@@ -26,6 +30,8 @@ on conflict (id) do update set
   venue = excluded.venue,
   starts_at = excluded.starts_at,
   capacity = excluded.capacity,
+  inteira_quota = excluded.inteira_quota,
+  meia_quota = excluded.meia_quota,
   sales_open = excluded.sales_open;
 
 insert into public.ticket_types (

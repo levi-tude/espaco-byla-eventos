@@ -32,12 +32,27 @@ const input = {
   acceptedPrivacy: true,
 };
 
-function availability(remaining: number, sold: number, held: number, casadinhaLeft: number | null) {
+function availability(
+  remaining: number,
+  sold: number,
+  held: number,
+  casadinhaLeft: number | null,
+  inteiraLeft: number | null = null,
+) {
   return {
     capacity: sold + held + remaining,
     sold,
     held,
     remaining,
+    categories: {
+      inteira: {
+        quota: inteiraLeft === null ? null : 20,
+        sold: 3,
+        taken: 3,
+        remaining: inteiraLeft,
+      },
+      meia: { quota: null, sold: 0, taken: 0, remaining: null },
+    },
     types: [
       { ticket_type_id: INTEIRA, units_taken: 3, units_sold: 3, max_units: null, remaining_units: null, has_sales: true },
       { ticket_type_id: CASADINHA, units_taken: 2, units_sold: 1, max_units: 3, remaining_units: casadinhaLeft, has_sales: true },
@@ -75,8 +90,37 @@ describe("checkout recusado por lotação ou limite do tipo", () => {
 
     expect(await startCheckout(input)).toEqual({
       error: "Restam apenas 2 lugares. Ajustamos sua seleção.",
-      availability: { remaining: 2, typeRemaining: { [INTEIRA]: null, [CASADINHA]: 1 } },
+      availability: {
+        remaining: 2,
+        categoryRemaining: { inteira: null, meia: null },
+        typeRemaining: { [INTEIRA]: null, [CASADINHA]: 1 },
+      },
     });
+  });
+
+  it("cota de inteiras: diz quantas inteiras restam (Casadinha conta 2)", async () => {
+    mocks.orderError = { message: "ESGOTADO_CATEGORIA:inteira:1" };
+    mocks.availability = { data: availability(30, 3, 0, null, 1), error: null };
+
+    const result = await startCheckout({ ...input, items: [{ ticketTypeId: CASADINHA, qty: 1 }] });
+    expect(result).toEqual({
+      error: "Resta apenas 1 ingresso inteira. Ajustamos sua seleção.",
+      availability: {
+        remaining: 30,
+        categoryRemaining: { inteira: 1, meia: null },
+        typeRemaining: { [INTEIRA]: null, [CASADINHA]: null },
+      },
+    });
+  });
+
+  it("cota de meias esgotada avisa pela categoria", async () => {
+    mocks.orderError = { message: "ESGOTADO_CATEGORIA:meia:0" };
+    mocks.availability = { data: availability(30, 3, 0, null), error: null };
+
+    const result = await startCheckout({ ...input, items: [{ ticketTypeId: MEIA, qty: 1 }] });
+    expect("error" in result && result.error).toBe(
+      "Os ingressos meia-entrada esgotaram. Ajustamos sua seleção.",
+    );
   });
 
   it("sem lugares por reservas em andamento explica que vagas podem reabrir", async () => {
@@ -98,7 +142,11 @@ describe("checkout recusado por lotação ou limite do tipo", () => {
     });
     expect(result).toEqual({
       error: "Resta apenas 1 “Casadinha”. Ajustamos sua seleção.",
-      availability: { remaining: 5, typeRemaining: { [INTEIRA]: null, [CASADINHA]: 1 } },
+      availability: {
+        remaining: 5,
+        categoryRemaining: { inteira: null, meia: null },
+        typeRemaining: { [INTEIRA]: null, [CASADINHA]: 1 },
+      },
     });
   });
 

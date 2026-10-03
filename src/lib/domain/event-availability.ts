@@ -1,8 +1,10 @@
 import "server-only";
 
 import {
+  type CategoryAvailability,
   computeAvailability,
   type EventAvailabilityWithTypes,
+  type QuotaKind,
   type TypeAvailability,
 } from "@/lib/domain/availability";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
@@ -14,6 +16,21 @@ function toCount(value: unknown): number {
 
 function toOptionalCount(value: unknown): number | null {
   return value === null || value === undefined ? null : toCount(value);
+}
+
+function parseCategory(value: unknown): CategoryAvailability {
+  const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return {
+    quota: toOptionalCount(item.quota),
+    sold: toCount(item.sold),
+    taken: toCount(item.taken),
+    remaining: toOptionalCount(item.remaining),
+  };
+}
+
+function parseCategories(value: unknown): Record<QuotaKind, CategoryAvailability> {
+  const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return { inteira: parseCategory(item.inteira), meia: parseCategory(item.meia) };
 }
 
 function parseTypes(value: unknown): TypeAvailability[] {
@@ -36,7 +53,7 @@ function parseTypes(value: unknown): TypeAvailability[] {
 }
 
 /**
- * Lotação considerando reservas ativas, e a situação de cada tipo à venda.
+ * Lotação considerando reservas ativas, cotas por categoria e a situação de cada tipo à venda.
  * `event_availability` só executa com service_role. Em falha devolve `null`: a
  * tela perde a dica, mas a RPC do checkout continua barrando acima dos limites.
  */
@@ -61,6 +78,7 @@ export async function loadEventAvailability(
       sold,
       occupied: sold + toCount(result.held),
     }),
+    categories: parseCategories(result.categories),
     types: parseTypes(result.types),
   };
 }

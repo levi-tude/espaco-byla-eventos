@@ -5,7 +5,12 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { type CheckoutTicketType, CheckoutForm } from "./checkout-form";
 import { HeldPendingOrder } from "./pending-order-banner";
 import { buildCheckoutResume, type CheckoutResume } from "@/lib/cart/resume";
-import { salesState, salesStateMessages } from "@/lib/domain/availability";
+import {
+  NO_CATEGORY_LIMIT,
+  salesState,
+  salesStateMessages,
+  toCheckoutAvailability,
+} from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -113,6 +118,9 @@ export default async function CheckoutPage({
               // Ao cancelar o pedido retomado, remonta com a disponibilidade atualizada.
               key={`${resume?.publicToken ?? ""}:${resume?.awaitingUntil ? "aguardando" : ""}`}
               remaining={availability?.remaining ?? null}
+              categoryRemaining={
+                availability ? toCheckoutAvailability(availability).categoryRemaining : NO_CATEGORY_LIMIT
+              }
               resume={resume}
               slug={slug}
               ticketTypes={publicTicketTypes}

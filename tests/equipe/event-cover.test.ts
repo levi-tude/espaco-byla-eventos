@@ -58,6 +58,8 @@ const input = {
   venue: "Espaço Byla",
   description: "",
   capacity: 100,
+  inteiraQuota: null,
+  meiaQuota: null,
   ticketTypes: [{ preset: "inteira" as const, priceCents: 5000, maxUnits: null }],
 };
 
