@@ -171,7 +171,12 @@ try {
   const orderRow = async (id) => (await db.query("select * from public.orders where id = $1", [id])).rows[0];
   const stripNew = (a) => a && ({
     capacity: a.capacity, sold: a.sold, held: a.held, remaining: a.remaining, categories: a.categories,
-    types: a.types.map(({ price_cents: _p, on_sale: _o, ...rest }) => rest),
+    types: a.types.map((t) => {
+      const rest = { ...t };
+      delete rest.price_cents;
+      delete rest.on_sale;
+      return rest;
+    }),
   });
 
   // ---------- 1) dados de antes (código antigo) ----------

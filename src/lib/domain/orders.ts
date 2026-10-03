@@ -3,21 +3,36 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 export type SupabaseAdmin = ReturnType<typeof createAdminClient>;
 
-/** `needs_decision_*`: dinheiro recebido sem vaga ou com o pedido já cancelado; a equipe decide. */
+/**
+ * `needs_decision_*`: dinheiro recebido sem vaga, com o pedido já cancelado, depois
+ * do fim das vendas da sessão (reserva vencida) ou em sessão cancelada; a equipe decide.
+ */
 export type PaidOrderOutcome =
   | "updated"
   | "repaired"
   | "noop"
   | "needs_decision_capacity"
-  | "needs_decision_cancelled";
+  | "needs_decision_cancelled"
+  | "needs_decision_sales_closed"
+  | "needs_decision_session_cancelled";
+
+const DECISION_OUTCOMES: readonly PaidOrderOutcome[] = [
+  "needs_decision_capacity",
+  "needs_decision_cancelled",
+  "needs_decision_sales_closed",
+  "needs_decision_session_cancelled",
+];
 
 const PAID_OUTCOMES: readonly PaidOrderOutcome[] = [
   "updated",
   "repaired",
   "noop",
-  "needs_decision_capacity",
-  "needs_decision_cancelled",
+  ...DECISION_OUTCOMES,
 ];
+
+export function isDecisionOutcome(outcome: PaidOrderOutcome): boolean {
+  return DECISION_OUTCOMES.includes(outcome);
+}
 
 export async function markOrderPaidIfPending(
   admin: SupabaseAdmin,

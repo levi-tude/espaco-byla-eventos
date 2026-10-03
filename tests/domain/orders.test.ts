@@ -22,6 +22,8 @@ describe("markOrderPaidIfPending", () => {
     "noop",
     "needs_decision_capacity",
     "needs_decision_cancelled",
+    "needs_decision_sales_closed",
+    "needs_decision_session_cancelled",
   ] as const)("devolve o resultado transacional %s", async (outcome) => {
     const { admin, rpc } = createAdminMock([{ data: outcome, error: null }]);
 

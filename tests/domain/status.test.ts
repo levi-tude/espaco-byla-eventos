@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAcceptDecision,
   canEnter,
   countsTowardCapacity,
   decisionLabel,
@@ -29,6 +30,16 @@ describe("status", () => {
       "Pago após cancelamento — decidir",
     );
     expect(decisionLabel(null)).toBe("Pago sem vaga — decidir");
+    expect(decisionLabel("sessao_encerrada")).toBe("Pago após o fim das vendas — decidir");
+    expect(decisionLabel("sessao_cancelada")).toBe("Pago em sessão cancelada — estornar");
+    expect(decisionLabel("toString")).toBe("Pago sem vaga — decidir");
+  });
+
+  it("sessão cancelada só permite estornar", () => {
+    expect(canAcceptDecision("sem_vaga")).toBe(true);
+    expect(canAcceptDecision("sessao_encerrada")).toBe(true);
+    expect(canAcceptDecision(null)).toBe(true);
+    expect(canAcceptDecision("sessao_cancelada")).toBe(false);
   });
 
   it("selo 'Novo' só para pagamento nas últimas 24 h", () => {

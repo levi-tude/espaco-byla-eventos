@@ -6,6 +6,7 @@ import {
   type PaidOrderOutcome,
   type SupabaseAdmin,
 } from "@/lib/domain/orders";
+import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName } from "@/lib/domain/ticket-types";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
 import type { ProviderIds } from "@/lib/payments/types";
@@ -38,6 +39,15 @@ const DECISION_ALERTS: Partial<
   needs_decision_cancelled: {
     kind: "pago_apos_cancelamento",
     details: `O pagamento chegou depois de o pedido ter sido cancelado. O pedido está em “Pago após cancelamento — decidir” e os ingressos ainda não valem. ${DECIDE_HINT}`,
+  },
+  needs_decision_sales_closed: {
+    kind: "pago_apos_encerramento",
+    details: `O pagamento chegou depois que a reserva venceu e as vendas da sessão já tinham sido encerradas. O pedido está em “Pago após o fim das vendas — decidir” e os ingressos ainda não valem. ${DECIDE_HINT}`,
+  },
+  needs_decision_session_cancelled: {
+    kind: "pago_sessao_cancelada",
+    details:
+      "O pagamento chegou para uma sessão cancelada. O pedido está em “Pago em sessão cancelada — estornar” e os ingressos não valem. No painel do evento, use “Estornar” para devolver o dinheiro.",
   },
 };
 
@@ -123,7 +133,7 @@ export async function sendOrderTicketsEmail(
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("buyer_email, buyer_name, public_token, event_id")
+    .select("buyer_email, buyer_name, public_token, event_id, session_id")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -134,12 +144,17 @@ export async function sendOrderTicketsEmail(
     return emailNotSent("dados do pedido não encontrados");
   }
 
-  const [eventResult, ticketsResult] = await Promise.all([
+  const [eventResult, sessionResult, ticketsResult] = await Promise.all([
     admin
       .from("events")
       .select("name, venue, starts_at")
       .eq("id", order.event_id)
       .single(),
+    admin
+      .from("event_sessions")
+      .select("name, starts_at, ends_at")
+      .eq("id", order.session_id)
+      .maybeSingle(),
     admin
       .from("tickets")
       .select("code, buyer_name, kind, order_items(name)")
@@ -154,6 +169,12 @@ export async function sendOrderTicketsEmail(
     );
     return emailNotSent("evento não encontrado");
   }
+  if (sessionResult.error || !sessionResult.data) {
+    console.error(
+      "[email] Pedido pago, mas a sessão para envio não foi encontrada.",
+    );
+    return emailNotSent("sessão não encontrada");
+  }
 
   if (ticketsResult.error || !ticketsResult.data?.length) {
     console.error(
@@ -163,13 +184,17 @@ export async function sendOrderTicketsEmail(
   }
 
   const event = eventResult.data;
+  const session = sessionResult.data;
 
   const emailResult = await sendTicketsEmail({
     buyerEmail: order.buyer_email,
     buyerName: order.buyer_name,
     eventName: event.name,
+    sessionName: sessionName(session.name),
     venue: event.venue,
-    startsAt: event.starts_at,
+    startsAt: session.starts_at,
+    endsAt: session.ends_at,
+    orderNumber: orderNumber(orderId),
     tickets: ticketsResult.data.map((ticket) => ({
       code: ticket.code,
       holderName: ticket.buyer_name,

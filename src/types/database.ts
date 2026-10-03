@@ -101,6 +101,125 @@ export type Database = {
           },
         ];
       };
+      event_sessions: {
+        Row: {
+          archived_at: string | null;
+          cancel_notice_sent_at: string | null;
+          cancel_reason: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          cancelled_by_name: string | null;
+          capacity: number;
+          created_at: string;
+          ends_at: string | null;
+          event_id: string;
+          id: string;
+          inteira_quota: number | null;
+          meia_quota: number | null;
+          name: string | null;
+          sales_open: boolean;
+          starts_at: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          cancel_notice_sent_at?: string | null;
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancelled_by_name?: string | null;
+          capacity: number;
+          created_at?: string;
+          ends_at?: string | null;
+          event_id: string;
+          id?: string;
+          inteira_quota?: number | null;
+          meia_quota?: number | null;
+          name?: string | null;
+          sales_open?: boolean;
+          starts_at: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          cancel_notice_sent_at?: string | null;
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancelled_by_name?: string | null;
+          capacity?: number;
+          created_at?: string;
+          ends_at?: string | null;
+          event_id?: string;
+          id?: string;
+          inteira_quota?: number | null;
+          meia_quota?: number | null;
+          name?: string | null;
+          sales_open?: boolean;
+          starts_at?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_sessions_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      session_ticket_types: {
+        Row: {
+          created_at: string;
+          id: string;
+          max_units: number | null;
+          on_sale: boolean;
+          price_cents: number;
+          session_id: string;
+          ticket_type_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          max_units?: number | null;
+          on_sale?: boolean;
+          price_cents: number;
+          session_id: string;
+          ticket_type_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          max_units?: number | null;
+          on_sale?: boolean;
+          price_cents?: number;
+          session_id?: string;
+          ticket_type_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_ticket_types_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "event_sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_ticket_types_ticket_type_id_fkey";
+            columns: ["ticket_type_id"];
+            isOneToOne: false;
+            referencedRelation: "ticket_types";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       order_items: {
         Row: {
           created_at: string;
@@ -240,6 +359,7 @@ export type Database = {
           reminder_claimed_at: string | null;
           reminder_optout_token: string | null;
           reminder_sent_at: string | null;
+          session_id: string;
           status: Database["public"]["Enums"]["order_status"];
           total_cents: number;
         };
@@ -268,6 +388,7 @@ export type Database = {
           reminder_claimed_at?: string | null;
           reminder_optout_token?: string | null;
           reminder_sent_at?: string | null;
+          session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents: number;
         };
@@ -296,6 +417,7 @@ export type Database = {
           reminder_claimed_at?: string | null;
           reminder_optout_token?: string | null;
           reminder_sent_at?: string | null;
+          session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents?: number;
         };
@@ -306,6 +428,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "events";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_session_event_fkey";
+            columns: ["session_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "event_sessions";
+            referencedColumns: ["id", "event_id"];
           },
         ];
       };
@@ -410,6 +539,7 @@ export type Database = {
           order_id: string;
           order_item_id: string;
           price_cents: number;
+          session_id: string;
           status: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id: string;
         };
@@ -426,6 +556,7 @@ export type Database = {
           order_id: string;
           order_item_id: string;
           price_cents: number;
+          session_id?: string;
           status?: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id: string;
         };
@@ -442,6 +573,7 @@ export type Database = {
           order_id?: string;
           order_item_id?: string;
           price_cents?: number;
+          session_id?: string;
           status?: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id?: string;
         };
@@ -462,10 +594,17 @@ export type Database = {
           },
           {
             foreignKeyName: "tickets_order_id_fkey";
-            columns: ["order_id"];
+            columns: ["order_id", "session_id"];
             isOneToOne: false;
             referencedRelation: "orders";
-            referencedColumns: ["id"];
+            referencedColumns: ["id", "session_id"];
+          },
+          {
+            foreignKeyName: "tickets_session_event_fkey";
+            columns: ["session_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "event_sessions";
+            referencedColumns: ["id", "event_id"];
           },
           {
             foreignKeyName: "tickets_ticket_type_id_fkey";
@@ -521,16 +660,37 @@ export type Database = {
         Args: { p_event_id: string; p_staff_user_id: string; p_ticket_id: string };
         Returns: string;
       };
-      check_in_ticket: {
-        Args: { p_code: string; p_event_id: string; p_staff_user_id: string };
-        Returns: {
-          buyer_name: string | null;
-          other_event_name: string | null;
-          outcome: string;
-          ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
-          type_name: string | null;
-        }[];
-      };
+      check_in_ticket:
+        | {
+            Args: {
+              p_code: string;
+              p_event_id: string;
+              p_session_id: string;
+              p_staff_user_id: string;
+            };
+            Returns: {
+              buyer_name: string | null;
+              event_name: string | null;
+              other_event_name: string | null;
+              other_session_name: string | null;
+              other_session_starts_at: string | null;
+              outcome: string;
+              session_name: string | null;
+              session_starts_at: string | null;
+              ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
+              type_name: string | null;
+            }[];
+          }
+        | {
+            Args: { p_code: string; p_event_id: string; p_staff_user_id: string };
+            Returns: {
+              buyer_name: string | null;
+              other_event_name: string | null;
+              outcome: string;
+              ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
+              type_name: string | null;
+            }[];
+          };
       consume_rate_limit: {
         Args: {
           p_bucket: string;
@@ -550,6 +710,7 @@ export type Database = {
           p_payment_provider: string;
           p_privacy_policy_version?: string | null;
           p_public_token: string;
+          p_session_id?: string | null;
         };
         Returns: {
           expires_at: string;
@@ -560,6 +721,22 @@ export type Database = {
       event_availability: {
         Args: { p_event_id: string };
         Returns: Json;
+      };
+      event_sessions_summary: {
+        Args: { p_event_id: string };
+        Returns: Json;
+      };
+      session_availability: {
+        Args: { p_session_id: string };
+        Returns: Json;
+      };
+      session_is_selling: {
+        Args: { p_session_id: string };
+        Returns: boolean;
+      };
+      order_pix_allowed: {
+        Args: { p_order_id: string };
+        Returns: boolean;
       };
       event_occupied_count: {
         Args: { p_event_id: string; p_exclude_order_id?: string | null };
@@ -583,6 +760,7 @@ export type Database = {
           p_buyer_name: string;
           p_event_id: string;
           p_public_token: string;
+          p_session_id?: string | null;
         };
         Returns: { order_id: string; ticket_id: string }[];
       };
@@ -616,6 +794,10 @@ export type Database = {
           optout_token: string;
           order_id: string;
           public_token: string;
+          session_ends_at: string | null;
+          session_id: string;
+          session_name: string | null;
+          session_starts_at: string;
         }[];
       };
       mark_abandoned_reminder_sent: {

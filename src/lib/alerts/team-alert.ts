@@ -1,6 +1,8 @@
 import "server-only";
 
+import { formatSessionShort } from "@/lib/datetime";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
+import { sessionName } from "@/lib/domain/sessions";
 import {
   releaseRateLimit,
   tryConsumeRateLimit,
@@ -13,6 +15,8 @@ export type TeamAlertKind =
   | "email_nao_enviado"
   | "pago_sem_vaga"
   | "pago_apos_cancelamento"
+  | "pago_apos_encerramento"
+  | "pago_sessao_cancelada"
   | "estorno_falhou"
   | "estorno_externo"
   | "email_estorno_nao_enviado";
@@ -26,6 +30,8 @@ const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   email_nao_enviado: "Pedido pago, mas o e-mail com os ingressos não saiu",
   pago_sem_vaga: "Pagamento recebido sem vaga no evento — decidir",
   pago_apos_cancelamento: "Pagamento recebido depois do cancelamento — decidir",
+  pago_apos_encerramento: "Pagamento recebido depois do fim das vendas — decidir",
+  pago_sessao_cancelada: "Pagamento recebido em sessão cancelada — estornar",
   estorno_falhou: "Estorno recusado pelo Mercado Pago",
   estorno_externo: "Estorno feito fora do site",
   email_estorno_nao_enviado: "Pedido estornado, mas o e-mail ao comprador não saiu",
@@ -53,6 +59,7 @@ type OrderSummary = {
   buyer_name: string;
   buyer_email: string;
   events: { name: string } | null;
+  event_sessions: { name: string | null; starts_at: string } | null;
 };
 
 type AlertLog = Record<string, string>;
@@ -63,10 +70,16 @@ async function loadOrderSummary(
 ): Promise<OrderSummary | null> {
   const { data } = await admin
     .from("orders")
-    .select("buyer_name, buyer_email, events(name)")
+    .select("buyer_name, buyer_email, events(name), event_sessions(name, starts_at)")
     .eq("id", orderId)
     .maybeSingle();
   return (data as OrderSummary | null) ?? null;
+}
+
+function sessionLine(session: { name: string | null; starts_at: string }): string {
+  const named = sessionName(session.name);
+  const when = formatSessionShort(session.starts_at);
+  return named ? `${named} · ${when}` : when;
 }
 
 function joinLines(lines: string[]): string {
@@ -152,6 +165,7 @@ export async function alertTeam(
         details,
         "",
         `Evento: ${order?.events?.name ?? "não encontrado"}`,
+        order?.event_sessions ? `Sessão: ${sessionLine(order.event_sessions)}` : "",
         `Comprador: ${order ? `${order.buyer_name} <${order.buyer_email}>` : "não encontrado"}`,
         `Pedido (código interno): ${orderId}`,
         appUrl ? `Área da equipe: ${appUrl}/equipe` : "",

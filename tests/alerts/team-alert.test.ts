@@ -26,6 +26,7 @@ const admin = {
           buyer_name: "Comprador Teste",
           buyer_email: "comprador@example.com",
           events: { name: "Festa Teste" },
+          event_sessions: { name: "Sessão infantil", starts_at: "2026-10-10T19:00:00.000Z" },
         },
         error: null,
       }),
@@ -65,6 +66,7 @@ describe("alertTeam", () => {
     expect(body.subject).toContain("[Alerta]");
     expect(body.text).toContain("Motivo: teste");
     expect(body.text).toContain("Festa Teste");
+    expect(body.text).toContain("Sessão: Sessão infantil · sáb, 10/10 · 16h00");
     expect(body.text).toContain("comprador@example.com");
     expect(body.text).toContain(orderId);
     expect(body.text).toContain("https://site.example/equipe");
@@ -73,11 +75,19 @@ describe("alertTeam", () => {
   it.each([
     ["pago_sem_vaga", "sem vaga"],
     ["pago_apos_cancelamento", "depois do cancelamento"],
+    ["pago_apos_encerramento", "depois do fim das vendas"],
   ] as const)("alerta %s tem assunto claro", async (kind, subject) => {
     await alertTeam(admin, kind, orderId, "detalhes");
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.subject).toContain(subject);
     expect(body.subject).toContain("decidir");
+  });
+
+  it("pagamento em sessão cancelada pede estorno", async () => {
+    await alertTeam(admin, "pago_sessao_cancelada", orderId, "detalhes");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toContain("sessão cancelada");
+    expect(body.subject).toContain("estornar");
   });
 
   it.each([

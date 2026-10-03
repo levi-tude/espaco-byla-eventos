@@ -10,7 +10,7 @@ import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { eventDateFormatter } from "@/lib/datetime";
 import { refundBlock, refundBlockMessage } from "@/lib/domain/refund";
-import { decisionLabel } from "@/lib/domain/status";
+import { canAcceptDecision, decisionLabel } from "@/lib/domain/status";
 
 export type DecisionQueueItem = {
   orderId: string;
@@ -131,13 +131,15 @@ export function DecisionQueue({ capacity, occupied, orders, id, className }: Pro
               </StatusBadge>
             </div>
             <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-start">
-              <Button
-                loading={isPending}
-                loadingLabel="Processando..."
-                onClick={() => accept(order)}
-              >
-                Aceitar mesmo assim
-              </Button>
+              {canAcceptDecision(order.decisionReason) ? (
+                <Button
+                  loading={isPending}
+                  loadingLabel="Processando..."
+                  onClick={() => accept(order)}
+                >
+                  Aceitar mesmo assim
+                </Button>
+              ) : null}
               <RefundOrderButton
                 blockedMessage={refundBlockedMessage(order)}
                 label="Estornar"

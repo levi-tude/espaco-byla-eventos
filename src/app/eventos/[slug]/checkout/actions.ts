@@ -158,8 +158,15 @@ async function checkoutRefusal(
   }
   if (message.includes("LIMITE_PESSOAS")) return { error: LIMIT_MESSAGE };
   if (message.includes("TIPO_INDISPONIVEL")) return { error: UNAVAILABLE_MESSAGE };
-  if (message.includes("vendas deste evento estão fechadas")) {
+  // SESSAO_ENCERRADA: venda fechada pela equipe ou 5 min depois do início.
+  if (
+    message.includes("SESSAO_ENCERRADA") ||
+    message.includes("vendas deste evento estão fechadas")
+  ) {
     return { error: "As vendas deste evento estão fechadas." };
+  }
+  if (message.includes("SESSAO_INDISPONIVEL")) {
+    return { error: "Este evento não está disponível para compra no momento." };
   }
   return { error: "Não foi possível criar o pedido." };
 }

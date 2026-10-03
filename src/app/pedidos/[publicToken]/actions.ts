@@ -1,7 +1,8 @@
 "use server";
 
-import type { PaidOrderOutcome } from "@/lib/domain/orders";
+import { isDecisionOutcome, type PaidOrderOutcome } from "@/lib/domain/orders";
 import { isPublicTokenFormat, resumeCheckoutPath } from "@/lib/domain/public-token";
+import { salesClosedPixMessage } from "@/lib/domain/sessions";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -54,6 +55,9 @@ const AWAITING_DECISION_MESSAGE =
 const PIX_ALREADY_USED_MESSAGE =
   "O PIX deste pedido venceu. Pague com cartão ou faça uma nova compra.";
 
+const SESSION_CANCELLED_MESSAGE =
+  "Esta sessão foi cancelada. Nenhuma cobrança foi feita.";
+
 async function loadOrder(publicToken: string) {
   if (typeof publicToken !== "string" || !publicToken || publicToken.length > 100) {
     return null;
@@ -62,21 +66,50 @@ async function loadOrder(publicToken: string) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, event_id, status, total_cents, buyer_email, expires_at, created_at, hold_extended_at",
+      "id, event_id, session_id, status, total_cents, buyer_email, expires_at, created_at, hold_extended_at",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
   return order ? { admin, order } : null;
 }
 
+type LoadedOrder = NonNullable<Awaited<ReturnType<typeof loadOrder>>>;
+
 function isExpired(expiresAt: string | null) {
   return expiresAt !== null && Date.parse(expiresAt) <= Date.now();
 }
 
 function needsDecision(outcome: PaidOrderOutcome) {
-  return (
-    outcome === "needs_decision_capacity" || outcome === "needs_decision_cancelled"
-  );
+  return isDecisionOutcome(outcome);
+}
+
+/**
+ * Regras da sessão antes de cobrar (o banco decide; falha fechada): sessão
+ * cancelada não recebe pagamento; PIX novo só enquanto a sessão vende, porque
+ * estenderia a reserva para depois do fim da venda. Cartão segue até o fim da reserva.
+ */
+async function sessionPaymentRefusal(
+  { admin, order }: LoadedOrder,
+  isPix: boolean,
+): Promise<PayOrderResult | null> {
+  const { data: session, error } = await admin
+    .from("event_sessions")
+    .select("status")
+    .eq("id", order.session_id)
+    .maybeSingle();
+  if (error || !session) return { status: "rejected", message: GENERIC_FAILURE };
+  if (session.status === "cancelada") {
+    return { status: "unavailable", message: SESSION_CANCELLED_MESSAGE };
+  }
+  if (!isPix) return null;
+
+  const { data: allowed, error: pixError } = await admin.rpc("order_pix_allowed", {
+    p_order_id: order.id,
+  });
+  if (pixError) return { status: "rejected", message: GENERIC_FAILURE };
+  return allowed === true
+    ? null
+    : { status: "rejected", message: salesClosedPixMessage(order.expires_at) };
 }
 
 function paidResult(outcome: PaidOrderOutcome): PayOrderResult {
@@ -186,6 +219,8 @@ export async function payOrder(
     if (payment.paymentMethodId === "pix" && order.hold_extended_at) {
       return { status: "rejected", message: PIX_ALREADY_USED_MESSAGE };
     }
+    const refusal = await sessionPaymentRefusal(loaded, payment.paymentMethodId === "pix");
+    if (refusal) return refusal;
 
     const withinLimits =
       (await consumeRateLimit(admin, RATE_LIMITS.paymentPerOrder, order.id)) &&

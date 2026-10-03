@@ -45,6 +45,11 @@ export type CategoryRemaining = Record<QuotaKind, number | null>;
 export type EventAvailabilityWithTypes = EventAvailability & {
   categories: Record<QuotaKind, CategoryAvailability>;
   types: TypeAvailability[];
+  /**
+   * A sessão está vendendo (evento e sessão abertos, sessão ativa e antes de
+   * início + 5 min). `null` = o banco não informou; vale só a chave do evento.
+   */
+  selling: boolean | null;
 };
 
 /** O mínimo que o checkout precisa para refazer os limites depois de uma recusa. */
@@ -85,14 +90,18 @@ export function computeAvailability({
   };
 }
 
-/** Sem `availability` (falha na consulta), segue só a chave de venda; o banco ainda barra a lotação. */
+/**
+ * Sem `availability` (falha na consulta), segue só a chave de venda; o banco ainda
+ * barra a lotação e o horário. `selling === false` (venda encerrada pelo horário
+ * ou pela equipe) fecha a venda.
+ */
 export function salesState(
   salesOpen: boolean,
-  availability: EventAvailability | null,
+  availability: (EventAvailability & { selling?: boolean | null }) | null,
 ): SalesState {
   if (!availability) return salesOpen ? "open" : "closed";
   if (availability.sold >= availability.capacity) return "sold_out";
-  if (!salesOpen) return "closed";
+  if (!salesOpen || availability.selling === false) return "closed";
   if (availability.remaining === 0) return "held";
   return "open";
 }

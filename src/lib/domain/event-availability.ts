@@ -80,5 +80,6 @@ export async function loadEventAvailability(
     }),
     categories: parseCategories(result.categories),
     types: parseTypes(result.types),
+    selling: typeof result.selling === "boolean" ? result.selling : null,
   };
 }

@@ -1,4 +1,4 @@
-import { eventDateFormatter } from "@/lib/datetime";
+import { formatSessionSubject, formatSessionWhen } from "@/lib/datetime";
 
 export type TicketsEmailTicket = {
   holderName: string;
@@ -11,8 +11,14 @@ export type TicketsEmailTicket = {
 export type TicketsEmailData = {
   buyerName: string;
   eventName: string;
+  /** Só quando a sessão tem nome (ex.: "Sessão infantil"). */
+  sessionName?: string | null;
   venue: string;
+  /** Início e término da sessão do pedido. */
   startsAt: string;
+  endsAt?: string | null;
+  /** "A1B2C3D4" (8 primeiros caracteres do pedido; nunca o token público). */
+  orderNumber: string;
   tickets: TicketsEmailTicket[];
   ticketUrl: string;
 };
@@ -38,22 +44,32 @@ function firstName(fullName: string) {
   return fullName.trim().split(/\s+/)[0] || fullName.trim();
 }
 
-function formatStartsAt(startsAt: string) {
-  const date = new Date(startsAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return eventDateFormatter({ dateStyle: "full", timeStyle: "short" }).format(
-    date,
-  );
-}
-
-function ticketBlock(ticket: TicketsEmailTicket, index: number, total: number) {
+function ticketBlock(
+  ticket: TicketsEmailTicket,
+  index: number,
+  total: number,
+  data: TicketsEmailData,
+  when: string,
+) {
   const title = total > 1 ? `Ingresso ${index + 1} de ${total}` : "Seu ingresso";
+  const session = data.sessionName
+    ? `<p style="margin:0 0 2px;font-size:15px;font-weight:bold;color:#111111;">${escapeHtml(data.sessionName)}</p>`
+    : "";
+  const whenLine = when
+    ? `<p style="margin:0;font-size:14px;line-height:20px;color:#111111;">${escapeHtml(when)}</p>`
+    : "";
   return `<tr>
               <td align="center" style="padding:12px 24px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:12px;">
                   <tr>
                     <td align="center" style="padding:20px 16px;">
                       <p style="margin:0 0 4px;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#888888;">${title}</p>
+                      <p style="margin:0 0 12px;font-size:14px;color:#555555;">${escapeHtml(data.eventName)}</p>
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;background:#f4f5f7;border-radius:8px;">
+                        <tr>
+                          <td align="center" style="padding:10px 12px;">${session}${whenLine}<p style="margin:2px 0 0;font-size:13px;color:#555555;">${escapeHtml(data.venue)}</p></td>
+                        </tr>
+                      </table>
                       <p style="margin:0 0 12px;font-size:16px;font-weight:bold;color:#111111;">${escapeHtml(ticket.holderName)} · ${escapeHtml(ticket.kindLabel)}</p>
                       <img src="cid:${escapeHtml(ticket.qrContentId)}" width="220" height="220" alt="QR Code do ingresso" style="display:block;width:220px;height:220px;border:0;">
                       <p style="margin:12px 0 4px;font-size:12px;color:#888888;">Código para digitação manual</p>
@@ -67,13 +83,18 @@ function ticketBlock(ticket: TicketsEmailTicket, index: number, total: number) {
 
 export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const name = firstName(data.buyerName);
-  const when = formatStartsAt(data.startsAt);
+  const when = formatSessionWhen(data.startsAt, data.endsAt);
+  const subjectWhen = formatSessionSubject(data.startsAt);
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
 
-  const subject = `Seus ingressos — ${data.eventName}`;
+  const subject = subjectWhen
+    ? `Seus ingressos — ${data.eventName} · ${subjectWhen}`
+    : `Seus ingressos — ${data.eventName}`;
 
   const details = [
+    `<strong>Pedido nº</strong> ${escapeHtml(data.orderNumber)}`,
+    data.sessionName ? `<strong>Sessão:</strong> ${escapeHtml(data.sessionName)}` : "",
     when ? `<strong>Quando:</strong> ${escapeHtml(when)}` : "",
     `<strong>Onde:</strong> ${escapeHtml(data.venue)}`,
     `<strong>Quantidade:</strong> ${count}`,
@@ -86,7 +107,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     .join("");
 
   const tickets = data.tickets
-    .map((ticket, index) => ticketBlock(ticket, index, total))
+    .map((ticket, index) => ticketBlock(ticket, index, total, data, when))
     .join("");
 
   const html = `<!doctype html>
@@ -97,7 +118,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
@@ -130,20 +151,22 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     "",
     `Pagamento confirmado. Seus ingressos para ${data.eventName} estão garantidos.`,
     "",
-    when ? `Quando: ${when}` : "",
+    `Pedido nº ${data.orderNumber}`,
+    ...(data.sessionName ? [`Sessão: ${data.sessionName}`] : []),
+    ...(when ? [`Quando: ${when}`] : []),
     `Onde: ${data.venue}`,
     `Quantidade: ${count}`,
     "",
     ...data.tickets.map(
       (ticket, index) =>
-        `Ingresso ${index + 1}: ${ticket.holderName} (${ticket.kindLabel}) — código ${ticket.code}`,
+        `Ingresso ${index + 1} de ${total}: ${ticket.holderName} (${ticket.kindLabel}) — código ${ticket.code}`,
     ),
     "",
     `Ver meus ingressos (com QR Code): ${data.ticketUrl}`,
     "",
     "Na entrada, mostre o QR Code de cada ingresso. Cada um vale para uma pessoa e só pode ser usado uma vez.",
     "",
-    "Espaço Byla",
+    "Espaço Byla Eventos",
   ]
     .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
     .join("\n");

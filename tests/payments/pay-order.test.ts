@@ -53,9 +53,13 @@ function pendingOrder(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function useOrder(order: Record<string, unknown>) {
+function useOrder(
+  order: Record<string, unknown>,
+  session: Record<string, unknown> | null = { status: "ativa" },
+) {
   mocks.from.mockImplementation((table: string) => {
-    const data = table === "orders" ? order : { name: "Show" };
+    const data =
+      table === "orders" ? order : table === "event_sessions" ? session : { name: "Show" };
     const chain = {
       select: () => chain,
       eq: () => chain,
@@ -172,6 +176,63 @@ describe("pagamento com reserva de 15 min e PIX", () => {
     useOrder(pendingOrder());
     mocks.createPayment.mockResolvedValue({ status: "approved", paymentId: "ORD3" });
     mocks.confirmOrderPaid.mockResolvedValue("needs_decision_capacity");
+
+    await expect(payOrder("token", cardSubmission)).resolves.toEqual({
+      status: "unavailable",
+      message:
+        "Recebemos seu pagamento. Nossa equipe vai conferir o pedido e avisar você por e-mail.",
+    });
+  });
+
+  it("depois do fim das vendas da sessão, PIX novo é recusado e o cartão é oferecido", async () => {
+    const order = pendingOrder({ expires_at: "2026-10-10T22:12:00.000Z" });
+    useOrder(order);
+    mocks.rpc.mockImplementation(async (fn: string) =>
+      fn === "order_pix_allowed" ? { data: false, error: null } : { data: true, error: null },
+    );
+
+    await expect(payOrder("token", pixSubmission)).resolves.toEqual({
+      status: "rejected",
+      message: "As vendas desta sessão foram encerradas. Se quiser, pague com cartão até 19h12.",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("order_pix_allowed", { p_order_id: orderId });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+  });
+
+  it("cartão dentro da reserva não depende da venda da sessão", async () => {
+    useOrder(pendingOrder());
+    mocks.rpc.mockImplementation(async (fn: string) =>
+      fn === "order_pix_allowed" ? { data: false, error: null } : { data: true, error: null },
+    );
+    mocks.createPayment.mockResolvedValue({ status: "approved", paymentId: "ORD4" });
+    mocks.confirmOrderPaid.mockResolvedValue("updated");
+
+    await expect(payOrder("token", cardSubmission)).resolves.toEqual({ status: "paid" });
+    expect(mocks.rpc).not.toHaveBeenCalledWith("order_pix_allowed", expect.anything());
+  });
+
+  it("sessão cancelada não gera cobrança", async () => {
+    useOrder(pendingOrder(), { status: "cancelada" });
+
+    await expect(payOrder("token", cardSubmission)).resolves.toEqual({
+      status: "unavailable",
+      message: "Esta sessão foi cancelada. Nenhuma cobrança foi feita.",
+    });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+  });
+
+  it("sem conseguir ler a sessão, não cobra (falha fechada)", async () => {
+    useOrder(pendingOrder(), null);
+
+    const result = await payOrder("token", cardSubmission);
+    expect(result.status).toBe("rejected");
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+  });
+
+  it("pagamento aprovado depois do fim das vendas vai para a decisão da equipe", async () => {
+    useOrder(pendingOrder());
+    mocks.createPayment.mockResolvedValue({ status: "approved", paymentId: "ORD5" });
+    mocks.confirmOrderPaid.mockResolvedValue("needs_decision_sales_closed");
 
     await expect(payOrder("token", cardSubmission)).resolves.toEqual({
       status: "unavailable",

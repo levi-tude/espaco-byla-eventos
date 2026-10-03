@@ -38,6 +38,7 @@ describe("limite próprio de cada tipo", () => {
         sold: 10,
         held: 0,
         remaining: 40,
+        selling: true,
         categories: {
           inteira: { quota: 30, sold: 8, taken: 10, remaining: 20 },
           meia: { quota: null, sold: 2, taken: 2, remaining: null },
@@ -160,6 +161,15 @@ describe("disponibilidade do evento", () => {
   it("sem consulta de lotação segue só a chave de venda", () => {
     expect(salesState(true, null)).toBe("open");
     expect(salesState(false, null)).toBe("closed");
+  });
+
+  it("venda encerrada pelo horário da sessão fecha mesmo com a chave aberta", () => {
+    const open = computeAvailability({ capacity: 10, sold: 7, occupied: 8 });
+    expect(salesState(true, { ...open, selling: false })).toBe("closed");
+    expect(salesState(true, { ...open, selling: true })).toBe("open");
+    expect(salesState(true, { ...open, selling: null })).toBe("open");
+    const soldOut = computeAvailability({ capacity: 10, sold: 10, occupied: 10 });
+    expect(salesState(true, { ...soldOut, selling: false })).toBe("sold_out");
   });
 });
 

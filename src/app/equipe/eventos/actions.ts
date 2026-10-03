@@ -253,6 +253,11 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
         "A capacidade não pode ser menor que os ingressos já reservados.",
       );
     }
+    if (eventError.message.includes("SESSAO_VARIAS")) {
+      throw new ActionError(
+        "Este evento tem mais de uma sessão. A edição por sessão ainda não está disponível.",
+      );
+    }
     throw new ActionError(
       quotaDbErrorMessage(eventError.message) ??
         ticketTypesErrorMessage(eventError.message) ??
@@ -316,6 +321,9 @@ async function issueCourtesyOrThrow(
   if (error) {
     if (error.message.includes("Capacidade esgotada")) {
       throw new ActionError("Capacidade esgotada para este evento.");
+    }
+    if (error.message.includes("SESSAO_INDISPONIVEL")) {
+      throw new ActionError("Não há uma sessão disponível para esta cortesia.");
     }
     throw new ActionError("Não foi possível emitir o ingresso de cortesia.");
   }

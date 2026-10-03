@@ -50,8 +50,10 @@ const paidOrderRows = {
     buyer_name: "Comprador Teste",
     public_token: "token-publico",
     event_id: "evento-1",
+    session_id: "sessao-1",
   },
   events: { name: "Evento", venue: "Espaço", starts_at: "2026-10-10T20:00:00Z" },
+  event_sessions: { name: null, starts_at: "2026-10-10T20:00:00Z", ends_at: null },
   tickets: [{ code: "codigo-1", buyer_name: "Comprador Teste", kind: "inteira" }],
 };
 
@@ -225,6 +227,43 @@ describe("sendOrderTicketsEmail", () => {
     mocks.sendTicketsEmail.mockResolvedValue("sent");
     await expect(sendOrderTicketsEmail(fakeAdmin(paidOrderRows), orderId)).resolves.toBe(true);
     expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("usa o horário e o nome da sessão do pedido, não o do evento", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await sendOrderTicketsEmail(
+      fakeAdmin({
+        ...paidOrderRows,
+        event_sessions: {
+          name: "Sessão infantil",
+          starts_at: "2026-10-10T19:00:00Z",
+          ends_at: "2026-10-10T20:30:00Z",
+        },
+      }),
+      orderId,
+    );
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: "2026-10-10T19:00:00Z",
+        endsAt: "2026-10-10T20:30:00Z",
+        sessionName: "Sessão infantil",
+        orderNumber: "00000000",
+      }),
+    );
+  });
+
+  it("não envia e avisa a equipe quando a sessão não é encontrada", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      sendOrderTicketsEmail(fakeAdmin({ ...paidOrderRows, event_sessions: null }), orderId),
+    ).resolves.toBe(false);
+    expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
+    expect(mocks.alertTeam).toHaveBeenCalledWith(
+      expect.anything(),
+      "email_nao_enviado",
+      orderId,
+      expect.stringContaining("sessão não encontrada"),
+    );
   });
 
   it("devolve false e avisa a equipe quando não há ingressos pagos", async () => {

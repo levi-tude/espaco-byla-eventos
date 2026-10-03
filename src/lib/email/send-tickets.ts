@@ -9,8 +9,11 @@ export type SendTicketsEmailInput = {
   buyerEmail: string;
   buyerName: string;
   eventName: string;
+  sessionName: string | null;
   venue: string;
   startsAt: string;
+  endsAt: string | null;
+  orderNumber: string;
   tickets: {
     code: string;
     holderName: string;

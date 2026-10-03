@@ -50,6 +50,9 @@ async function acceptPaidOrderOrThrow(orderId: unknown): Promise<AcceptPaidOrder
     if (error.message.includes("não está aguardando decisão")) {
       throw new ActionError("Este pedido já foi resolvido. Atualize a página.");
     }
+    if (error.message.includes("SESSAO_CANCELADA")) {
+      throw new ActionError("Sessão cancelada: este pedido só pode ser estornado.");
+    }
     throw new Error(`accept_paid_order falhou: ${error.message}`);
   }
   if (data !== "accepted" && data !== "noop") {

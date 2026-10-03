@@ -1,6 +1,10 @@
 export type TicketStatus = "nao_pago" | "pago" | "cancelado" | "check_in" | "estornado";
 
-export type DecisionReason = "sem_vaga" | "pago_apos_cancelamento";
+export type DecisionReason =
+  | "sem_vaga"
+  | "pago_apos_cancelamento"
+  | "sessao_encerrada"
+  | "sessao_cancelada";
 
 export function canEnter(status: TicketStatus): boolean {
   return status === "pago";
@@ -21,11 +25,20 @@ export function isRecentlyPaid(paidAt: string | null, now = Date.now()): boolean
 const decisionLabels: Record<DecisionReason, string> = {
   sem_vaga: "Pago sem vaga — decidir",
   pago_apos_cancelamento: "Pago após cancelamento — decidir",
+  sessao_encerrada: "Pago após o fim das vendas — decidir",
+  sessao_cancelada: "Pago em sessão cancelada — estornar",
 };
+
+function isDecisionReason(reason: string | null | undefined): reason is DecisionReason {
+  return typeof reason === "string" && Object.hasOwn(decisionLabels, reason);
+}
 
 /** Texto do pedido "aguardando decisão" conforme o motivo; motivo desconhecido cai no caso sem vaga. */
 export function decisionLabel(reason: string | null | undefined): string {
-  return reason === "pago_apos_cancelamento"
-    ? decisionLabels.pago_apos_cancelamento
-    : decisionLabels.sem_vaga;
+  return isDecisionReason(reason) ? decisionLabels[reason] : decisionLabels.sem_vaga;
+}
+
+/** Em sessão cancelada o pedido só pode ser estornado (o banco recusa "Aceitar mesmo assim"). */
+export function canAcceptDecision(reason: string | null | undefined): boolean {
+  return reason !== "sessao_cancelada";
 }
