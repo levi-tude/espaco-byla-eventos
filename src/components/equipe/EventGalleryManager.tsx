@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { addEventImage, removeEventImage } from "@/app/equipe/eventos/media-actions";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
 import { IMAGE_ACCEPT, MAX_GALLERY_IMAGES, UPLOAD_FAILED_MESSAGE } from "@/lib/media/rules";
 import { uploadImage } from "@/lib/media/upload-client";
 
@@ -79,23 +81,23 @@ export function EventGalleryManager({ eventId, images }: EventGalleryManagerProp
   }
 
   return (
-    <section className="mt-8 grid gap-4 rounded-xl border border-byla-border bg-byla-surface p-6">
+    <section className="@container grid gap-4 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-foreground">Fotos do evento</h2>
+          <h3 className="text-base font-semibold text-foreground">Fotos do evento</h3>
           <p className="text-sm text-byla-muted">
             {images.length} de {MAX_GALLERY_IMAGES}. Aparecem na página do evento na ordem de envio.
           </p>
         </div>
-        <button
-          className="flex min-h-11 items-center gap-2 rounded-lg bg-byla-blue px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+        <Button
+          className="w-full @md:w-auto"
           disabled={remaining <= 0 || busy}
           onClick={() => fileInput.current?.click()}
-          type="button"
+          variant="secondary"
         >
-          <ImagePlus aria-hidden className="h-4 w-4" />
+          <ImagePlus aria-hidden className="h-5 w-5" />
           Adicionar fotos
-        </button>
+        </Button>
         <input
           accept={IMAGE_ACCEPT}
           aria-label="Arquivos das fotos"
@@ -113,36 +115,33 @@ export function EventGalleryManager({ eventId, images }: EventGalleryManagerProp
           Enviando {pending} {pending === 1 ? "foto" : "fotos"}…
         </p>
       ) : null}
-      {message ? (
-        <p className="text-sm font-medium text-red-700 dark:text-red-400" role="alert">
-          {message}
-        </p>
-      ) : null}
+      {message ? <Notice tone="danger">{message}</Notice> : null}
 
       {images.length ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
           {images.map((image, index) => (
             <li className="grid gap-2" key={image.id}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 alt={`Foto ${index + 1} da galeria`}
-                className="aspect-square w-full rounded-lg border border-byla-border object-cover"
+                className="aspect-square w-full rounded-lg border border-byla-border bg-byla-overlay object-cover"
                 loading="lazy"
                 src={image.url}
               />
-              <button
-                className="min-h-11 rounded-lg border border-byla-border px-3 text-sm font-medium disabled:opacity-50"
+              <Button
                 disabled={busy}
+                loading={removingId === image.id}
+                loadingLabel="Removendo..."
                 onClick={() => handleRemove(image.id)}
-                type="button"
+                variant="secondary"
               >
-                {removingId === image.id ? "Removendo..." : "Remover"}
-              </button>
+                Remover
+              </Button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-byla-muted">Nenhuma foto ainda.</p>
+        <p className="text-base text-byla-muted">Nenhuma foto ainda.</p>
       )}
     </section>
   );

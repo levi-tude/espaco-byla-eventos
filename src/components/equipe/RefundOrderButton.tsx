@@ -3,6 +3,9 @@
 import { FormEvent, useEffect, useRef, useState, useTransition } from "react";
 
 import { refundOrder } from "@/app/equipe/eventos/order-actions";
+import { Button } from "@/components/ui/Button";
+import { TextAreaField } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { REFUND_REASON_MAX, REFUND_REASON_MIN } from "@/lib/domain/refund";
 
 export type RefundOrderSummary = {
@@ -37,7 +40,7 @@ export function RefundOrderButton({
   return (
     <div className="flex flex-col gap-1">
       <button
-        className="min-h-11 rounded-lg border border-red-700/50 px-4 py-2 text-left text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/50 dark:text-red-400"
+        className="inline-flex min-h-11 items-center justify-center rounded-lg border border-byla-danger/50 px-4 text-base font-semibold text-byla-danger transition hover:bg-byla-danger-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:cursor-not-allowed disabled:opacity-50"
         disabled={Boolean(blockedMessage)}
         onClick={() => setOpen(true)}
         type="button"
@@ -45,7 +48,7 @@ export function RefundOrderButton({
         {label}
       </button>
       {blockedMessage ? (
-        <span className="max-w-56 text-xs text-byla-muted">{blockedMessage}</span>
+        <span className="max-w-64 whitespace-normal text-sm text-byla-muted">{blockedMessage}</span>
       ) : null}
       {open ? (
         <RefundDialog
@@ -120,10 +123,10 @@ function RefundDialog({
     >
       <form className="grid gap-4 p-4 sm:p-6" onSubmit={submit}>
         <div>
-          <h2 className="text-lg font-semibold" id={titleId}>
+          <h2 className="break-words text-xl font-semibold" id={titleId}>
             Estornar pedido de {order.buyerName}
           </h2>
-          <p className="mt-2 text-sm">
+          <p className="mt-2 text-base">
             Será devolvido{" "}
             <strong>{currency.format(order.totalCents / 100)} — 100%</strong> para o
             meio de pagamento usado. O comprador recebe um e-mail.
@@ -131,60 +134,44 @@ function RefundDialog({
         </div>
 
         <div>
-          <p className="text-sm font-medium">
+          <p className="text-base font-medium">
             {order.ticketLabels.length === 1
               ? "Este ingresso deixa de valer:"
               : `Estes ${order.ticketLabels.length} ingressos deixam de valer:`}
           </p>
-          <ul className="mt-1 list-disc pl-5 text-sm text-byla-muted">
+          <ul className="mt-1 list-disc pl-5 text-base text-byla-muted">
             {order.ticketLabels.map((ticketLabel, index) => (
               <li key={`${ticketLabel}-${index}`}>{ticketLabel}</li>
             ))}
           </ul>
         </div>
 
-        <label className="grid gap-1 text-sm font-medium">
-          Motivo (obrigatório)
-          <textarea
-            className="min-h-24 w-full rounded-lg border border-byla-border bg-transparent px-3 py-2 font-normal"
-            disabled={isPending}
-            maxLength={REFUND_REASON_MAX}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Ex.: comprador pediu cancelamento"
-            required
-            value={reason}
-          />
-          <span className="text-xs font-normal text-byla-muted">
-            De {REFUND_REASON_MIN} a {REFUND_REASON_MAX} caracteres. Fica registrado com seu
-            nome e a data.
-          </span>
-        </label>
+        <TextAreaField
+          disabled={isPending}
+          hint={`De ${REFUND_REASON_MIN} a ${REFUND_REASON_MAX} caracteres. Fica registrado com seu nome e a data.`}
+          label="Motivo (obrigatório)"
+          maxLength={REFUND_REASON_MAX}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Ex.: comprador pediu cancelamento"
+          required
+          value={reason}
+        />
 
-        {error ? (
-          <p
-            className="rounded-lg border border-red-700/40 bg-red-500/10 p-3 text-sm font-medium text-red-800 dark:text-red-300"
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            className="min-h-11 rounded-lg border border-byla-border px-4 text-sm font-medium disabled:opacity-50"
-            disabled={isPending}
-            onClick={onClose}
-            type="button"
-          >
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Button disabled={isPending} onClick={onClose} variant="secondary">
             Voltar
-          </button>
-          <button
-            className="min-h-11 rounded-lg bg-red-700 px-5 text-sm font-semibold text-white disabled:opacity-50"
-            disabled={!reasonValid || isPending}
+          </Button>
+          <Button
+            disabled={!reasonValid}
+            loading={isPending}
+            loadingLabel="Estornando..."
             type="submit"
+            variant="danger"
           >
-            {isPending ? "Estornando..." : "Confirmar estorno"}
-          </button>
+            Confirmar estorno
+          </Button>
         </div>
       </form>
     </dialog>

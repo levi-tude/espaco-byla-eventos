@@ -6,7 +6,6 @@ import { FormEvent, useState, useTransition } from "react";
 import {
   createEvent,
   type EventInput,
-  setSalesOpen,
   updateEvent,
 } from "@/app/equipe/eventos/actions";
 import { CoverField } from "@/components/equipe/CoverField";
@@ -17,6 +16,9 @@ import {
   ticketTypesFromState,
   TicketTypesEditor,
 } from "@/components/equipe/TicketTypesEditor";
+import { Button } from "@/components/ui/Button";
+import { Field, TextAreaField } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { toEventInputValue } from "@/lib/datetime";
 import { parseQuotaInput, quotaSummary, quotasError } from "@/lib/domain/quotas";
 import { typeLimitsError, typeLimitsSummary } from "@/lib/domain/type-limits";
@@ -33,7 +35,6 @@ type EventFormProps = {
     meiaQuota: number | null;
     ticketTypes: EditorTicketType[];
     coverImageUrl: string | null;
-    salesOpen: boolean;
   };
 };
 
@@ -50,7 +51,7 @@ function initialCounts(event: EventFormProps["event"]): Counts {
 export function EventForm({ event }: EventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [ticketTypes, setTicketTypes] = useState(() =>
     initialTicketTypesState(event?.ticketTypes),
@@ -122,15 +123,15 @@ export function EventForm({ event }: EventFormProps) {
 
     const types = ticketTypesFromState(ticketTypes);
     if (!types.ok) {
-      setMessage(types.error);
+      setMessage({ ok: false, text: types.error });
       return;
     }
     if (quotaProblem || inteiraQuota === undefined || meiaQuota === undefined) {
-      setMessage(quotaProblem);
+      setMessage(quotaProblem ? { ok: false, text: quotaProblem } : null);
       return;
     }
     if (limitProblem) {
-      setMessage(limitProblem);
+      setMessage({ ok: false, text: limitProblem });
       return;
     }
 
@@ -151,124 +152,93 @@ export function EventForm({ event }: EventFormProps) {
       try {
         if (event) {
           const result = await updateEvent(event.id, input);
-          if (!result.ok) return setMessage(result.error);
-          setMessage("Alterações salvas.");
+          if (!result.ok) return setMessage({ ok: false, text: result.error });
+          setMessage({ ok: true, text: "Alterações salvas." });
           router.refresh();
         } else {
           const result = await createEvent(input);
-          if (!result.ok) return setMessage(result.error);
+          if (!result.ok) return setMessage({ ok: false, text: result.error });
           router.push(`/equipe/eventos/${result.data.id}`);
         }
       } catch {
-        setMessage("Não foi possível salvar o evento.");
-      }
-    });
-  }
-
-  function toggleSales() {
-    if (!event) return;
-    setMessage(null);
-
-    startTransition(async () => {
-      try {
-        const result = await setSalesOpen(event.id, !event.salesOpen);
-        if (!result.ok) return setMessage(result.error);
-        router.refresh();
-      } catch {
-        setMessage("Não foi possível alterar a venda.");
+        setMessage({ ok: false, text: "Não foi possível salvar o evento." });
       }
     });
   }
 
   return (
     <form
-      className="grid gap-6 rounded-xl border border-byla-border bg-byla-surface p-6"
+      className="@container grid gap-6 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6"
       onSubmit={handleSubmit}
     >
-      <div className="grid gap-5 md:grid-cols-2">
-        <label className="grid gap-2 text-sm font-medium">
-          Nome
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={event?.name}
-            name="name"
-            required
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium">
-          Data e hora
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={toEventInputValue(event?.startsAt)}
-            name="startsAt"
-            required
-            type="datetime-local"
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium">
-          Local
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={event?.venue}
-            name="venue"
-            required
-          />
-        </label>
-
+      <div className="grid gap-5 @lg:grid-cols-2">
+        <Field
+          defaultValue={event?.name}
+          label="Nome"
+          name="name"
+          required
+          wrapperClassName="@lg:col-span-2"
+        />
+        <Field
+          defaultValue={toEventInputValue(event?.startsAt)}
+          label="Data e hora"
+          name="startsAt"
+          required
+          type="datetime-local"
+        />
+        <Field defaultValue={event?.venue} label="Local" name="venue" required />
       </div>
 
-      <fieldset className="grid gap-4 rounded-lg border border-byla-border p-4">
-        <legend className="px-1 text-sm font-semibold">Quantidade de ingressos</legend>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="grid gap-2 text-sm font-medium">
-            Total de ingressos
-            <input
-              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-              min="1"
-              name="capacity"
-              onChange={(change) => setCount("capacity", change.target.value)}
-              required
-              step="1"
-              type="number"
-              value={counts.capacity}
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Quantidade de inteiras
-            <input
-              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-              inputMode="numeric"
-              name="inteiraQuota"
-              onChange={(change) => setCount("inteiraQuota", change.target.value)}
-              placeholder="Sem quantidade separada"
-              value={counts.inteiraQuota}
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Quantidade de meias
-            <input
-              className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-              inputMode="numeric"
-              name="meiaQuota"
-              onChange={(change) => setCount("meiaQuota", change.target.value)}
-              placeholder="Sem quantidade separada"
-              value={counts.meiaQuota}
-            />
-          </label>
+      <fieldset className="grid gap-4 rounded-xl border border-byla-border p-4">
+        <legend className="px-1 text-base font-semibold">Quantidade de ingressos</legend>
+        <div className="grid gap-4 @lg:grid-cols-3">
+          <Field
+            inputMode="numeric"
+            label="Total de ingressos"
+            min="1"
+            name="capacity"
+            onChange={(change) => setCount("capacity", change.target.value)}
+            required
+            step="1"
+            type="number"
+            value={counts.capacity}
+          />
+          <Field
+            inputMode="numeric"
+            label="Quantidade de inteiras"
+            name="inteiraQuota"
+            onChange={(change) => setCount("inteiraQuota", change.target.value)}
+            placeholder="Sem quantidade separada"
+            value={counts.inteiraQuota}
+          />
+          <Field
+            inputMode="numeric"
+            label="Quantidade de meias"
+            name="meiaQuota"
+            onChange={(change) => setCount("meiaQuota", change.target.value)}
+            placeholder="Sem quantidade separada"
+            value={counts.meiaQuota}
+          />
         </div>
-        <p className="text-xs text-byla-muted">
+        <p className="text-sm text-byla-muted">
           Cada pessoa de Casadinha, Pacote família ou tipo novo conta como inteira. Cortesias
           contam só no total. Deixe em branco para não separar.
         </p>
         {summary ? (
-          <p aria-live="polite" className="text-sm">
-            <span className="font-medium text-foreground">{summary.line}</span>
-            <span className="block text-byla-muted">{quotaProblem ?? summary.detail}</span>
+          <p aria-live="polite" className="rounded-lg bg-byla-overlay px-3 py-2 text-base">
+            <span className="font-semibold text-foreground">{summary.line}</span>
+            <span
+              className={
+                quotaProblem
+                  ? "block text-sm font-medium text-byla-danger"
+                  : "block text-sm text-byla-muted"
+              }
+            >
+              {quotaProblem ?? summary.detail}
+            </span>
           </p>
         ) : quotaProblem ? (
-          <p aria-live="polite" className="text-sm text-byla-muted">
+          <p aria-live="polite" className="text-sm font-medium text-byla-danger">
             {quotaProblem}
           </p>
         ) : null}
@@ -283,49 +253,38 @@ export function EventForm({ event }: EventFormProps) {
       {limitProblem || limitSummary ? (
         <p
           aria-live="polite"
-          className={limitProblem ? "-mt-2 text-sm font-medium text-byla-danger" : "-mt-2 text-sm text-byla-muted"}
+          className={
+            limitProblem
+              ? "-mt-2 text-sm font-medium text-byla-danger"
+              : "-mt-2 text-sm text-byla-muted"
+          }
         >
           {limitProblem ?? limitSummary}
         </p>
       ) : null}
 
-      <label className="grid gap-2 text-sm font-medium">
-        Descrição
-        <textarea
-          className="min-h-28 rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-          defaultValue={event?.description}
-          name="description"
-        />
-      </label>
+      <TextAreaField defaultValue={event?.description} label="Descrição" name="description" />
 
       <CoverField defaultValue={event?.coverImageUrl ?? null} onBusyChange={setCoverBusy} />
 
       {message ? (
-        <p className="text-sm text-zinc-300" role="status">
-          {message}
-        </p>
+        <Notice tone={message.ok ? "success" : "danger"}>{message.text}</Notice>
       ) : null}
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          className="rounded-lg bg-byla-blue px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-          disabled={isPending || coverBusy}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 rounded-b-2xl border-t border-byla-border bg-byla-surface/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+        <Button
+          className="@lg:w-auto"
+          disabled={coverBusy}
+          fullWidth
+          loading={isPending || coverBusy}
+          loadingLabel={coverBusy ? "Enviando capa..." : "Salvando..."}
+          size="lg"
           type="submit"
         >
-          {coverBusy ? "Enviando capa..." : isPending ? "Salvando..." : "Salvar"}
-        </button>
-
-        {event ? (
-          <button
-            className="rounded-lg border border-byla-border px-5 py-2.5 text-sm font-medium disabled:opacity-50"
-            disabled={isPending}
-            onClick={toggleSales}
-            type="button"
-          >
-            {event.salesOpen ? "Fechar venda" : "Abrir venda"}
-          </button>
-        ) : null}
+          {event ? "Salvar alterações" : "Criar evento"}
+        </Button>
       </div>
     </form>
   );
 }
+

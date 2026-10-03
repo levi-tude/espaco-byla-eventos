@@ -1,5 +1,10 @@
 "use client";
 
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+
+import { Button } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
+import { controlClasses } from "@/components/ui/Field";
 import {
   peopleLabel,
   TICKET_PRESETS,
@@ -48,8 +53,8 @@ const PRESET_DETAILS: Record<TicketPreset, string> = {
   familia: "4 pessoas · gera 4 ingressos inteira",
 };
 
-const inputClass =
-  "w-full rounded-lg border border-byla-border px-3 py-2.5 font-normal disabled:opacity-60";
+const inputClass = cx(controlClasses, "min-h-12 font-normal");
+const fieldLabelClass = "grid gap-1.5 text-sm font-medium text-foreground";
 
 let rowSequence = 0;
 function newRowKey() {
@@ -183,7 +188,7 @@ function SalesHint({ sales, maxUnits }: { sales?: SalesInfo; maxUnits: string })
   if (!sales) return null;
   const limit = maxUnits.trim();
   return (
-    <p className="text-xs text-byla-muted">
+    <p className="text-sm text-byla-muted">
       Vendidos: {sales.unitsSold}
       {sales.unitsTaken > sales.unitsSold
         ? ` · reservados agora: ${sales.unitsTaken - sales.unitsSold}`
@@ -206,7 +211,7 @@ function LimitField({
 }) {
   const units = parseLimit(value);
   return (
-    <label className="grid gap-1 text-sm">
+    <label className={fieldLabelClass}>
       {peoplePerUnit > 1 ? "Limite de unidades (opcional)" : "Limite (opcional)"}
       <input
         aria-label={`Limite ${label}`}
@@ -217,7 +222,7 @@ function LimitField({
         value={value}
       />
       {peoplePerUnit > 1 && units ? (
-        <span className="text-xs text-byla-muted">
+        <span className="text-sm font-normal text-byla-muted">
           Até {units} {units === 1 ? "unidade" : "unidades"} = {units * peoplePerUnit} ingressos
         </span>
       ) : null}
@@ -292,7 +297,7 @@ export function TicketTypesEditor({
 
   return (
     <fieldset className="grid gap-4" disabled={disabled}>
-      <legend className="text-sm font-medium">Tipos de ingresso</legend>
+      <legend className="text-base font-semibold">Tipos de ingresso</legend>
       <p className="mt-1 text-sm text-byla-muted">
         Marque os tipos que serão vendidos e informe o preço. O limite é opcional e
         conta ingressos: cada limite e a soma deles precisam caber no total (e na
@@ -305,27 +310,30 @@ export function TicketTypesEditor({
           const row = value.presets[preset];
           return (
             <div
-              className="grid gap-3 rounded-lg border border-byla-border p-4"
+              className={cx(
+                "grid gap-3 rounded-xl border p-3 sm:p-4",
+                row.checked ? "border-byla-link/50" : "border-byla-border",
+              )}
               key={preset}
             >
-              <label className="flex items-start gap-3">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 py-1">
                 <input
                   checked={row.checked}
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-byla-blue"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-byla-action"
                   onChange={(event) => togglePreset(preset, name, event.target.checked)}
                   type="checkbox"
                 />
                 <span>
-                  <span className="block font-medium">Vender {name}</span>
-                  <span className="block text-xs text-byla-muted">
+                  <span className="block text-base font-semibold">Vender {name}</span>
+                  <span className="block text-sm text-byla-muted">
                     {PRESET_DETAILS[preset]}
                   </span>
                 </span>
               </label>
               <SalesHint maxUnits={row.maxUnits} sales={sales[`preset:${preset}`]} />
               {row.checked ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-1 text-sm">
+                <div className="grid gap-3 @md:grid-cols-2">
+                  <label className={fieldLabelClass}>
                     Preço (R$)
                     <input
                       aria-label={`Preço ${name}`}
@@ -352,14 +360,17 @@ export function TicketTypesEditor({
 
       {value.customs.length ? (
         <div className="grid gap-3">
-          <p className="text-sm font-medium">Tipos criados pela equipe</p>
+          <p className="text-base font-semibold">Tipos criados pela equipe</p>
           {value.customs.map((row, index) => {
             const rowSales = row.id ? sales[`id:${row.id}`] : undefined;
             const label = row.name.trim() || "tipo novo";
             return (
-              <div className="grid gap-3 rounded-lg border border-byla-border p-4" key={row.key}>
-                <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
-                  <label className="grid gap-1 text-sm">
+              <div
+                className="grid gap-3 rounded-xl border border-byla-link/50 p-3 sm:p-4"
+                key={row.key}
+              >
+                <div className="grid gap-3 @md:grid-cols-[1fr_9rem]">
+                  <label className={fieldLabelClass}>
                     Nome
                     <input
                       className={inputClass}
@@ -370,7 +381,7 @@ export function TicketTypesEditor({
                       value={row.name}
                     />
                   </label>
-                  <label className="grid gap-1 text-sm">
+                  <label className={fieldLabelClass}>
                     Pessoas
                     <select
                       className={inputClass}
@@ -391,13 +402,13 @@ export function TicketTypesEditor({
                     </select>
                   </label>
                 </div>
-                <p className="text-xs text-byla-muted">
+                <p className="text-sm text-byla-muted">
                   Cada compra gera {unitContentsLabel(row.peoplePerUnit, "inteira")}.
                   {rowSales?.hasSales ? " Já tem vendas: o número de pessoas não muda." : ""}
                 </p>
                 <SalesHint maxUnits={row.maxUnits} sales={rowSales} />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-1 text-sm">
+                <div className="grid gap-3 @md:grid-cols-2">
+                  <label className={fieldLabelClass}>
                     Preço (R$)
                     <input
                       aria-label={`Preço ${label}`}
@@ -417,29 +428,30 @@ export function TicketTypesEditor({
                   />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  <Button
                     aria-label={`Subir ${label}`}
-                    className="rounded-lg border border-byla-border px-3 py-2 text-sm disabled:opacity-40"
                     disabled={index === 0}
                     onClick={() => moveCustom(index, -1)}
-                    type="button"
+                    variant="secondary"
                   >
-                    ↑ Subir
-                  </button>
-                  <button
+                    <ArrowUp aria-hidden className="h-4 w-4" />
+                    Subir
+                  </Button>
+                  <Button
                     aria-label={`Descer ${label}`}
-                    className="rounded-lg border border-byla-border px-3 py-2 text-sm disabled:opacity-40"
                     disabled={index === value.customs.length - 1}
                     onClick={() => moveCustom(index, 1)}
-                    type="button"
+                    variant="secondary"
                   >
-                    ↓ Descer
-                  </button>
+                    <ArrowDown aria-hidden className="h-4 w-4" />
+                    Descer
+                  </Button>
                   <button
-                    className="rounded-lg border border-red-500/50 px-3 py-2 text-sm text-red-700 dark:text-red-400"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-byla-danger/50 px-4 text-base font-semibold text-byla-danger transition hover:bg-byla-danger-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:opacity-50"
                     onClick={() => removeCustom(row)}
                     type="button"
                   >
+                    <Trash2 aria-hidden className="h-4 w-4" />
                     Remover
                   </button>
                 </div>
@@ -450,14 +462,15 @@ export function TicketTypesEditor({
       ) : null}
 
       <div>
-        <button
-          className="rounded-lg border border-byla-border px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+        <Button
+          className="w-full @md:w-auto"
           disabled={totalTypes >= TICKET_TYPE_LIMITS.maxTypes}
           onClick={addCustom}
-          type="button"
+          variant="secondary"
         >
-          + Criar novo tipo
-        </button>
+          <Plus aria-hidden className="h-5 w-5" />
+          Criar novo tipo
+        </Button>
       </div>
     </fieldset>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalLink, SearchX, Ticket } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState, useTransition } from "react";
 
@@ -11,6 +12,13 @@ import {
   RefundOrderButton,
   type RefundOrderSummary,
 } from "@/components/equipe/RefundOrderButton";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { Tone } from "@/components/ui/tone";
 import { eventDateFormatter } from "@/lib/datetime";
 import {
   COURTESY_PROVIDER,
@@ -41,10 +49,9 @@ export type TicketListItem = {
   publicToken: string;
 };
 
-type Props = {
-  eventId: string;
-  remaining: number;
-  tickets: TicketListItem[];
+type SectionProps = {
+  id?: string;
+  className?: string;
 };
 
 const statusLabels: Record<Enums<"ticket_status">, string> = {
@@ -55,27 +62,20 @@ const statusLabels: Record<Enums<"ticket_status">, string> = {
   estornado: "Estornado",
 };
 
-const statusBadgeClasses: Record<Enums<"ticket_status">, string> = {
-  pago: "border-emerald-600/40 bg-emerald-500/15 text-emerald-800 dark:border-emerald-400/40 dark:text-emerald-300",
-  check_in:
-    "border-sky-600/40 bg-sky-500/15 text-sky-800 dark:border-sky-400/40 dark:text-sky-300",
-  nao_pago: "border-byla-border bg-byla-overlay text-byla-muted",
-  cancelado: "border-byla-border bg-byla-overlay text-byla-muted",
-  estornado: "border-byla-border bg-byla-overlay text-byla-muted line-through",
+const statusTones: Record<Enums<"ticket_status">, Tone> = {
+  pago: "success",
+  check_in: "info",
+  nao_pago: "neutral",
+  cancelado: "neutral",
+  estornado: "neutral",
 };
 
-const decisionBadgeClass =
-  "border-amber-600/40 bg-amber-500/15 text-amber-800 dark:border-amber-400/40 dark:text-amber-300";
-
 /** Pedido aguardando decisão aparece pelo estado do pedido, não do ingresso (ainda não pago). */
-function statusBadge(ticket: TicketListItem) {
+function statusBadge(ticket: TicketListItem): { label: string; tone: Tone } {
   if (ticket.orderStatus === "aguardando_decisao") {
-    return { label: decisionLabel(ticket.decisionReason), className: decisionBadgeClass };
+    return { label: decisionLabel(ticket.decisionReason), tone: "warning" };
   }
-  return {
-    label: statusLabels[ticket.status],
-    className: statusBadgeClasses[ticket.status],
-  };
+  return { label: statusLabels[ticket.status], tone: statusTones[ticket.status] };
 }
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -119,11 +119,106 @@ function groupOrders(tickets: TicketListItem[]): Map<string, OrderRefundInfo> {
   return orders;
 }
 
-export function TicketList({ eventId, remaining, tickets }: Props) {
-  const [search, setSearch] = useState("");
-  const [message, setMessage] = useState("");
-  const [listMessage, setListMessage] = useState("");
+export function CourtesyForm({
+  eventId,
+  remaining,
+  id,
+  className,
+}: SectionProps & { eventId: string; remaining: number }) {
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [lastTicketUrl, setLastTicketUrl] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const soldOut = remaining === 0;
+
+  function submitCourtesy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    startTransition(async () => {
+      try {
+        const result = await issueCourtesy({
+          eventId,
+          name: String(formData.get("name") ?? ""),
+          email: String(formData.get("email") ?? ""),
+        });
+        if (!result.ok) {
+          setLastTicketUrl(null);
+          setMessage({ ok: false, text: result.error });
+          return;
+        }
+        form.reset();
+        setLastTicketUrl(`/pedidos/${result.data.publicToken}`);
+        setMessage({ ok: true, text: "Cortesia emitida com sucesso. Abra o ingresso abaixo." });
+      } catch {
+        setLastTicketUrl(null);
+        setMessage({ ok: false, text: "Não foi possível emitir." });
+      }
+    });
+  }
+
+  return (
+    <section aria-labelledby="cortesia-titulo" className={className} id={id}>
+      <h2 className="text-xl font-semibold text-foreground" id="cortesia-titulo">
+        Emitir cortesia
+      </h2>
+      <p className="mt-1 text-base text-byla-muted">
+        {remaining} {remaining === 1 ? "vaga disponível" : "vagas disponíveis"}
+      </p>
+      <form
+        className="mt-3 grid gap-4 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-5"
+        onSubmit={submitCourtesy}
+      >
+        <Field
+          autoComplete="off"
+          disabled={isPending || soldOut}
+          label="Nome"
+          name="name"
+          required
+        />
+        <Field
+          autoCapitalize="none"
+          autoComplete="off"
+          disabled={isPending || soldOut}
+          inputMode="email"
+          label="E-mail"
+          name="email"
+          required
+          spellCheck={false}
+          type="email"
+        />
+        <Button
+          disabled={soldOut}
+          fullWidth
+          loading={isPending}
+          loadingLabel="Emitindo..."
+          type="submit"
+        >
+          Emitir cortesia
+        </Button>
+        {message ? (
+          <Notice tone={message.ok ? "success" : "danger"}>{message.text}</Notice>
+        ) : null}
+        {lastTicketUrl ? (
+          <ButtonLink fullWidth href={lastTicketUrl} target="_blank" variant="secondary">
+            Abrir ingresso (QR)
+            <ExternalLink aria-hidden className="h-4 w-4" />
+          </ButtonLink>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
+export function TicketList({
+  eventId,
+  tickets,
+  id,
+  className,
+}: SectionProps & { eventId: string; tickets: TicketListItem[] }) {
+  const [search, setSearch] = useState("");
+  const [listMessage, setListMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const filteredTickets = useMemo(() => {
@@ -148,56 +243,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
     return first;
   }, [filteredTickets]);
 
-  const soldTickets = tickets.filter(
-    ({ status }) => status === "pago" || status === "check_in",
-  );
   const recentCount = tickets.filter(({ recentlyPaid }) => recentlyPaid).length;
-  const totals = {
-    inteira: soldTickets.filter(({ kind }) => kind === "inteira").length,
-    meia: soldTickets.filter(({ kind }) => kind === "meia").length,
-    cortesia: soldTickets.filter(({ kind }) => kind === "cortesia").length,
-    revenueCents: soldTickets.reduce(
-      (total, ticket) => total + ticket.priceCents,
-      0,
-    ),
-  };
-  const byType = [
-    ...soldTickets
-      .reduce(
-        (counts, ticket) =>
-          counts.set(ticket.typeLabel, (counts.get(ticket.typeLabel) ?? 0) + 1),
-        new Map<string, number>(),
-      )
-      .entries(),
-  ];
-
-  function submitCourtesy(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-
-    startTransition(async () => {
-      try {
-        const result = await issueCourtesy({
-          eventId,
-          name: String(formData.get("name") ?? ""),
-          email: String(formData.get("email") ?? ""),
-        });
-        if (!result.ok) {
-          setLastTicketUrl(null);
-          setMessage(result.error);
-          return;
-        }
-        form.reset();
-        setLastTicketUrl(`/pedidos/${result.data.publicToken}`);
-        setMessage("Cortesia emitida com sucesso. Abra o ingresso abaixo.");
-      } catch {
-        setLastTicketUrl(null);
-        setMessage("Não foi possível emitir.");
-      }
-    });
-  }
 
   function requestCancellation(ticket: TicketListItem) {
     if (
@@ -221,202 +267,203 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
     });
   }
 
+  function actionsFor(ticket: TicketListItem, inCard = false) {
+    return (
+      <TicketActions
+        hideWhenEmpty={inCard}
+        isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
+        isPending={isPending}
+        onCancel={() => requestCancellation(ticket)}
+        onRefundDone={setListMessage}
+        order={orders.get(ticket.orderId)}
+        ticket={ticket}
+      />
+    );
+  }
+
   return (
-    <section className="mt-8 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-4">
-        <TotalCard label="Inteiras" value={String(totals.inteira)} />
-        <TotalCard label="Meias" value={String(totals.meia)} />
-        <TotalCard label="Cortesias" value={String(totals.cortesia)} />
-        <TotalCard
-          label="Total vendido"
-          value={currency.format(totals.revenueCents / 100)}
-        />
+    <section aria-labelledby="participantes-titulo" className={className} id={id}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground" id="participantes-titulo">
+            Participantes
+          </h2>
+          <p className="mt-1 text-base text-byla-muted">
+            {tickets.length} {tickets.length === 1 ? "ingresso" : "ingressos"}
+            {recentCount > 0 ? (
+              <>
+                {" · "}
+                <span className="font-semibold text-byla-accent-text">
+                  {recentCount} {recentCount === 1 ? "pago" : "pagos"} nas
+                  últimas 24 h
+                </span>
+              </>
+            ) : null}
+          </p>
+          <p className="mt-0.5 text-sm text-byla-muted">
+            A lista atualiza sozinha a cada 30 segundos.
+          </p>
+        </div>
+        {tickets.length ? (
+          <Field
+            label="Buscar por nome"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Nome do participante"
+            type="search"
+            value={search}
+            wrapperClassName="w-full sm:w-72"
+          />
+        ) : null}
       </div>
-      {byType.length ? (
-        <p className="-mt-2 text-sm text-byla-muted">
-          Ingressos válidos por tipo:{" "}
-          {byType.map(([label, count]) => `${label}: ${count}`).join(" · ")}
-        </p>
+
+      {listMessage ? (
+        <Notice className="mt-4" tone="info">
+          {listMessage}
+        </Notice>
       ) : null}
 
-      <form
-        className="rounded-xl border border-byla-border bg-byla-surface p-6"
-        onSubmit={submitCourtesy}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold">Emitir cortesia</h2>
-            <p className="text-sm text-byla-muted">
-              {remaining} {remaining === 1 ? "vaga disponível" : "vagas disponíveis"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <label className="text-sm font-medium">
-            Nome
-            <input
-              className="mt-1 block min-h-11 w-full rounded-lg border border-byla-border px-3"
-              disabled={isPending || remaining === 0}
-              name="name"
-              required
-            />
-          </label>
-          <label className="text-sm font-medium">
-            E-mail
-            <input
-              className="mt-1 block min-h-11 w-full rounded-lg border border-byla-border px-3"
-              disabled={isPending || remaining === 0}
-              name="email"
-              required
-              type="email"
-            />
-          </label>
-          <button
-            className="self-end rounded-lg bg-byla-blue px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-            disabled={isPending || remaining === 0}
-            type="submit"
-          >
-            {isPending ? "Processando..." : "Emitir cortesia"}
-          </button>
-        </div>
-        {message ? (
-          <p aria-live="polite" className="mt-3 text-sm font-medium">
-            {message}
-          </p>
-        ) : null}
-        {lastTicketUrl ? (
-          <p className="mt-3">
-            <Link
-              className="inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white"
-              href={lastTicketUrl}
-              target="_blank"
-            >
-              Abrir ingresso (QR)
-            </Link>
-          </p>
-        ) : null}
-      </form>
+      {tickets.length === 0 ? (
+        <EmptyState
+          className="mt-4"
+          description="Os ingressos vendidos e as cortesias aparecem aqui."
+          icon={Ticket}
+          title="Nenhum ingresso ainda."
+        />
+      ) : filteredTickets.length === 0 ? (
+        <EmptyState
+          className="mt-4"
+          description="Confira o nome digitado na busca."
+          icon={SearchX}
+          title="Nenhum ingresso encontrado."
+        />
+      ) : (
+        <>
+          <ul className="mt-4 grid gap-3 md:hidden">
+            {filteredTickets.map((ticket) => (
+              <li
+                className={cx(
+                  "rounded-2xl border bg-byla-surface p-4",
+                  ticket.recentlyPaid ? "border-byla-success/50" : "border-byla-border",
+                )}
+                key={ticket.id}
+              >
+                <p className="break-words text-base font-semibold text-foreground">
+                  {ticket.buyerName}
+                </p>
+                <p className="break-all text-sm text-byla-muted">{ticket.buyerEmail}</p>
+                <TicketBadges ticket={ticket} className="mt-2" />
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                  <CardDetail label="Tipo" value={ticket.typeLabel} />
+                  <CardDetail label="Valor" value={currency.format(ticket.priceCents / 100)} />
+                  <CardDetail label="Pagamento" value={formatDate(ticket.paidAt)} />
+                  <CardDetail label="Check-in" value={formatDate(ticket.checkedInAt)} />
+                </dl>
+                <div className="mt-2 border-t border-byla-border pt-2 empty:hidden">
+                  {actionsFor(ticket, true)}
+                </div>
+              </li>
+            ))}
+          </ul>
 
-      <div className="rounded-xl border border-byla-border bg-byla-surface p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Lista de participantes</h2>
-            <p className="mt-1 text-sm text-byla-muted">
-              {tickets.length} {tickets.length === 1 ? "ingresso" : "ingressos"}
-              {recentCount > 0 ? (
-                <>
-                  {" · "}
-                  <span className="font-semibold text-amber-800 dark:text-byla-yellow">
-                    {recentCount} {recentCount === 1 ? "pago" : "pagos"} nas
-                    últimas 24 h
-                  </span>
-                </>
-              ) : null}
-            </p>
-            <p className="mt-1 text-xs text-byla-muted">
-              A lista atualiza sozinha a cada 30 segundos.
-            </p>
-            {listMessage ? (
-              <p aria-live="polite" className="mt-2 text-sm font-medium">
-                {listMessage}
-              </p>
-            ) : null}
-          </div>
-          <label className="text-sm font-medium">
-            Buscar por nome
-            <input
-              className="mt-1 block min-h-10 w-full rounded-lg border border-byla-border px-3 sm:w-72"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nome do participante"
-              type="search"
-              value={search}
-            />
-          </label>
-        </div>
-
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-byla-border text-byla-muted">
-              <tr>
-                <th className="px-3 py-3 font-medium">Nome</th>
-                <th className="px-3 py-3 font-medium">Tipo</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 font-medium">Valor</th>
-                <th className="px-3 py-3 font-medium">Pagamento</th>
-                <th className="px-3 py-3 font-medium">Check-in</th>
-                <th className="px-3 py-3 font-medium">Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTickets.map((ticket) => (
-                <tr
-                  className={`border-b border-byla-border ${
-                    ticket.recentlyPaid ? "bg-emerald-500/5" : ""
-                  }`}
-                  key={ticket.id}
-                >
-                  <td className="px-3 py-4">
-                    <span className="font-medium">{ticket.buyerName}</span>
-                    <span className="block text-xs text-byla-muted">
-                      {ticket.buyerEmail}
-                    </span>
-                  </td>
-                  <td className="px-3 py-4">{ticket.typeLabel}</td>
-                  <td className="px-3 py-4">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadge(ticket).className}`}
-                      >
-                        {statusBadge(ticket).label}
-                      </span>
-                      {ticket.recentlyPaid ? (
-                        <span
-                          className="inline-flex rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black"
-                          title="Pago nas últimas 24 horas"
-                        >
-                          Novo
-                        </span>
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="px-3 py-4">
-                    {currency.format(ticket.priceCents / 100)}
-                  </td>
-                  <td className="px-3 py-4">{formatDate(ticket.paidAt)}</td>
-                  <td className="px-3 py-4">{formatDate(ticket.checkedInAt)}</td>
-                  <td className="px-3 py-4">
-                    <TicketActions
-                      isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
-                      isPending={isPending}
-                      onCancel={() => requestCancellation(ticket)}
-                      onRefundDone={setListMessage}
-                      order={orders.get(ticket.orderId)}
-                      ticket={ticket}
-                    />
-                  </td>
+          <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-byla-border bg-byla-surface md:block">
+            <table className="w-full min-w-[40rem] text-left text-base">
+              <thead className="border-b border-byla-border text-sm text-byla-muted">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Participante</th>
+                  <th className="px-4 py-3 font-medium">Tipo</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredTickets.length === 0 ? (
-            <p className="py-8 text-center text-sm text-byla-muted">
-              Nenhum ingresso encontrado.
-            </p>
-          ) : null}
-        </div>
-      </div>
+              </thead>
+              <tbody>
+                {filteredTickets.map((ticket) => (
+                  <tr
+                    className={cx(
+                      "border-b border-byla-border align-top last:border-b-0",
+                      ticket.recentlyPaid && "bg-byla-success-bg/40",
+                    )}
+                    key={ticket.id}
+                  >
+                    <td className="max-w-56 px-4 py-3">
+                      <span className="block break-words font-medium">{ticket.buyerName}</span>
+                      <span
+                        className="block truncate text-sm text-byla-muted"
+                        title={ticket.buyerEmail}
+                      >
+                        {ticket.buyerEmail}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="block">{ticket.typeLabel}</span>
+                      <span className="block text-sm text-byla-muted">
+                        {currency.format(ticket.priceCents / 100)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <TicketBadges ticket={ticket} />
+                      <span className="mt-1 block whitespace-nowrap text-sm">
+                        Pago: {formatDate(ticket.paidAt)}
+                      </span>
+                      <span className="block whitespace-nowrap text-sm text-byla-muted">
+                        Entrada: {formatDate(ticket.checkedInAt)}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2">{actionsFor(ticket)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
   );
 }
+
+function TicketBadges({ ticket, className }: { ticket: TicketListItem; className?: string }) {
+  const badge = statusBadge(ticket);
+  return (
+    <span className={cx("flex flex-wrap items-center gap-1.5", className)}>
+      <StatusBadge
+        className={ticket.status === "estornado" ? "line-through" : undefined}
+        tone={badge.tone}
+      >
+        {badge.label}
+      </StatusBadge>
+      {ticket.recentlyPaid ? (
+        <span
+          className="inline-flex rounded-full bg-byla-yellow px-2.5 py-0.5 text-sm font-bold text-black"
+          title="Pago nas últimas 24 horas"
+        >
+          Novo
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function CardDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-sm text-byla-muted">{label}</dt>
+      <dd className="break-words text-base text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+const actionLinkClass =
+  "inline-flex min-h-11 items-center gap-1.5 rounded-lg font-medium no-underline transition hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:cursor-not-allowed disabled:opacity-50";
 
 function TicketActions({
   ticket,
   order,
   isFirstRowOfOrder,
   isPending,
+  hideWhenEmpty,
   onCancel,
   onRefundDone,
 }: {
+  hideWhenEmpty: boolean;
   ticket: TicketListItem;
   order: OrderRefundInfo | undefined;
   isFirstRowOfOrder: boolean;
@@ -438,22 +485,27 @@ function TicketActions({
       })
     : null;
 
-  if (!valid && !showRefund) return <span>—</span>;
+  if (!valid && !showRefund) {
+    return hideWhenEmpty ? null : (
+      <span className="inline-flex min-h-11 items-center text-byla-muted">—</span>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-wrap items-start gap-x-4 gap-y-1 md:flex-col md:gap-1">
       {valid ? (
         <Link
-          className="font-medium text-byla-blue hover:underline"
+          className={cx(actionLinkClass, "text-byla-link")}
           href={`/pedidos/${ticket.publicToken}`}
           target="_blank"
         >
           Abrir ingresso
+          <ExternalLink aria-hidden className="h-4 w-4" />
         </Link>
       ) : null}
       {canCancel ? (
         <button
-          className="text-left font-medium text-red-700 disabled:opacity-50 dark:text-red-400"
+          className={cx(actionLinkClass, "text-left text-byla-danger")}
           disabled={isPending}
           onClick={onCancel}
           type="button"
@@ -468,15 +520,6 @@ function TicketActions({
           order={order.summary}
         />
       ) : null}
-    </div>
-  );
-}
-
-function TotalCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-byla-border bg-byla-surface p-5">
-      <p className="text-sm text-byla-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
 }

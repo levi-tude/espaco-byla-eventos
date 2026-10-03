@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 
 import { refundOrder } from "@/app/equipe/eventos/order-actions";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { Tone } from "@/components/ui/tone";
 import { eventDateFormatter } from "@/lib/datetime";
 import {
   EXTERNAL_REFUND_REASON,
@@ -31,12 +35,10 @@ const currency = new Intl.NumberFormat("pt-BR", {
 
 const dateFormatter = eventDateFormatter({ dateStyle: "short", timeStyle: "short" });
 
-const statusClasses: Record<RefundStatus, string> = {
-  concluido: "border-byla-border bg-byla-overlay text-byla-muted",
-  solicitado:
-    "border-amber-600/40 bg-amber-500/15 text-amber-800 dark:border-amber-400/40 dark:text-amber-300",
-  falhou:
-    "border-red-700/40 bg-red-500/10 text-red-800 dark:border-red-400/40 dark:text-red-300",
+const statusTones: Record<RefundStatus, Tone> = {
+  concluido: "neutral",
+  solicitado: "warning",
+  falhou: "danger",
 };
 
 function historyLine(item: RefundHistoryItem) {
@@ -76,57 +78,52 @@ export function RefundHistory({ refunds }: { refunds: RefundHistoryItem[] }) {
   }
 
   return (
-    <section
-      aria-labelledby="estornos-titulo"
-      className="mt-8 rounded-xl border border-byla-border bg-byla-surface p-6"
-    >
-      <h2 className="text-lg font-semibold" id="estornos-titulo">
+    <section aria-labelledby="estornos-titulo">
+      <h2 className="text-xl font-semibold text-foreground" id="estornos-titulo">
         Estornos
       </h2>
-      <ul className="mt-4 grid gap-3">
+      <ul className="mt-3 grid gap-3">
         {refunds.map((item) => (
           <li
-            className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-byla-border p-4"
+            className="grid gap-3 rounded-2xl border border-byla-border bg-byla-surface p-4"
             key={item.id}
           >
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">
+            <div className="min-w-0">
+              <p className="break-words font-semibold">
                 {item.buyerName} · {currency.format(item.amountCents / 100)}
               </p>
               <p className="mt-1 break-words text-sm text-byla-muted">{historyLine(item)}</p>
               {item.status === "concluido" && item.completedAt ? (
-                <p className="mt-1 text-xs text-byla-muted">
+                <p className="mt-1 text-sm text-byla-muted">
                   Devolução confirmada em {dateFormatter.format(new Date(item.completedAt))}.
                 </p>
               ) : null}
               {item.status === "falhou" ? (
-                <p className="mt-1 text-xs text-red-800 dark:text-red-300">
+                <p className="mt-1 text-sm text-byla-danger">
                   {refundRejectionMessage(item.errorCode)}
                 </p>
               ) : null}
-              <span
-                className={`mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusClasses[item.status]}`}
-              >
+              <StatusBadge className="mt-2" tone={statusTones[item.status]}>
                 {refundStatusLabel(item.status)}
-              </span>
+              </StatusBadge>
             </div>
             {item.status === "solicitado" ? (
-              <button
-                className="min-h-11 rounded-lg border border-byla-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                disabled={isPending}
+              <Button
+                loading={isPending}
+                loadingLabel="Conferindo..."
                 onClick={() => recheck(item)}
-                type="button"
+                variant="secondary"
               >
-                {isPending ? "Conferindo..." : "Conferir estorno"}
-              </button>
+                Conferir estorno
+              </Button>
             ) : null}
           </li>
         ))}
       </ul>
       {message ? (
-        <p aria-live="polite" className="mt-3 text-sm font-medium">
+        <Notice className="mt-3" tone="info">
           {message}
-        </p>
+        </Notice>
       ) : null}
     </section>
   );

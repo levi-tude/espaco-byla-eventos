@@ -4,6 +4,10 @@ import { ImagePlus } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { CoverCropDialog } from "@/components/equipe/CoverCropDialog";
+import { buttonClasses } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
+import { controlClasses } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { isOwnMediaUrl, publicMediaUrl } from "@/lib/media/paths";
 import type { CropArea } from "@/lib/media/resize";
 import { IMAGE_ACCEPT, INVALID_IMAGE_TYPE_MESSAGE, isImageContentType } from "@/lib/media/rules";
@@ -16,9 +20,8 @@ type CoverFieldProps = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const tabClass =
-  "min-h-11 rounded-lg border border-byla-border px-4 text-sm font-medium text-byla-muted transition aria-pressed:border-byla-blue aria-pressed:bg-byla-blue/10 aria-pressed:text-foreground";
-const secondaryButtonClass =
-  "min-h-11 rounded-lg border border-byla-border px-4 text-sm font-medium disabled:opacity-50";
+  "min-h-11 flex-1 rounded-lg border border-byla-border px-4 text-base font-medium text-byla-muted transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue aria-pressed:border-byla-link aria-pressed:bg-byla-overlay aria-pressed:text-foreground sm:flex-none";
+const secondaryButtonClass = buttonClasses({ variant: "secondary" });
 
 export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
   const [url, setUrl] = useState(defaultValue ?? "");
@@ -58,7 +61,7 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
 
   return (
     <fieldset className="grid gap-3">
-      <legend className="mb-2 text-sm font-medium">Capa do evento (opcional)</legend>
+      <legend className="mb-2 text-base font-semibold">Capa do evento (opcional)</legend>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -82,8 +85,11 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
       {mode === "link" ? (
         <input
           aria-label="Link da capa"
-          className="rounded-lg border border-byla-border px-3 py-2.5 text-base font-normal"
+          autoCapitalize="none"
+          className={cx(controlClasses, "min-h-12")}
+          inputMode="url"
           name="coverImageUrl"
+          spellCheck={false}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="https://..."
           type="url"
@@ -106,7 +112,7 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 alt="Prévia da capa"
-                className="aspect-video w-full max-w-md rounded-lg border border-byla-border object-cover"
+                className="aspect-video w-full max-w-md rounded-lg border border-byla-border bg-byla-overlay object-cover"
                 src={url}
               />
               <div className="flex flex-wrap gap-2">
@@ -130,7 +136,7 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
             </div>
           ) : (
             <button
-              className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg border border-dashed border-byla-border px-4 py-8 text-sm font-medium text-byla-muted transition hover:text-foreground disabled:opacity-50"
+              className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg border border-dashed border-byla-border px-4 py-8 text-base font-medium text-byla-muted transition hover:border-byla-link/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:opacity-50"
               disabled={uploading}
               onClick={() => fileInput.current?.click()}
               type="button"
@@ -147,12 +153,8 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
         </>
       )}
 
-      {error ? (
-        <p className="text-sm font-medium text-red-700 dark:text-red-400" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <p className="text-xs text-byla-muted">
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+      <p className="text-sm text-byla-muted">
         JPG, PNG ou WebP, no formato deitado (16:9). Você enquadra a foto antes de enviar. A
         capa vale ao salvar o evento.
       </p>
