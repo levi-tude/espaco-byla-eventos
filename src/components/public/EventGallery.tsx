@@ -47,8 +47,8 @@ export function EventGallery({ eventName, images }: EventGalleryProps) {
   }
 
   return (
-    <section className="mt-10">
-      <h2 className="font-semibold text-foreground">Fotos</h2>
+    <section className="mt-8">
+      <h2 className="text-lg font-semibold text-foreground">Fotos</h2>
       <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {images.map((image, position) => (
           <li key={image.id}>
@@ -61,7 +61,7 @@ export function EventGallery({ eventName, images }: EventGalleryProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 alt=""
-                className="aspect-square w-full object-cover transition duration-300 hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100"
+                className="aspect-square w-full bg-byla-overlay object-cover transition duration-300 hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100"
                 decoding="async"
                 loading="lazy"
                 src={image.url}
