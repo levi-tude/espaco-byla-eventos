@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CheckInScanner } from "@/components/equipe/CheckInScanner";
+import { BackLink } from "@/components/ui/BackLink";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function CheckInPage({
@@ -18,17 +18,12 @@ export default async function CheckInPage({
   if (!event) notFound();
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
-      <Link
-        className="inline-flex min-h-11 items-center text-base font-medium text-byla-muted transition hover:text-foreground"
-        href={`/equipe/eventos/${event.id}`}
-      >
-        ← Voltar ao evento
-      </Link>
-      <h1 className="mt-3 font-display text-4xl tracking-wide text-foreground">
-        Check-in
-      </h1>
-      <p className="mb-6 mt-1 text-lg text-byla-muted">{event.name}</p>
+    <main className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6 sm:py-8">
+      <BackLink href={`/equipe/eventos/${event.id}`}>Voltar ao evento</BackLink>
+      <div className="mb-4 mt-2 flex flex-wrap items-baseline gap-x-3">
+        <h1 className="font-display text-4xl tracking-wide text-foreground">Check-in</h1>
+        <p className="min-w-0 truncate text-lg text-byla-muted">{event.name}</p>
+      </div>
 
       <CheckInScanner eventId={event.id} />
     </main>
