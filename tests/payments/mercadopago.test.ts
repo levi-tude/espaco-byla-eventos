@@ -387,7 +387,47 @@ describe("MercadoPagoPaymentProvider.findOrderPayment", () => {
   });
 });
 
+const webhookSecret = "segredo-de-teste";
+
+/** Aviso assinado como o Mercado Pago faz: HMAC de `id:{data.id};request-id:{id};ts:{ts};`. */
+function signedWebhook(url: string, init: RequestInit = {}) {
+  const dataId = new URL(url).searchParams.get("data.id");
+  const ts = "1790804351";
+  const v1 = createHmac("sha256", webhookSecret)
+    .update(`${dataId ? `id:${dataId};` : ""}request-id:req-1;ts:${ts};`)
+    .digest("hex");
+  const headers = new Headers(init.headers);
+  headers.set("x-request-id", "req-1");
+  headers.set("x-signature", `ts=${ts},v1=${v1}`);
+  return new Request(url, { ...init, headers });
+}
+
+function makeWebhookProvider(fetchMock: ReturnType<typeof vi.fn>) {
+  return new MercadoPagoPaymentProvider({
+    accessToken: "APP_USR-TOKEN",
+    webhookSecret,
+    fetch: fetchMock as unknown as typeof fetch,
+  });
+}
+
 describe("MercadoPagoPaymentProvider.parseWebhook", () => {
+  it("sem chave secreta recusa o aviso sem consultar a API", async () => {
+    const fetchMock = vi.fn();
+    const request = new Request(
+      "https://eventos.example/api/payments/webhook?data.id=ORD8&type=order",
+      { method: "POST", body: JSON.stringify({ type: "order", data: { id: "ORD8" } }) },
+    );
+
+    const provider = new MercadoPagoPaymentProvider({
+      accessToken: "APP_USR-TOKEN",
+      webhookSecret: "",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(provider.parseWebhook(request)).resolves.toEqual({ kind: "not_configured" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("consulta a order avisada e marca como pago quando processed", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
@@ -398,7 +438,7 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
       }),
     );
 
-    const request = new Request(
+    const request = signedWebhook(
       "https://eventos.example/api/payments/webhook?data.id=ORD8&type=order",
       {
         method: "POST",
@@ -407,7 +447,7 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
       },
     );
 
-    await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
+    await expect(makeWebhookProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "paid",
       externalId: orderId,
       amountCents: 1,
@@ -427,12 +467,12 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({ id: "ORD8", external_reference: orderId, total_amount: "0.01", ...state }),
     );
-    const request = new Request(
+    const request = signedWebhook(
       "https://eventos.example/api/payments/webhook?data.id=ORD8&type=order",
       { method: "POST", body: JSON.stringify({ type: "order", data: { id: "ORD8" } }) },
     );
 
-    await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
+    await expect(makeWebhookProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "refunded",
       externalId: orderId,
       providerOrderId: "ORD8",
@@ -441,13 +481,13 @@ describe("MercadoPagoPaymentProvider.parseWebhook", () => {
 
   it("ignora avisos que não são de order sem consultar a API", async () => {
     const fetchMock = vi.fn();
-    const request = new Request("https://eventos.example/api/payments/webhook", {
+    const request = signedWebhook("https://eventos.example/api/payments/webhook", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "payment", data: { id: "123" } }),
     });
 
-    await expect(makeProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
+    await expect(makeWebhookProvider(fetchMock).parseWebhook(request)).resolves.toEqual({
       kind: "ignored",
     });
     expect(fetchMock).not.toHaveBeenCalled();

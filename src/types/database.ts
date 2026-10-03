@@ -282,6 +282,25 @@ export type Database = {
           },
         ];
       };
+      rate_limit_hits: {
+        Row: {
+          bucket: string;
+          created_at: string;
+          id: number;
+          key_hash: string;
+        };
+        Insert: {
+          bucket: string;
+          created_at?: string;
+          key_hash: string;
+        };
+        Update: {
+          bucket?: string;
+          created_at?: string;
+          key_hash?: string;
+        };
+        Relationships: [];
+      };
       staff_profiles: {
         Row: {
           created_at: string;

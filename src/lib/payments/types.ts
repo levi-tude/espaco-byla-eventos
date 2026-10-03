@@ -42,7 +42,9 @@ export type WebhookResult =
   | ({ kind: "paid"; externalId: string; amountCents: number | null } & ProviderIds)
   | { kind: "refunded"; externalId: string; providerOrderId?: string }
   | { kind: "ignored"; externalId?: string }
-  | { kind: "invalid_signature" };
+  | { kind: "invalid_signature" }
+  /** Sem a chave secreta não há como validar o aviso: ele é recusado. */
+  | { kind: "not_configured" };
 
 export type RefundOrderInput = {
   providerOrderId: string;

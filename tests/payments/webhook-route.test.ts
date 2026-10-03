@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   parseWebhook: vi.fn(),
   confirmOrderPaid: vi.fn(),
   syncOrderRefunded: vi.fn(),
+  alertTeamSetup: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -13,6 +14,7 @@ vi.mock("@/lib/payments/provider", () => ({
 }));
 vi.mock("@/lib/payments/confirm-order", () => ({ confirmOrderPaid: mocks.confirmOrderPaid }));
 vi.mock("@/lib/payments/refund", () => ({ syncOrderRefunded: mocks.syncOrderRefunded }));
+vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: mocks.alertTeamSetup }));
 
 import { POST } from "@/app/api/payments/webhook/route";
 
@@ -63,5 +65,27 @@ describe("POST /api/payments/webhook", () => {
     const response = await POST(webhookRequest());
     expect(response.status).toBe(401);
     expect(mocks.syncOrderRefunded).not.toHaveBeenCalled();
+    expect(mocks.confirmOrderPaid).not.toHaveBeenCalled();
+  });
+
+  it("sem chave secreta recusa com 503, não processa e avisa a equipe", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.parseWebhook.mockResolvedValue({ kind: "not_configured" });
+
+    const response = await POST(webhookRequest());
+    expect(response.status).toBe(503);
+    expect(mocks.confirmOrderPaid).not.toHaveBeenCalled();
+    expect(mocks.syncOrderRefunded).not.toHaveBeenCalled();
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith({}, "webhook_sem_chave", expect.any(String));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("MERCADOPAGO_WEBHOOK_SECRET"));
+  });
+
+  it("sem chave secreta ainda responde 503 se o alerta falhar", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.parseWebhook.mockResolvedValue({ kind: "not_configured" });
+    mocks.alertTeamSetup.mockRejectedValueOnce(new Error("banco fora"));
+
+    const response = await POST(webhookRequest());
+    expect(response.status).toBe(503);
   });
 });

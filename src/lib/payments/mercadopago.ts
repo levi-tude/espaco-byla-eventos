@@ -259,15 +259,15 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   }
 
   async parseWebhook(req: Request): Promise<WebhookResult> {
+    if (!this.webhookSecret) {
+      return { kind: "not_configured" };
+    }
     if (!this.accessToken) {
       return { kind: "ignored" };
     }
 
     const url = new URL(req.url);
-    if (
-      this.webhookSecret &&
-      !isValidWebhookSignature(req.headers, url.searchParams.get("data.id"), this.webhookSecret)
-    ) {
+    if (!isValidWebhookSignature(req.headers, url.searchParams.get("data.id"), this.webhookSecret)) {
       return { kind: "invalid_signature" };
     }
 

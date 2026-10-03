@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { SupabaseAdmin } from "@/lib/domain/orders";
-import { consumeRateLimit, type RateLimitRule } from "@/lib/security/rate-limit";
+import {
+  releaseRateLimit,
+  tryConsumeRateLimit,
+  type RateLimitRule,
+} from "@/lib/security/rate-limit";
 
 export type TeamAlertKind =
   | "valor_divergente"
@@ -12,6 +16,9 @@ export type TeamAlertKind =
   | "estorno_falhou"
   | "estorno_externo"
   | "email_estorno_nao_enviado";
+
+/** Alertas de configuração do site, sem pedido associado. */
+export type TeamSetupAlertKind = "webhook_sem_chave";
 
 const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   valor_divergente: "Pagamento com valor diferente do pedido",
@@ -24,9 +31,20 @@ const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   email_estorno_nao_enviado: "Pedido estornado, mas o e-mail ao comprador não saiu",
 };
 
+const SETUP_ALERT_SUBJECTS: Record<TeamSetupAlertKind, string> = {
+  webhook_sem_chave: "Avisos de pagamento recusados: falta a chave secreta do Mercado Pago",
+};
+
 /** A página do pedido reconsulta o pagamento a cada poucos segundos: 1 alerta por pedido/tipo por dia. */
 const ALERT_DEDUP: RateLimitRule = {
   bucket: "alert:order",
+  limit: 1,
+  windowSeconds: 86_400,
+};
+
+/** Cada aviso do Mercado Pago dispararia de novo: 1 alerta por tipo por dia. */
+const SETUP_ALERT_DEDUP: RateLimitRule = {
+  bucket: "alert:setup",
   limit: 1,
   windowSeconds: 86_400,
 };
@@ -36,6 +54,8 @@ type OrderSummary = {
   buyer_email: string;
   events: { name: string } | null;
 };
+
+type AlertLog = Record<string, string>;
 
 async function loadOrderSummary(
   admin: SupabaseAdmin,
@@ -49,46 +69,42 @@ async function loadOrderSummary(
   return (data as OrderSummary | null) ?? null;
 }
 
-/** Avisa a equipe por e-mail. Nunca lança: alerta não pode travar a confirmação. */
-export async function alertTeam(
+function joinLines(lines: string[]): string {
+  return lines
+    .filter((line, index, all) => line !== "" || all[index - 1] !== "")
+    .join("\n");
+}
+
+/**
+ * Envia um alerta deduplicado. Perder alerta é pior que duplicar: se o banco falha na
+ * deduplicação, envia mesmo assim; se o envio falha, libera a deduplicação para a
+ * próxima tentativa. Nunca lança.
+ */
+async function deliverAlert(
   admin: SupabaseAdmin,
-  kind: TeamAlertKind,
-  orderId: string,
-  details: string,
+  rule: RateLimitRule,
+  dedupKey: string,
+  subject: string,
+  buildText: () => Promise<string>,
+  log: AlertLog,
 ): Promise<void> {
+  let reserved = false;
   try {
     const to = process.env.ALERT_EMAIL;
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM_EMAIL;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
 
     if (!to || !apiKey || !from) {
-      console.warn("[alerta] ALERT_EMAIL não configurado; alerta só no log.", {
-        kind,
-        orderId,
-      });
+      console.warn("[alerta] ALERT_EMAIL não configurado; alerta só no log.", log);
       return;
     }
 
-    if (!(await consumeRateLimit(admin, ALERT_DEDUP, `${kind}:${orderId}`))) {
-      return;
+    const dedup = await tryConsumeRateLimit(admin, rule, dedupKey);
+    if (dedup === "limited") return;
+    if (dedup === "error") {
+      console.warn("[alerta] Não foi possível conferir alerta repetido; enviando mesmo assim.", log);
     }
-
-    const order = await loadOrderSummary(admin, orderId);
-    const text = [
-      ALERT_SUBJECTS[kind],
-      "",
-      details,
-      "",
-      `Evento: ${order?.events?.name ?? "não encontrado"}`,
-      `Comprador: ${order ? `${order.buyer_name} <${order.buyer_email}>` : "não encontrado"}`,
-      `Pedido (código interno): ${orderId}`,
-      appUrl ? `Área da equipe: ${appUrl}/equipe` : "",
-      "",
-      "Confira o pagamento no painel do Mercado Pago antes de liberar ou devolver.",
-    ]
-      .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
-      .join("\n");
+    reserved = dedup === "allowed";
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -99,18 +115,66 @@ export async function alertTeam(
       body: JSON.stringify({
         from,
         to: [to],
-        subject: `[Alerta] ${ALERT_SUBJECTS[kind]}`,
-        text,
+        subject: `[Alerta] ${subject}`,
+        text: await buildText(),
       }),
     });
 
-    if (!response.ok) {
-      console.error(`[alerta] Resend recusou o alerta (${response.status}).`, {
-        kind,
-        orderId,
-      });
-    }
+    if (response.ok) return;
+    console.error(`[alerta] Resend recusou o alerta (${response.status}).`, log);
   } catch (error) {
-    console.error("[alerta] Falha ao enviar alerta.", { kind, orderId, error });
+    console.error("[alerta] Falha ao enviar alerta.", { ...log, error });
   }
+
+  if (reserved && !(await releaseRateLimit(admin, rule, dedupKey))) {
+    console.error("[alerta] Alerta não saiu e novas tentativas ficam bloqueadas até 24h.", log);
+  }
+}
+
+/** Avisa a equipe por e-mail. Nunca lança: alerta não pode travar a confirmação. */
+export async function alertTeam(
+  admin: SupabaseAdmin,
+  kind: TeamAlertKind,
+  orderId: string,
+  details: string,
+): Promise<void> {
+  await deliverAlert(
+    admin,
+    ALERT_DEDUP,
+    `${kind}:${orderId}`,
+    ALERT_SUBJECTS[kind],
+    async () => {
+      const order = await loadOrderSummary(admin, orderId);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+      return joinLines([
+        ALERT_SUBJECTS[kind],
+        "",
+        details,
+        "",
+        `Evento: ${order?.events?.name ?? "não encontrado"}`,
+        `Comprador: ${order ? `${order.buyer_name} <${order.buyer_email}>` : "não encontrado"}`,
+        `Pedido (código interno): ${orderId}`,
+        appUrl ? `Área da equipe: ${appUrl}/equipe` : "",
+        "",
+        "Confira o pagamento no painel do Mercado Pago antes de liberar ou devolver.",
+      ]);
+    },
+    { kind, orderId },
+  );
+}
+
+/** Avisa a equipe sobre configuração faltando no site. Nunca lança. */
+export async function alertTeamSetup(
+  admin: SupabaseAdmin,
+  kind: TeamSetupAlertKind,
+  details: string,
+): Promise<void> {
+  await deliverAlert(
+    admin,
+    SETUP_ALERT_DEDUP,
+    kind,
+    SETUP_ALERT_SUBJECTS[kind],
+    async () => joinLines([SETUP_ALERT_SUBJECTS[kind], "", details]),
+    { kind },
+  );
 }

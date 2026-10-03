@@ -40,21 +40,60 @@ export async function clientIp(): Promise<string> {
   );
 }
 
+export type RateLimitOutcome = "allowed" | "limited" | "error";
+
+/** Registra a tentativa e diz se ela está dentro do limite, separando falha do banco. */
+export async function tryConsumeRateLimit(
+  admin: AdminClient,
+  rule: RateLimitRule,
+  key: string,
+): Promise<RateLimitOutcome> {
+  try {
+    const { data, error } = await admin.rpc("consume_rate_limit", {
+      p_bucket: rule.bucket,
+      p_key_hash: hashRateLimitKey(key),
+      p_limit: rule.limit,
+      p_window_seconds: rule.windowSeconds,
+    });
+    if (error) {
+      console.error("[seguranca] Falha ao consultar limite de tentativas.", error);
+      return "error";
+    }
+    return data === true ? "allowed" : "limited";
+  } catch (error) {
+    console.error("[seguranca] Falha ao consultar limite de tentativas.", error);
+    return "error";
+  }
+}
+
 /** Registra a tentativa e diz se ela está dentro do limite. Falha fechada. */
 export async function consumeRateLimit(
   admin: AdminClient,
   rule: RateLimitRule,
   key: string,
 ): Promise<boolean> {
-  const { data, error } = await admin.rpc("consume_rate_limit", {
-    p_bucket: rule.bucket,
-    p_key_hash: hashRateLimitKey(key),
-    p_limit: rule.limit,
-    p_window_seconds: rule.windowSeconds,
-  });
-  if (error) {
-    console.error("[seguranca] Falha ao consultar limite de tentativas.", error);
+  return (await tryConsumeRateLimit(admin, rule, key)) === "allowed";
+}
+
+/** Apaga os registros da chave (ex.: o envio que a tentativa protegia falhou). Nunca lança. */
+export async function releaseRateLimit(
+  admin: AdminClient,
+  rule: RateLimitRule,
+  key: string,
+): Promise<boolean> {
+  try {
+    const { error } = await admin
+      .from("rate_limit_hits")
+      .delete()
+      .eq("bucket", rule.bucket)
+      .eq("key_hash", hashRateLimitKey(key));
+    if (error) {
+      console.error("[seguranca] Falha ao liberar limite de tentativas.", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("[seguranca] Falha ao liberar limite de tentativas.", error);
     return false;
   }
-  return data === true;
 }
