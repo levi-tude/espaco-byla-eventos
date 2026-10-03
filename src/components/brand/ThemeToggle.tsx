@@ -26,17 +26,17 @@ export function ThemeToggle({ onMedia = false }: Props) {
       }
       className={
         onMedia
-          ? "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/35 bg-black/35 text-white backdrop-blur transition hover:bg-black/55"
-          : "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-byla-border bg-byla-surface text-foreground transition hover:border-byla-blue/50 hover:text-byla-blue"
+          ? "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/35 bg-black/35 text-white backdrop-blur transition hover:bg-black/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          : "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-byla-border bg-byla-surface text-foreground transition hover:border-byla-link/50 hover:text-byla-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
       }
       disabled={!mounted}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       type="button"
     >
       {isDark ? (
-        <Sun aria-hidden className="h-4 w-4" />
+        <Sun aria-hidden className="h-5 w-5" />
       ) : (
-        <Moon aria-hidden className="h-4 w-4" />
+        <Moon aria-hidden className="h-5 w-5" />
       )}
     </button>
   );

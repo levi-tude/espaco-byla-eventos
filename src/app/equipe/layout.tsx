@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
+import { buttonClasses } from "@/components/ui/Button";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function EquipeLayout({
@@ -48,16 +49,16 @@ export default async function EquipeLayout({
   return (
     <div className="min-h-screen bg-byla-bg text-foreground">
       <header className="border-b border-byla-border bg-byla-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-2 sm:gap-4 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <BrandMark size={32} />
-            <div>
-              <p className="font-display text-lg tracking-wide text-foreground">
+            <div className="min-w-0">
+              <p className="truncate font-display text-lg tracking-wide text-foreground">
                 Espaço Byla Eventos
               </p>
-              <nav className="mt-0.5" aria-label="Navegação da equipe">
+              <nav aria-label="Navegação da equipe">
                 <Link
-                  className="text-sm text-byla-muted transition hover:text-byla-blue"
+                  className="-ml-1 inline-flex min-h-11 items-center rounded-lg px-1 text-base text-byla-muted transition hover:text-byla-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
                   href="/equipe"
                 >
                   Eventos
@@ -66,13 +67,10 @@ export default async function EquipeLayout({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <ThemeToggle />
             <form action={signOut}>
-              <button
-                className="rounded-lg border border-byla-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-byla-blue/60"
-                type="submit"
-              >
+              <button className={buttonClasses({ variant: "secondary" })} type="submit">
                 Sair
               </button>
             </form>
