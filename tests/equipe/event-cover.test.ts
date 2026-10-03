@@ -73,12 +73,15 @@ beforeEach(() => {
 });
 
 describe("capa do evento", () => {
-  it("recusa link que não é http/https", async () => {
-    expect(await createEvent({ ...input, coverImageUrl: "javascript:alert(1)" })).toEqual({
-      ok: false,
-      error: "Informe uma URL válida para a capa.",
-    });
-  });
+  it.each(["javascript:alert(1)", "http://imagens.example/capa.jpg"])(
+    "recusa link que não é https (%s)",
+    async (coverImageUrl) => {
+      expect(await createEvent({ ...input, coverImageUrl })).toEqual({
+        ok: false,
+        error: "Informe uma URL válida para a capa.",
+      });
+    },
+  );
 
   it("recusa capa do nosso armazenamento que não existe", async () => {
     mocks.mediaObjectExists.mockResolvedValue(false);

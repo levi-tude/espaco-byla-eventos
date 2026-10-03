@@ -39,10 +39,9 @@ type NormalizedEventInput = Omit<EventInput, "ticketTypes"> & {
   ticketTypes: TicketTypeRpcItem[];
 };
 
-function isHttpUrl(value: string): boolean {
+function isHttpsUrl(value: string): boolean {
   try {
-    const { protocol } = new URL(value);
-    return protocol === "https:" || protocol === "http:";
+    return new URL(value).protocol === "https:";
   } catch {
     return false;
   }
@@ -83,7 +82,7 @@ function normalizeInput(input: EventInput): NormalizedEventInput {
     throw new ActionError("Informe uma data e hora válidas.");
   }
 
-  if (normalized.coverImageUrl && !isHttpUrl(normalized.coverImageUrl)) {
+  if (normalized.coverImageUrl && !isHttpsUrl(normalized.coverImageUrl)) {
     throw new ActionError("Informe uma URL válida para a capa.");
   }
 
