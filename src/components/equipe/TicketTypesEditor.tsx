@@ -239,7 +239,7 @@ export function TicketTypesEditor({
   return (
     <fieldset className="grid gap-4" disabled={disabled}>
       <legend className="text-sm font-medium">Tipos de ingresso</legend>
-      <p className="-mt-2 text-sm text-byla-muted">
+      <p className="mt-1 text-sm text-byla-muted">
         Marque os tipos que serão vendidos e informe o preço. O limite é opcional
         (em branco, vale só a capacidade do evento). Cortesias são emitidas pela
         equipe na lista de ingressos.
