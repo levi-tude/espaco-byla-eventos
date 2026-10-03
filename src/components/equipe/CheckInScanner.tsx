@@ -17,6 +17,7 @@ type CheckInResponse =
       buyerName: string;
       kind: Enums<"ticket_kind">;
       typeLabel?: string;
+      sessionLine?: string;
     }
   | {
       ok: false;
@@ -26,7 +27,7 @@ type CheckInResponse =
 type Result =
   | { tone: "idle"; message: "Aponte a câmera para o QR Code" }
   | { tone: "loading"; message: "Verificando ingresso..." }
-  | { tone: "success"; message: "Pode entrar"; detail: string }
+  | { tone: "success"; message: "Pode entrar"; detail: string; sessionLine: string }
   | { tone: "error"; message: string };
 
 /** O resultado cobre a câmera para a equipe ver de longe; o leitor já fica pausado nesse momento. */
@@ -44,7 +45,7 @@ const resultIcons: Record<Result["tone"], typeof ScanLine> = {
   error: CircleX,
 };
 
-export function CheckInScanner({ eventId }: { eventId: string }) {
+export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessionId: string }) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
@@ -78,7 +79,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         const response = await fetch("/api/check-in", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ eventId, code }),
+          body: JSON.stringify({ eventId, sessionId, code }),
         });
         const data = (await response.json()) as CheckInResponse;
 
@@ -87,6 +88,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
             tone: "success",
             message: "Pode entrar",
             detail: `${data.buyerName} · ${data.typeLabel ?? ticketKindLabels[data.kind]}`,
+            sessionLine: data.sessionLine ?? "",
           });
           setManualCode("");
         } else {
@@ -102,7 +104,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
         pauseForNext();
       }
     },
-    [eventId, pauseForNext],
+    [eventId, sessionId, pauseForNext],
   );
 
   useEffect(() => {
@@ -205,6 +207,9 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
           </p>
           {"detail" in result ? (
             <p className="text-lg font-semibold">{result.detail}</p>
+          ) : null}
+          {"sessionLine" in result && result.sessionLine ? (
+            <p className="text-base">{result.sessionLine}</p>
           ) : null}
           {awaitingNext ? (
             <button
