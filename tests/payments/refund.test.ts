@@ -78,6 +78,7 @@ const emailTables = {
     created_at: "2026-09-30T15:00:00.000Z",
   },
   events: { name: "Festa Teste", starts_at: "2026-12-01T23:00:00.000Z" },
+  event_sessions: { name: "Sessão extra", starts_at: "2026-12-02T23:00:00.000Z" },
   order_refunds: { amount_cents: 5000 },
   tickets: [{ buyer_name: "Comprador Teste", kind: "inteira" }],
 };
@@ -118,7 +119,12 @@ describe("refundPaidOrder", () => {
     });
     expect(mocks.sendRefundEmail).toHaveBeenCalledTimes(1);
     expect(mocks.sendRefundEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ amountCents: 5000, buyerEmail: "comprador@example.com" }),
+      expect.objectContaining({
+        amountCents: 5000,
+        buyerEmail: "comprador@example.com",
+        startsAt: "2026-12-02T23:00:00.000Z",
+        sessionName: "Sessão extra",
+      }),
     );
   });
 

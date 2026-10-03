@@ -241,13 +241,18 @@ export async function notifyBuyerRefunded(
   try {
     const { data: order } = await admin
       .from("orders")
-      .select("buyer_email, buyer_name, public_token, event_id")
+      .select("buyer_email, buyer_name, public_token, event_id, session_id")
       .eq("id", orderId)
       .maybeSingle();
     if (!order) return notSent("dados do pedido não encontrados");
 
-    const [eventResult, refundResult, ticketsResult] = await Promise.all([
+    const [eventResult, sessionResult, refundResult, ticketsResult] = await Promise.all([
       admin.from("events").select("name, starts_at").eq("id", order.event_id).maybeSingle(),
+      admin
+        .from("event_sessions")
+        .select("name, starts_at")
+        .eq("id", order.session_id)
+        .maybeSingle(),
       admin
         .from("order_refunds")
         .select("amount_cents")
@@ -269,7 +274,8 @@ export async function notifyBuyerRefunded(
       buyerName: order.buyer_name,
       publicToken: order.public_token,
       eventName: eventResult.data.name,
-      startsAt: eventResult.data.starts_at,
+      startsAt: sessionResult.data?.starts_at ?? eventResult.data.starts_at,
+      sessionName: sessionResult.data?.name ?? null,
       amountCents: refundResult.data.amount_cents,
       tickets: (ticketsResult.data ?? []).map((ticket) => ({
         holderName: ticket.buyer_name,

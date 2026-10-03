@@ -24,6 +24,10 @@ function row(n: number) {
     event_slug: "show teste",
     event_venue: "Local",
     event_starts_at: "2026-12-01T23:00:00.000Z",
+    session_id: "00000000-0000-4000-8000-0000000000aa",
+    session_name: "Sessão das 20h",
+    session_starts_at: "2026-12-01T23:00:00.000Z",
+    session_ends_at: null,
     items: [{ name: "Inteira", quantity: 2 }, { bad: true }],
   };
 }
@@ -85,6 +89,9 @@ describe("runAbandonedReminders", () => {
     );
     expect(input.content.text).toContain(`https://eventos.exemplo/lembretes/cancelar?t=${"1".repeat(64)}`);
     expect(input.content.text).toContain("2 × Inteira");
+    expect(input.content.text).toContain(
+      "Quando: Sessão das 20h · Terça-feira, 1 de dezembro de 2026 · 20h00",
+    );
     expect(rpc).toHaveBeenCalledWith("mark_abandoned_reminder_sent", { p_order_id: row(1).order_id });
     expect(rpc).not.toHaveBeenCalledWith("release_abandoned_reminder", expect.anything());
   });

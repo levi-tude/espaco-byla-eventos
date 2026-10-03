@@ -1,9 +1,12 @@
-import { eventDateFormatter } from "@/lib/datetime";
+import { formatSessionWhen } from "@/lib/datetime";
+import { sessionName as cleanSessionName } from "@/lib/domain/sessions";
 
 export type RefundEmailData = {
   buyerName: string;
   eventName: string;
+  /** Início da sessão do pedido. */
   startsAt: string;
+  sessionName?: string | null;
   amountCents: number;
   tickets: { holderName: string; kindLabel: string }[];
   orderUrl: string;
@@ -35,10 +38,9 @@ function firstName(fullName: string) {
   return fullName.trim().split(/\s+/)[0] || fullName.trim();
 }
 
-function formatStartsAt(startsAt: string) {
-  const date = new Date(startsAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return eventDateFormatter({ dateStyle: "full", timeStyle: "short" }).format(date);
+/** "Sessão infantil · Sábado, 10 de outubro de 2026 · 16h00" (nome só se existir). */
+function formatSession(startsAt: string, name?: string | null) {
+  return [cleanSessionName(name), formatSessionWhen(startsAt)].filter(Boolean).join(" · ");
 }
 
 /** Texto ao comprador: não cita fornecedores (banco, provedor de pagamento etc.). */
@@ -49,7 +51,7 @@ const TIMING_LINES = [
 
 export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
   const name = firstName(data.buyerName);
-  const when = formatStartsAt(data.startsAt);
+  const when = formatSession(data.startsAt, data.sessionName);
   const amount = currency.format(data.amountCents / 100);
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;

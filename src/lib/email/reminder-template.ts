@@ -1,10 +1,14 @@
-import { eventDateFormatter } from "@/lib/datetime";
+import { formatSessionWhen } from "@/lib/datetime";
+import { sessionName as cleanSessionName } from "@/lib/domain/sessions";
 
 export type ReminderEmailData = {
   buyerName: string;
   eventName: string;
   venue: string;
+  /** Início da sessão do pedido. */
   startsAt: string;
+  endsAt?: string | null;
+  sessionName?: string | null;
   items: { name: string; quantity: number }[];
   resumeUrl: string;
   unsubscribeUrl: string;
@@ -31,16 +35,15 @@ function firstName(fullName: string) {
   return fullName.trim().split(/\s+/)[0] || fullName.trim();
 }
 
-function formatStartsAt(startsAt: string) {
-  const date = new Date(startsAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return eventDateFormatter({ dateStyle: "full", timeStyle: "short" }).format(date);
+/** "Sessão infantil · Sábado, 10 de outubro de 2026 · 16h00" (nome só se existir). */
+function formatSession(startsAt: string, endsAt?: string | null, name?: string | null) {
+  return [cleanSessionName(name), formatSessionWhen(startsAt, endsAt)].filter(Boolean).join(" · ");
 }
 
 /** Texto ao comprador: sem dados de pagamento e sem citar fornecedores. */
 export function buildReminderEmail(data: ReminderEmailData): ReminderEmailContent {
   const name = firstName(data.buyerName);
-  const when = formatStartsAt(data.startsAt);
+  const when = formatSession(data.startsAt, data.endsAt, data.sessionName);
   const items = data.items.map((item) => `${item.quantity} × ${item.name}`);
 
   const subject = `Você não terminou sua compra para ${data.eventName}`;

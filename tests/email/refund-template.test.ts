@@ -29,6 +29,14 @@ describe("buildRefundEmail", () => {
     expect(email.html).toContain('href="https://exemplo.test/pedidos/abc123"');
   });
 
+  it("cita a sessão do pedido", () => {
+    expect(buildRefundEmail(base).text).toContain(
+      "O pedido para Noite de Forró (Sábado, 10 de outubro de 2026 · 20h00) foi estornado.",
+    );
+    const email = buildRefundEmail({ ...base, sessionName: "Sessão infantil" });
+    expect(email.text).toContain("(Sessão infantil · Sábado, 10 de outubro de 2026 · 20h00)");
+  });
+
   it("não cita fornecedores nem mostra QR Code", () => {
     const email = buildRefundEmail(base);
     for (const content of [email.html, email.text]) {

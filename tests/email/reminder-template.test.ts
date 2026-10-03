@@ -33,6 +33,22 @@ describe("buildReminderEmail", () => {
     expect(email.html).toContain("#4080FC");
   });
 
+  it("mostra a sessão do pedido no formato padrão", () => {
+    expect(buildReminderEmail(base).text).toContain(
+      "Quando: Sábado, 10 de outubro de 2026 · 20h00",
+    );
+    const email = buildReminderEmail({
+      ...base,
+      sessionName: "Sessão infantil",
+      startsAt: "2026-10-10T19:00:00.000Z",
+      endsAt: "2026-10-10T20:30:00.000Z",
+    });
+    expect(email.text).toContain(
+      "Quando: Sessão infantil · Sábado, 10 de outubro de 2026 · 16h00 – 17h30",
+    );
+    expect(email.html).toContain("Sessão infantil");
+  });
+
   it("não cita fornecedores nem traz dados de pagamento", () => {
     const email = buildReminderEmail(base);
     for (const content of [email.html, email.text]) {
