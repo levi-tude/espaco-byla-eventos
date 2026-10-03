@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { checkInMessage, evaluateCheckIn } from "@/lib/domain/check-in";
-import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
+import { checkInMessage, parseCheckInOutcome } from "@/lib/domain/check-in";
+import { ticketTypeLabel } from "@/lib/domain/ticket-types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_CODE_LENGTH = 100;
 
 export async function POST(request: Request) {
   const supabase = await createServerClient();
@@ -47,8 +52,9 @@ export async function POST(request: Request) {
     !("code" in body) ||
     typeof body.eventId !== "string" ||
     typeof body.code !== "string" ||
-    !body.eventId.trim() ||
-    !body.code.trim()
+    !UUID_PATTERN.test(body.eventId.trim()) ||
+    !body.code.trim() ||
+    body.code.trim().length > MAX_CODE_LENGTH
   ) {
     return NextResponse.json(
       { ok: false, message: "Dados inválidos" },
@@ -56,71 +62,46 @@ export async function POST(request: Request) {
     );
   }
 
-  const eventId = body.eventId.trim();
-  const code = body.code.trim();
-  const { data: ticket, error: ticketError } = await supabase
-    .from("tickets")
-    .select("id, event_id, status, buyer_name, kind")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (ticketError) {
-    return NextResponse.json(
-      { ok: false, message: "Não foi possível consultar o ingresso" },
-      { status: 500 },
-    );
-  }
-
-  if (!ticket) {
-    return NextResponse.json(
-      { ok: false, message: "Ingresso não encontrado" },
-      { status: 404 },
-    );
-  }
-
-  const evaluation = evaluateCheckIn({
-    ticketEventId: ticket.event_id,
-    eventId,
-    status: ticket.status,
-  });
-
-  if (!evaluation.ok) {
-    return NextResponse.json({
-      ok: false,
-      message: checkInMessage(evaluation.reason),
-    });
-  }
-
-  const { data: checkedIn, error: updateError } = await supabase
-    .from("tickets")
-    .update({
-      status: "check_in",
-      checked_in_at: new Date().toISOString(),
+  // Trava, regras e registro de quem fez ficam na função do banco (só service_role executa).
+  const { data, error } = await createAdminClient()
+    .rpc("check_in_ticket", {
+      p_event_id: body.eventId.trim(),
+      p_code: body.code.trim(),
+      p_staff_user_id: user.id,
     })
-    .eq("id", ticket.id)
-    .eq("event_id", eventId)
-    .eq("status", "pago")
-    .select("buyer_name, kind, order_items(name)")
     .maybeSingle();
 
-  if (updateError) {
+  if (error) {
+    if (error.message.includes("CHECKIN_EQUIPE")) {
+      return NextResponse.json(
+        { ok: false, message: "Acesso não autorizado" },
+        { status: 403 },
+      );
+    }
+    console.error("[check-in] Falha ao registrar a entrada.", error.code);
     return NextResponse.json(
       { ok: false, message: "Não foi possível realizar o check-in" },
       { status: 500 },
     );
   }
 
-  if (!checkedIn) {
-    return NextResponse.json({
-      ok: false,
-      message: checkInMessage("ja_usado"),
-    });
+  const outcome = parseCheckInOutcome(data?.outcome);
+  if (!outcome.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: checkInMessage(outcome.reason, data?.other_event_name),
+      },
+      { status: outcome.reason === "nao_encontrado" ? 404 : 200 },
+    );
   }
 
+  // A entrada já foi registrada: nunca responder erro daqui em diante.
+  const kind = data?.ticket_kind ?? null;
   return NextResponse.json({
     ok: true,
-    buyerName: checkedIn.buyer_name,
-    kind: checkedIn.kind,
-    typeLabel: ticketTypeLabel(orderItemName(checkedIn.order_items), checkedIn.kind),
+    buyerName: data?.buyer_name ?? "",
+    kind,
+    typeLabel: kind ? ticketTypeLabel(data?.type_name, kind) : "Ingresso",
   });
 }

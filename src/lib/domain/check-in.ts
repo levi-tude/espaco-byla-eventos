@@ -1,14 +1,23 @@
 export type CheckInRejectionReason =
   | "evento_errado"
+  | "nao_encontrado"
   | "nao_pago"
   | "cancelado"
   | "estornado"
   | "ja_usado"
   | "invalido";
 
-export function checkInMessage(reason: CheckInRejectionReason): string {
-  const messages: Record<CheckInRejectionReason, string> = {
-    evento_errado: "Evento errado",
+export function checkInMessage(
+  reason: CheckInRejectionReason,
+  otherEventName?: string | null,
+): string {
+  if (reason === "evento_errado") {
+    const name = otherEventName?.trim();
+    return name ? `Ingresso de outro evento: ${name}` : "Ingresso de outro evento";
+  }
+
+  const messages: Record<Exclude<CheckInRejectionReason, "evento_errado">, string> = {
+    nao_encontrado: "Ingresso não encontrado",
     nao_pago: "Ingresso não pago",
     cancelado: "Cancelado",
     estornado: "Estornado — não liberar entrada",
@@ -20,24 +29,24 @@ export function checkInMessage(reason: CheckInRejectionReason): string {
 }
 
 const KNOWN_REJECTIONS: Record<string, CheckInRejectionReason> = {
-  check_in: "ja_usado",
-  cancelado: "cancelado",
+  evento_errado: "evento_errado",
+  nao_encontrado: "nao_encontrado",
   nao_pago: "nao_pago",
+  cancelado: "cancelado",
   estornado: "estornado",
+  ja_usado: "ja_usado",
 };
 
-/** Lista de permitidos: só `pago` entra; status desconhecido é recusado. */
-export function evaluateCheckIn(input: {
-  ticketEventId: string;
-  eventId: string;
-  status: string;
-}): { ok: true } | { ok: false; reason: CheckInRejectionReason } {
-  if (input.ticketEventId !== input.eventId) return { ok: false, reason: "evento_errado" };
-  if (input.status === "pago") return { ok: true };
+/** Resultado de `check_in_ticket`: só "ok" libera; qualquer outro valor é recusado. */
+export function parseCheckInOutcome(
+  outcome: unknown,
+): { ok: true } | { ok: false; reason: CheckInRejectionReason } {
+  if (outcome === "ok") return { ok: true };
   return {
     ok: false,
-    reason: Object.hasOwn(KNOWN_REJECTIONS, input.status)
-      ? KNOWN_REJECTIONS[input.status]
-      : "invalido",
+    reason:
+      typeof outcome === "string" && Object.hasOwn(KNOWN_REJECTIONS, outcome)
+        ? KNOWN_REJECTIONS[outcome]
+        : "invalido",
   };
 }
