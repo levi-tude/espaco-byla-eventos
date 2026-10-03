@@ -1,8 +1,15 @@
 "use client";
 
+import { ArrowRight, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
+
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Field } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
+import { StickyActionBar } from "@/components/ui/StickyActionBar";
 
 import {
   type BrowserCart,
@@ -314,173 +321,176 @@ function CheckoutFormFields({
     });
   }
 
-  const fieldClass =
-    "rounded-lg border border-byla-border bg-byla-input px-3 py-2.5 text-foreground outline-none focus:border-byla-blue focus:ring-2 focus:ring-byla-ring";
-  const stepperClass =
-    "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-byla-border bg-byla-input text-xl font-semibold text-foreground disabled:opacity-40";
+  const submitDisabled = totalCents === 0 || awaitingPayment || checkingPending;
+  const selected = ticketTypes.filter((type) => qtyOf(quantities, type.id) > 0);
+  const totalLabel = `Total${
+    totalPeople > 0 ? ` · ${totalPeople} ingresso${totalPeople === 1 ? "" : "s"}` : ""
+  }`;
+  const errorNotice = error ? <Notice tone="danger">{error}</Notice> : null;
+  const awaitingHint = awaitingPayment ? (
+    <p className="text-center text-sm text-byla-muted">
+      Para mudar ingressos ou dados, toque em “Alterar seleção” acima.
+    </p>
+  ) : null;
 
   return (
-    <form className="mt-8 grid gap-6" onSubmit={submit}>
-      {pendingToken && pendingUntil ? (
-        <PendingOrderBanner
-          expiresAt={pendingUntil}
-          onChanged={selectionChanged}
-          publicToken={pendingToken}
-        />
-      ) : null}
-      {initial.adjusted ? (
-        <p
-          className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
-          role="status"
-        >
-          Alguns itens não estão mais disponíveis. Ajustamos sua seleção.
-        </p>
-      ) : null}
-      <fieldset className="grid gap-3" disabled={awaitingPayment}>
-        <legend className="font-semibold text-foreground">
-          Escolha seus ingressos
-        </legend>
-        {notice ? (
-          <p className="text-sm font-semibold text-amber-700 dark:text-byla-yellow">
-            {notice}
-          </p>
+    <form
+      className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10"
+      onSubmit={submit}
+    >
+      <div className="grid min-w-0 gap-8">
+        {pendingToken && pendingUntil ? (
+          <PendingOrderBanner
+            expiresAt={pendingUntil}
+            onChanged={selectionChanged}
+            publicToken={pendingToken}
+          />
         ) : null}
-        {ticketTypes.map((type) => {
-          const qty = qtyOf(quantities, type.id);
-          const max = maxFor(type);
-          const typeNotice = typeRemainingNotice(
-            typeUnitsLeft(
-              { ...type, remainingUnits: typeRemaining[type.id] ?? null },
-              categoryRemaining,
-            ),
-          );
-          const showContents =
-            type.peoplePerUnit > 1 || type.name !== ticketKindLabels[type.kind];
-          return (
-            <div
-              className="flex items-center justify-between gap-4 rounded-xl border border-byla-border bg-byla-overlay p-4"
-              key={type.id}
-            >
-              <div className="min-w-0">
-                <p className="font-medium text-foreground">{type.name}</p>
-                <p className="text-sm text-byla-muted">
-                  {moneyFormatter.format(type.priceCents / 100)}
-                  {showContents
-                    ? ` · ${unitContentsLabel(type.peoplePerUnit, type.kind)}`
-                    : ""}
-                </p>
-                {typeNotice ? (
-                  <p className="text-xs font-semibold text-amber-700 dark:text-byla-yellow">
-                    {typeNotice}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  aria-label={`Diminuir ${type.name}`}
-                  className={stepperClass}
-                  disabled={qty <= 0 || pending}
-                  onClick={() => setQty(type, (current) => current - 1)}
-                  type="button"
-                >
-                  −
-                </button>
-                <input
-                  aria-label={`Quantidade ${type.name}`}
-                  className={`${fieldClass} w-14 text-center`}
-                  disabled={pending || (max === 0 && qty === 0)}
-                  inputMode="numeric"
-                  max={max}
-                  min={0}
-                  onChange={(event) => setQty(type, parseQty(event.target.value))}
-                  type="text"
-                  value={String(qty)}
-                />
-                <button
-                  aria-label={`Aumentar ${type.name}`}
-                  className={stepperClass}
-                  disabled={qty >= max || pending}
-                  onClick={() => setQty(type, (current) => current + 1)}
-                  type="button"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          );
-        })}
-        <div className="flex min-h-6 flex-wrap items-center justify-between gap-2">
-          <p aria-live="polite" className="text-sm text-byla-muted">
-            {limitHint}
-          </p>
-          {totalPeople > 0 ? (
-            <button
-              className="text-sm font-medium text-byla-blue underline underline-offset-2 disabled:opacity-50"
-              disabled={pending}
-              onClick={clearSelection}
-              type="button"
-            >
-              Limpar seleção
-            </button>
-          ) : null}
-        </div>
-      </fieldset>
+        {initial.adjusted ? (
+          <Notice tone="warning">
+            Alguns itens não estão mais disponíveis. Ajustamos sua seleção.
+          </Notice>
+        ) : null}
 
-      <fieldset className="grid gap-4" disabled={awaitingPayment}>
-        <legend className="font-semibold text-foreground">Seus dados</legend>
-        <label className="grid gap-1 text-sm text-byla-muted">
-          Nome
-          <input
+        <fieldset className="grid gap-3" disabled={awaitingPayment}>
+          <legend className="mb-1 text-xl font-semibold text-foreground">
+            Escolha seus ingressos
+          </legend>
+          {notice ? (
+            <p className="-mt-2 text-base font-semibold text-byla-accent-text">{notice}</p>
+          ) : null}
+          <ul className="divide-y divide-byla-border rounded-2xl border border-byla-border bg-byla-surface">
+            {ticketTypes.map((type) => {
+              const qty = qtyOf(quantities, type.id);
+              const max = maxFor(type);
+              const typeNotice = typeRemainingNotice(
+                typeUnitsLeft(
+                  { ...type, remainingUnits: typeRemaining[type.id] ?? null },
+                  categoryRemaining,
+                ),
+              );
+              const showContents =
+                type.peoplePerUnit > 1 || type.name !== ticketKindLabels[type.kind];
+              return (
+                <li className="flex items-center justify-between gap-3 p-4" key={type.id}>
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-semibold text-foreground">
+                      {type.name}
+                    </p>
+                    <p className="text-base text-byla-muted">
+                      {moneyFormatter.format(type.priceCents / 100)}
+                    </p>
+                    {showContents ? (
+                      <p className="text-sm text-byla-muted">
+                        {unitContentsLabel(type.peoplePerUnit, type.kind)}
+                      </p>
+                    ) : null}
+                    {typeNotice ? (
+                      <p className="mt-0.5 text-sm font-semibold text-byla-accent-text">
+                        {typeNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      aria-label={`Diminuir ${type.name}`}
+                      className={stepperClass}
+                      disabled={qty <= 0 || pending}
+                      onClick={() => setQty(type, (current) => current - 1)}
+                      type="button"
+                    >
+                      <Minus aria-hidden className="h-5 w-5" />
+                    </button>
+                    <input
+                      aria-label={`Quantidade ${type.name}`}
+                      className={qtyInputClass}
+                      disabled={pending || (max === 0 && qty === 0)}
+                      inputMode="numeric"
+                      max={max}
+                      min={0}
+                      onChange={(event) => setQty(type, parseQty(event.target.value))}
+                      type="text"
+                      value={String(qty)}
+                    />
+                    <button
+                      aria-label={`Aumentar ${type.name}`}
+                      className={stepperClass}
+                      disabled={qty >= max || pending}
+                      onClick={() => setQty(type, (current) => current + 1)}
+                      type="button"
+                    >
+                      <Plus aria-hidden className="h-5 w-5" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
+            <p aria-live="polite" className="text-sm text-byla-muted">
+              {limitHint}
+            </p>
+            {totalPeople > 0 ? (
+              <button
+                className="inline-flex min-h-11 items-center rounded-lg px-1 text-base font-medium text-byla-link underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:opacity-50"
+                disabled={pending}
+                onClick={clearSelection}
+                type="button"
+              >
+                Limpar seleção
+              </button>
+            ) : null}
+          </div>
+        </fieldset>
+
+        <fieldset className="grid gap-4" disabled={awaitingPayment}>
+          <legend className="mb-1 text-xl font-semibold text-foreground">Seus dados</legend>
+          <p className="-mt-2 text-sm text-byla-muted">
+            Os ingressos chegam no e-mail informado.
+          </p>
+          <Field
             autoComplete="name"
-            className={fieldClass}
+            label="Nome"
             maxLength={200}
             name="name"
             onChange={(event) => setBuyerField("name", event.target.value)}
             required
             value={buyer.name}
           />
-        </label>
-        <label className="grid gap-1 text-sm text-byla-muted">
-          E-mail
-          <input
+          <Field
+            autoCapitalize="none"
             autoComplete="email"
-            className={fieldClass}
+            inputMode="email"
+            label="E-mail"
             maxLength={320}
             name="email"
             onChange={(event) => setBuyerField("email", event.target.value)}
             required
+            spellCheck={false}
             type="email"
             value={buyer.email}
           />
-        </label>
-        <label className="grid gap-1 text-sm text-byla-muted">
-          Telefone (opcional)
-          <input
+          <Field
             autoComplete="tel"
-            className={fieldClass}
             inputMode="tel"
+            label="Telefone (opcional)"
             maxLength={40}
             name="phone"
             onChange={(event) => setBuyerField("phone", event.target.value)}
             type="tel"
             value={buyer.phone}
           />
-        </label>
-        <label className="flex items-start gap-3 text-sm text-byla-muted">
-          <input
-            className="mt-0.5 h-5 w-5 shrink-0 accent-byla-blue"
+          <Checkbox
             name="privacy"
             onChange={(event) => event.currentTarget.setCustomValidity("")}
             onInvalid={(event) =>
               event.currentTarget.setCustomValidity(PRIVACY_REQUIRED_MESSAGE)
             }
             required
-            type="checkbox"
-          />
-          <span>
+          >
             Li e aceito a{" "}
             <Link
-              className="font-medium text-byla-blue underline underline-offset-2"
+              className="font-medium text-byla-link underline underline-offset-2"
               href="/privacidade"
               rel="noopener"
               target="_blank"
@@ -488,45 +498,81 @@ function CheckoutFormFields({
               Política de Privacidade
             </Link>
             .
-          </span>
-        </label>
-      </fieldset>
+          </Checkbox>
+        </fieldset>
 
-      <div className="flex items-center justify-between border-t border-byla-border pt-5">
-        <span className="font-medium text-foreground">
-          Total
-          {totalPeople > 0
-            ? ` · ${totalPeople} ingresso${totalPeople === 1 ? "" : "s"}`
-            : ""}
-        </span>
-        <strong className="text-2xl text-amber-700 dark:text-byla-yellow">
-          {moneyFormatter.format(totalCents / 100)}
-        </strong>
+        <div className="grid gap-3 lg:hidden">
+          {errorNotice}
+          {awaitingHint}
+        </div>
       </div>
-      {error ? (
-        <p
-          className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
-          role="alert"
-        >
-          {error}
-        </p>
-      ) : null}
-      <button
-        className="min-h-12 rounded-lg bg-byla-blue px-4 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={pending || totalCents === 0 || awaitingPayment || checkingPending}
-        type="submit"
+
+      <aside
+        aria-label="Resumo do pedido"
+        className="hidden rounded-2xl border border-byla-border bg-byla-surface p-5 lg:sticky lg:top-6 lg:grid lg:gap-4"
       >
-        {pending
-          ? "Reservando ingressos…"
-          : checkingPending
-            ? "Conferindo pedido anterior…"
-            : "Continuar para o pagamento"}
-      </button>
-      {awaitingPayment ? (
-        <p className="-mt-3 text-center text-sm text-byla-muted">
-          Para mudar ingressos ou dados, toque em “Alterar seleção” acima.
-        </p>
-      ) : null}
+        <h2 className="text-lg font-semibold text-foreground">Resumo do pedido</h2>
+        {selected.length ? (
+          <ul className="grid gap-2 text-base">
+            {selected.map((type) => (
+              <li className="flex justify-between gap-3" key={type.id}>
+                <span className="min-w-0 break-words text-foreground">
+                  {qtyOf(quantities, type.id)}× {type.name}
+                </span>
+                <span className="shrink-0 tabular-nums text-byla-muted">
+                  {moneyFormatter.format((type.priceCents * qtyOf(quantities, type.id)) / 100)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-base text-byla-muted">Escolha pelo menos um ingresso.</p>
+        )}
+        <div className="flex items-baseline justify-between gap-3 border-t border-byla-border pt-4">
+          <span className="font-medium text-foreground">{totalLabel}</span>
+          <strong className="text-2xl tabular-nums text-byla-accent-text">
+            {moneyFormatter.format(totalCents / 100)}
+          </strong>
+        </div>
+        {errorNotice}
+        <Button
+          disabled={submitDisabled}
+          fullWidth
+          loading={pending || checkingPending}
+          loadingLabel={pending ? "Reservando ingressos…" : "Conferindo pedido anterior…"}
+          size="lg"
+          type="submit"
+        >
+          Continuar para o pagamento
+        </Button>
+        {awaitingHint}
+      </aside>
+
+      <StickyActionBar hideFrom="lg">
+        <div className="min-w-0 shrink-0">
+          <p className="text-sm text-byla-muted">{totalLabel}</p>
+          <p className="text-xl font-bold tabular-nums text-byla-accent-text">
+            {moneyFormatter.format(totalCents / 100)}
+          </p>
+        </div>
+        <Button
+          className="flex-1"
+          disabled={submitDisabled}
+          loading={pending || checkingPending}
+          loadingLabel={pending ? "Reservando…" : "Conferindo…"}
+          size="lg"
+          type="submit"
+        >
+          Continuar
+          <ArrowRight aria-hidden className="h-5 w-5" />
+        </Button>
+      </StickyActionBar>
     </form>
   );
 }
+
+const qtyInputClass =
+  "h-11 w-12 rounded-lg border border-byla-border bg-byla-input px-1 text-center text-base font-semibold text-foreground transition focus:border-byla-blue focus:outline-none focus:ring-2 focus:ring-byla-ring disabled:opacity-60";
+const stepperClass =
+  "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-byla-border bg-byla-input text-foreground transition hover:border-byla-link/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:cursor-not-allowed disabled:opacity-40";
+

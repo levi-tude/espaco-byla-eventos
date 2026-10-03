@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ChangeSelectionButton } from "@/components/public/ChangeSelectionButton";
+import { ButtonLink } from "@/components/ui/Button";
 import { browserStorage, readCart } from "@/lib/cart/browser-cart";
 import { eventDateFormatter } from "@/lib/datetime";
 import { useMounted } from "@/lib/use-mounted";
@@ -26,24 +27,26 @@ export function PendingOrderBanner({
 }) {
   return (
     <section
-      className="rounded-xl border border-byla-blue/50 bg-byla-overlay p-4"
+      className="rounded-2xl border border-byla-info/40 bg-byla-info-bg p-4"
       role="status"
     >
-      <p className="font-medium text-foreground">
-        Você tem um pedido aguardando pagamento (reserva até{" "}
-        <strong>{timeFormatter.format(new Date(expiresAt))}</strong>).
-      </p>
-      <p className="mt-1 text-sm text-byla-muted">
-        Continue o pagamento desse pedido ou altere a seleção. Alterar cancela o
-        pedido anterior e libera os lugares.
-      </p>
+      <div className="flex gap-3">
+        <Clock aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-info" />
+        <div className="min-w-0">
+          <p className="text-base font-semibold text-foreground">
+            Você tem um pedido aguardando pagamento (reserva até{" "}
+            <strong>{timeFormatter.format(new Date(expiresAt))}</strong>).
+          </p>
+          <p className="mt-1 text-base text-foreground">
+            Continue o pagamento desse pedido ou altere a seleção. Alterar cancela o
+            pedido anterior e libera os lugares.
+          </p>
+        </div>
+      </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 sm:items-start">
-        <Link
-          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-byla-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-          href={`/pedidos/${encodeURIComponent(publicToken)}`}
-        >
+        <ButtonLink href={`/pedidos/${encodeURIComponent(publicToken)}`}>
           Continuar pagamento
-        </Link>
+        </ButtonLink>
         <ChangeSelectionButton onChanged={onChanged} publicToken={publicToken} />
       </div>
     </section>
