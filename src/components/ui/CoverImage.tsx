@@ -8,10 +8,18 @@ type CoverImageProps = {
   /** Primeira dobra: carrega na hora, com prioridade. */
   priority?: boolean;
   className?: string;
+  /** Tamanho da marca quando não há capa (menor em miniaturas). */
+  markSize?: number;
 };
 
 /** Capa sempre 16:9; sem capa, mostra a marca do Byla em vez de um bloco vazio. */
-export function CoverImage({ src, alt = "", priority = false, className }: CoverImageProps) {
+export function CoverImage({
+  src,
+  alt = "",
+  priority = false,
+  className,
+  markSize = 112,
+}: CoverImageProps) {
   if (!src) {
     return (
       <div
@@ -21,7 +29,7 @@ export function CoverImage({ src, alt = "", priority = false, className }: Cover
           className,
         )}
       >
-        <BrandMark className="object-contain opacity-80 mix-blend-screen" forceDark size={112} />
+        <BrandMark className="object-contain opacity-80 mix-blend-screen" forceDark size={markSize} />
       </div>
     );
   }
