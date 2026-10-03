@@ -1,8 +1,13 @@
-import Link from "next/link";
+import { CalendarDays, MapPin, Ticket } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { EventGallery } from "@/components/public/EventGallery";
+import { BackLink } from "@/components/ui/BackLink";
+import { ButtonLink } from "@/components/ui/Button";
+import { CoverImage } from "@/components/ui/CoverImage";
+import { Notice } from "@/components/ui/Notice";
+import { StickyActionBar } from "@/components/ui/StickyActionBar";
 import { eventDateFormatter } from "@/lib/datetime";
 import {
   NO_CATEGORY_LIMIT,
@@ -77,105 +82,129 @@ export default async function EventoPublicoPage({
       )
       .map((type) => type.id),
   );
+  const checkoutHref = `/eventos/${event.slug}/checkout`;
+  const buyablePrices = (ticketTypes ?? [])
+    .filter((ticketType) => !soldOutTypes.has(ticketType.id))
+    .map((ticketType) => ticketType.price_cents);
+  const lowestPriceCents = buyablePrices.length ? Math.min(...buyablePrices) : null;
 
   return (
-    <main className="relative flex min-h-full flex-1 flex-col pb-28 md:pb-12">
-      <SiteHeader variant="equipe" />
+    <main
+      className={`relative flex min-h-full flex-1 flex-col ${
+        state === "open" ? "pb-32 lg:pb-16" : "pb-16"
+      }`}
+    >
+      <SiteHeader />
 
-      <div className="relative mx-auto w-full max-w-5xl flex-1 px-6 pt-6">
-        <Link
-          className="text-sm font-medium text-byla-muted transition hover:text-foreground"
-          href="/"
-        >
-          ← Ver programação
-        </Link>
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 pt-2 sm:px-6 sm:pt-4">
+        <BackLink href="/">Ver programação</BackLink>
 
-        <article className="mt-6 overflow-hidden rounded-2xl border border-byla-border bg-byla-surface">
-          {event.cover_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={`Capa de ${event.name}`}
-              className="aspect-video w-full object-cover"
-              src={event.cover_image_url}
-            />
-          ) : (
-            <div className="h-48 bg-gradient-to-br from-byla-navy to-black sm:h-64" />
-          )}
+        <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-x-10">
+          <div className="min-w-0 lg:col-start-1">
+            <div className="-mx-4 overflow-hidden sm:mx-0 sm:rounded-2xl sm:border sm:border-byla-border">
+              <CoverImage alt={`Capa de ${event.name}`} priority src={event.cover_image_url} />
+            </div>
 
-          <div className="grid gap-10 p-6 md:grid-cols-[1fr_18rem] md:p-10">
-            <div>
-              <p className="text-sm font-medium text-byla-yellow">
+            <header className="mt-5 sm:mt-6">
+              <p className="flex items-start gap-2 text-base font-semibold text-byla-accent-text">
+                <CalendarDays aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
                 {dateFormatter.format(new Date(event.starts_at))}
               </p>
               <h1 className="mt-2 font-display text-4xl tracking-wide text-foreground sm:text-5xl">
                 {event.name}
               </h1>
-              <p className="mt-3 font-medium text-foreground">{event.venue}</p>
-              {event.description ? (
-                <p className="mt-8 whitespace-pre-line leading-7 text-byla-muted">
+              <p className="mt-2 flex items-start gap-2 text-base text-foreground sm:text-lg">
+                <MapPin aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-accent-text" />
+                {event.venue}
+              </p>
+            </header>
+          </div>
+
+          <aside
+            aria-labelledby="ingressos-titulo"
+            className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-5 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-start lg:shadow-xl lg:shadow-black/10"
+          >
+            <h2
+              className="flex items-center gap-2 text-lg font-semibold text-foreground"
+              id="ingressos-titulo"
+            >
+              <Ticket aria-hidden className="h-5 w-5 text-byla-accent-text" />
+              Ingressos
+            </h2>
+            {ticketTypes?.length ? (
+              <dl className="mt-3 divide-y divide-byla-border">
+                {ticketTypes.map((ticketType) => (
+                  <div
+                    className="flex items-center justify-between gap-4 py-3"
+                    key={ticketType.id}
+                  >
+                    <dt className="text-base text-foreground">
+                      {ticketType.name}
+                      {ticketType.people_per_unit > 1 ? (
+                        <span className="block text-sm text-byla-muted">
+                          {unitContentsLabel(ticketType.people_per_unit, ticketType.kind)}
+                        </span>
+                      ) : null}
+                    </dt>
+                    <dd
+                      className={
+                        soldOutTypes.has(ticketType.id)
+                          ? "text-right text-base font-semibold text-byla-muted"
+                          : "text-right text-lg font-semibold text-foreground"
+                      }
+                    >
+                      {soldOutTypes.has(ticketType.id)
+                        ? "Esgotado"
+                        : moneyFormatter.format(ticketType.price_cents / 100)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="mt-3 text-base text-byla-muted">Valores indisponíveis.</p>
+            )}
+
+            {state === "open" ? (
+              <div className="mt-4 hidden lg:block">
+                <ButtonLink fullWidth href={checkoutHref} size="lg">
+                  Comprar ingresso
+                </ButtonLink>
+              </div>
+            ) : (
+              <Notice className="mt-4" live={false} tone={state === "held" ? "warning" : "neutral"}>
+                {salesStateMessages[state]}
+              </Notice>
+            )}
+          </aside>
+
+          <div className="min-w-0 lg:col-start-1">
+            {event.description ? (
+              <section className="mt-8">
+                <h2 className="text-lg font-semibold text-foreground">Sobre o evento</h2>
+                <p className="mt-3 whitespace-pre-line text-base leading-7 text-byla-muted">
                   {event.description}
                 </p>
-              ) : null}
-              <EventGallery eventName={event.name} images={gallery} />
-            </div>
-
-            <aside className="rounded-xl border border-byla-border bg-byla-overlay p-5">
-              <h2 className="font-semibold text-foreground">Ingressos</h2>
-              {ticketTypes?.length ? (
-                <dl className="mt-4 grid gap-3">
-                  {ticketTypes.map((ticketType) => (
-                    <div
-                      className="flex items-center justify-between gap-4"
-                      key={ticketType.id}
-                    >
-                      <dt className="text-byla-muted">
-                        {ticketType.name}
-                        {ticketType.people_per_unit > 1 ? (
-                          <span className="block text-xs">
-                            {unitContentsLabel(ticketType.people_per_unit, ticketType.kind)}
-                          </span>
-                        ) : null}
-                      </dt>
-                      <dd className="text-right font-medium text-foreground">
-                        {soldOutTypes.has(ticketType.id)
-                          ? "Esgotado"
-                          : moneyFormatter.format(ticketType.price_cents / 100)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="mt-3 text-sm text-byla-muted">
-                  Valores indisponíveis.
-                </p>
-              )}
-
-              {state === "open" ? (
-                <Link
-                  className="mt-6 hidden min-h-12 items-center justify-center rounded-lg bg-byla-blue px-4 text-sm font-semibold text-white transition hover:brightness-110 md:flex"
-                  href={`/eventos/${event.slug}/checkout`}
-                >
-                  Comprar ingresso
-                </Link>
-              ) : (
-                <p className="mt-6 rounded-lg border border-byla-border bg-byla-bg p-3 text-center text-sm font-medium text-foreground">
-                  {salesStateMessages[state]}
-                </p>
-              )}
-            </aside>
+              </section>
+            ) : null}
+            <EventGallery eventName={event.name} images={gallery} />
           </div>
-        </article>
+        </div>
       </div>
 
       {state === "open" ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-byla-border bg-byla-bg/95 p-4 backdrop-blur md:hidden">
-          <Link
-            className="flex min-h-12 w-full items-center justify-center rounded-lg bg-byla-blue text-base font-semibold text-white"
-            href={`/eventos/${event.slug}/checkout`}
-          >
+        <StickyActionBar hideFrom="lg">
+          {lowestPriceCents !== null ? (
+            <div className="shrink-0">
+              <p className="text-sm text-byla-muted">A partir de</p>
+              <p className="text-lg font-semibold leading-tight text-foreground">
+                {moneyFormatter.format(lowestPriceCents / 100)}
+              </p>
+            </div>
+          ) : null}
+          <ButtonLink className="flex-1" href={checkoutHref} size="lg">
             Comprar ingresso
-          </Link>
-        </div>
+          </ButtonLink>
+        </StickyActionBar>
       ) : null}
     </main>
   );

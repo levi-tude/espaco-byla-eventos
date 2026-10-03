@@ -22,7 +22,7 @@ export function BrandMark({ size = 36, className, forceDark = false }: Props) {
   return (
     <Image
       alt=""
-      className={className ?? "object-contain"}
+      className={className ?? "rounded-md object-contain"}
       height={size}
       src={src}
       style={{ width: size, height: size }}

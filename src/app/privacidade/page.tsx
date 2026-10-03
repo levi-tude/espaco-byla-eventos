@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { BackLink } from "@/components/ui/BackLink";
 import {
   COMPANY,
   DATA_RETENTION_YEARS,
@@ -21,7 +21,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="font-display text-2xl tracking-wide text-foreground">
         {title}
       </h2>
-      <div className="mt-3 grid gap-3 leading-relaxed text-byla-muted">
+      <div className="mt-3 grid gap-3 text-base leading-relaxed text-byla-muted">
         {children}
       </div>
     </section>
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
   const contactEmail = process.env.PRIVACY_CONTACT_EMAIL?.trim();
   const contact = contactEmail ? (
     <a
-      className="font-medium text-byla-blue underline underline-offset-2"
+      className="break-words font-medium text-byla-link underline underline-offset-2"
       href={`mailto:${contactEmail}`}
     >
       {contactEmail}
@@ -44,14 +44,14 @@ export default function PrivacyPage() {
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
       <SiteHeader />
-      <article className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-        <p className="text-sm font-medium text-byla-yellow">
+      <article className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <p className="text-sm font-semibold text-byla-accent-text">
           Atualizada em {PRIVACY_POLICY_UPDATED_LABEL}
         </p>
         <h1 className="mt-1 font-display text-4xl tracking-wide text-foreground sm:text-5xl">
           Política de Privacidade
         </h1>
-        <p className="mt-4 leading-relaxed text-byla-muted">
+        <p className="mt-4 text-base leading-relaxed text-byla-muted">
           Esta página explica, de forma simples, quais dados pessoais o{" "}
           {COMPANY.brand} recebe quando você compra ingressos por este site, para
           que eles são usados e quais são os seus direitos, conforme a Lei Geral
@@ -177,12 +177,7 @@ export default function PrivacyPage() {
         </Section>
 
         <p className="mt-10">
-          <Link
-            className="text-sm font-medium text-byla-muted transition hover:text-foreground"
-            href="/"
-          >
-            ← Voltar para os eventos
-          </Link>
+          <BackLink href="/">Voltar para os eventos</BackLink>
         </p>
       </article>
     </main>

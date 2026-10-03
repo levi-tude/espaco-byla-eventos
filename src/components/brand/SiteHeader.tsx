@@ -18,9 +18,9 @@ export function SiteHeader({ variant = "public", onMedia = false }: Props) {
           : "border-b border-byla-border bg-byla-bg/95 backdrop-blur"
       }
     >
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-6 py-4">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-3">
         <Link
-          className={`flex items-center gap-3 no-underline ${
+          className={`flex min-h-11 items-center gap-3 rounded-lg no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue ${
             onMedia ? "text-white" : "text-foreground"
           }`}
           href={variant === "equipe" ? "/equipe" : "/"}

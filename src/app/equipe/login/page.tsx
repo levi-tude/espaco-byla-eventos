@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -54,75 +57,58 @@ export default function LoginPage() {
     router.refresh();
   }
 
-  const fieldClass =
-    "w-full rounded-lg border border-byla-border bg-byla-input px-3 py-2.5 text-foreground outline-none transition focus:border-byla-blue focus:ring-2 focus:ring-byla-ring";
-
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-byla-bg px-6 py-12">
-      <div className="absolute right-6 top-6">
+    <main className="relative flex min-h-dvh flex-col bg-byla-bg">
+      <div className="flex justify-end px-4 pt-3 sm:px-6 sm:pt-4">
         <ThemeToggle />
       </div>
-      <section className="w-full max-w-sm rounded-2xl border border-byla-border bg-byla-surface p-8 shadow-xl shadow-black/20 dark:shadow-black/40">
-        <div className="flex items-center gap-3">
-          <BrandMark size={40} />
-          <p className="font-display text-xl tracking-wide text-foreground">
-            Espaço Byla Eventos
-          </p>
-        </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
-          Acesso da equipe
-        </h1>
+      <div className="flex flex-1 items-start justify-center px-4 pb-12 pt-4 sm:items-center sm:pt-0">
+        <section className="w-full max-w-sm rounded-2xl border border-byla-border bg-byla-surface p-6 shadow-xl shadow-black/20 sm:p-8 dark:shadow-black/40">
+          <div className="flex items-center gap-3">
+            <BrandMark size={40} />
+            <p className="font-display text-xl tracking-wide text-foreground">
+              Espaço Byla Eventos
+            </p>
+          </div>
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+            Acesso da equipe
+          </h1>
 
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium text-byla-muted"
-              htmlFor="email"
-            >
-              E-mail
-            </label>
-            <input
+          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+            <Field
+              autoCapitalize="none"
               autoComplete="email"
-              className={fieldClass}
               id="email"
+              inputMode="email"
+              label="E-mail"
               name="email"
               required
+              spellCheck={false}
               type="email"
             />
-          </div>
-
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium text-byla-muted"
-              htmlFor="password"
-            >
-              Senha
-            </label>
-            <input
+            <Field
               autoComplete="current-password"
-              className={fieldClass}
               id="password"
+              label="Senha"
               name="password"
               required
               type="password"
             />
-          </div>
 
-          {error ? (
-            <p className="text-sm font-medium text-red-400" role="alert">
-              {error}
-            </p>
-          ) : null}
+            {error ? <Notice tone="danger">{error}</Notice> : null}
 
-          <button
-            className="w-full rounded-lg bg-byla-blue px-4 py-2.5 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSubmitting}
-            type="submit"
-          >
-            {isSubmitting ? "Entrando..." : "Entrar"}
-          </button>
-        </form>
-      </section>
+            <Button
+              fullWidth
+              loading={isSubmitting}
+              loadingLabel="Entrando..."
+              size="lg"
+              type="submit"
+            >
+              Entrar
+            </Button>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }
