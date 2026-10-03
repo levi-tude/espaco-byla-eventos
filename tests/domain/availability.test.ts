@@ -8,7 +8,56 @@ import {
   maxSelectableUnits,
   remainingNotice,
   salesState,
+  toCheckoutAvailability,
+  typeRefusalMessage,
+  typeRemainingNotice,
 } from "@/lib/domain/availability";
+
+describe("limite próprio de cada tipo", () => {
+  it("avisa só quando o tipo está acabando", () => {
+    expect(typeRemainingNotice(null)).toBeNull();
+    expect(typeRemainingNotice(21)).toBeNull();
+    expect(typeRemainingNotice(20)).toBe("Restam 20");
+    expect(typeRemainingNotice(1)).toBe("Resta 1");
+    expect(typeRemainingNotice(0)).toBe("Esgotado");
+  });
+
+  it("explica a recusa pelo nome do tipo", () => {
+    expect(typeRefusalMessage("Casadinha", 0)).toBe("“Casadinha” esgotou. Ajustamos sua seleção.");
+    expect(typeRefusalMessage("Casadinha", 3)).toBe(
+      "Restam apenas 3 “Casadinha”. Ajustamos sua seleção.",
+    );
+  });
+
+  it("resume para o checkout só o restante do evento e de cada tipo", () => {
+    expect(
+      toCheckoutAvailability({
+        capacity: 50,
+        sold: 10,
+        held: 0,
+        remaining: 40,
+        types: [
+          {
+            ticketTypeId: "a",
+            unitsTaken: 4,
+            unitsSold: 4,
+            maxUnits: 5,
+            remainingUnits: 1,
+            hasSales: true,
+          },
+          {
+            ticketTypeId: "b",
+            unitsTaken: 0,
+            unitsSold: 0,
+            maxUnits: null,
+            remainingUnits: null,
+            hasSales: false,
+          },
+        ],
+      }),
+    ).toEqual({ remaining: 40, typeRemaining: { a: 1, b: null } });
+  });
+});
 
 describe("disponibilidade do evento", () => {
   it("separa vendidos, reservados e restantes", () => {
@@ -77,29 +126,50 @@ describe("máximo selecionável por tipo", () => {
 });
 
 describe("ajuste da seleção", () => {
+  const simple = [
+    { id: "inteira", peoplePerUnit: 1, remainingUnits: null },
+    { id: "meia", peoplePerUnit: 1, remainingUnits: null },
+  ];
+
   it("reduz na ordem dos tipos até caber no restante", () => {
-    expect(fitSelection({ inteira: 3, meia: 4 }, ["inteira", "meia"], 5)).toEqual({
+    expect(fitSelection({ inteira: 3, meia: 4 }, simple, 5)).toEqual({
       inteira: 3,
       meia: 2,
     });
-    expect(fitSelection({ inteira: 3, meia: 4 }, ["inteira", "meia"], 0)).toEqual({
+    expect(fitSelection({ inteira: 3, meia: 4 }, simple, 0)).toEqual({
       inteira: 0,
       meia: 0,
     });
   });
 
-  it("aplica o máximo de 10 por compra mesmo com muitos lugares", () => {
-    expect(fitSelection({ inteira: 8, meia: 8 }, ["inteira", "meia"], 500)).toEqual({
+  it("aplica o máximo de 10 pessoas por compra mesmo com muitos lugares", () => {
+    expect(fitSelection({ inteira: 8, meia: 8 }, simple, 500)).toEqual({
       inteira: 8,
       meia: 2,
     });
   });
 
   it("mantém a seleção que já cabe", () => {
-    expect(fitSelection({ inteira: 1, meia: 1 }, ["inteira", "meia"], 5)).toEqual({
+    expect(fitSelection({ inteira: 1, meia: 1 }, simple, 5)).toEqual({
       inteira: 1,
       meia: 1,
     });
+  });
+
+  it("pacotes contam pessoas: 2 famílias (8) + casadinha (2) = 10, a terceira família sai", () => {
+    const types = [
+      { id: "familia", peoplePerUnit: 4, remainingUnits: null },
+      { id: "casadinha", peoplePerUnit: 2, remainingUnits: null },
+    ];
+    expect(fitSelection({ familia: 3, casadinha: 1 }, types, 50)).toEqual({
+      familia: 2,
+      casadinha: 1,
+    });
+  });
+
+  it("respeita o limite próprio do tipo e remove tipos que saíram da venda", () => {
+    const types = [{ id: "casadinha", peoplePerUnit: 2, remainingUnits: 1 }];
+    expect(fitSelection({ casadinha: 3, arquivado: 2 }, types, 50)).toEqual({ casadinha: 1 });
   });
 });
 

@@ -1,7 +1,8 @@
 import "server-only";
 
+import { ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { buildTicketsEmail } from "@/lib/email/tickets-template";
-import { ticketKindLabels, ticketQrPng } from "@/lib/tickets/qr";
+import { ticketQrPng } from "@/lib/tickets/qr";
 import type { Enums } from "@/types/database";
 
 export type SendTicketsEmailInput = {
@@ -10,7 +11,12 @@ export type SendTicketsEmailInput = {
   eventName: string;
   venue: string;
   startsAt: string;
-  tickets: { code: string; holderName: string; kind: Enums<"ticket_kind"> }[];
+  tickets: {
+    code: string;
+    holderName: string;
+    kind: Enums<"ticket_kind">;
+    typeName?: string | null;
+  }[];
   publicToken: string;
 };
 
@@ -41,7 +47,7 @@ export async function sendTicketsEmail({
     );
     const emailTickets = tickets.map((ticket, index) => ({
       holderName: ticket.holderName,
-      kindLabel: ticketKindLabels[ticket.kind],
+      kindLabel: ticketTypeLabel(ticket.typeName, ticket.kind),
       code: ticket.code,
       qrContentId: `ingresso-${index + 1}`,
     }));

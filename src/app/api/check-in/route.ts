@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { checkInMessage, evaluateCheckIn } from "@/lib/domain/check-in";
+import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     .eq("id", ticket.id)
     .eq("event_id", eventId)
     .eq("status", "pago")
-    .select("buyer_name, kind")
+    .select("buyer_name, kind, order_items(name)")
     .maybeSingle();
 
   if (updateError) {
@@ -120,5 +121,6 @@ export async function POST(request: Request) {
     ok: true,
     buyerName: checkedIn.buyer_name,
     kind: checkedIn.kind,
+    typeLabel: ticketTypeLabel(orderItemName(checkedIn.order_items), checkedIn.kind),
   });
 }

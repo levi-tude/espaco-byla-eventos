@@ -6,7 +6,7 @@ import type { SupabaseAdmin } from "@/lib/domain/orders";
 import { refundBlockMessage, refundRejectionMessage } from "@/lib/domain/refund";
 import { sendRefundEmail } from "@/lib/email/send-refund";
 import type { PaymentProvider } from "@/lib/payments/provider";
-import { ticketKindLabels } from "@/lib/tickets/qr";
+import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 
 export type RefundOutcome =
   | { status: "refunded"; emailSent: boolean }
@@ -256,7 +256,7 @@ export async function notifyBuyerRefunded(
         .maybeSingle(),
       admin
         .from("tickets")
-        .select("buyer_name, kind")
+        .select("buyer_name, kind, order_items(name)")
         .eq("order_id", orderId)
         .eq("status", "estornado")
         .order("created_at"),
@@ -273,7 +273,7 @@ export async function notifyBuyerRefunded(
       amountCents: refundResult.data.amount_cents,
       tickets: (ticketsResult.data ?? []).map((ticket) => ({
         holderName: ticket.buyer_name,
-        kindLabel: ticketKindLabels[ticket.kind],
+        kindLabel: ticketTypeLabel(orderItemName(ticket.order_items), ticket.kind),
       })),
     });
     if (result !== "sent") {

@@ -2,10 +2,14 @@
 
 import {
   capacityRefusalMessage,
+  type CheckoutAvailability,
   MAX_PEOPLE_PER_ORDER,
+  toCheckoutAvailability,
+  typeRefusalMessage,
 } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
+import { isUuid, TICKET_TYPE_LIMITS } from "@/lib/domain/ticket-types";
 import { createPublicToken } from "@/lib/domain/tickets";
 import {
   PRIVACY_POLICY_VERSION,
@@ -21,11 +25,9 @@ import {
 } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type CheckoutKind = "inteira" | "meia";
-
 export type CheckoutInput = {
   slug: string;
-  items: { kind: CheckoutKind; qty: number }[];
+  items: { ticketTypeId: string; qty: number }[];
   buyer: { name: string; email: string; phone?: string };
   acceptedPrivacy: boolean;
 };
@@ -34,7 +36,11 @@ export type CheckoutInput = {
 // por isso os erros esperados voltam como resultado.
 export type CheckoutResult =
   | { publicToken: string }
-  | { error: string; remaining?: number };
+  | { error: string; availability?: CheckoutAvailability };
+
+const LIMIT_MESSAGE = `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} pessoas por compra.`;
+const UNAVAILABLE_MESSAGE =
+  "Um dos tipos de ingresso escolhidos não está mais à venda. Atualize a página e escolha de novo.";
 
 export async function startCheckout(input: CheckoutInput): Promise<CheckoutResult> {
   const buyer = {
@@ -42,29 +48,34 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     email: input.buyer.email.trim().toLowerCase(),
     phone: input.buyer.phone?.trim() || null,
   };
-  const quantities = new Map<CheckoutKind, number>([
-    ["inteira", 0],
-    ["meia", 0],
-  ]);
-
+  if (!Array.isArray(input.items) || input.items.length > TICKET_TYPE_LIMITS.maxTypes) {
+    return { error: "Selecione quantidades válidas de ingressos." };
+  }
+  const quantities = new Map<string, number>();
   for (const item of input.items) {
-    if (!quantities.has(item.kind) || !Number.isInteger(item.qty) || item.qty < 0) {
+    if (
+      !item ||
+      !isUuid(item.ticketTypeId) ||
+      quantities.has(item.ticketTypeId) ||
+      !Number.isInteger(item.qty) ||
+      item.qty < 0 ||
+      item.qty > MAX_PEOPLE_PER_ORDER
+    ) {
       return { error: "Selecione quantidades válidas de ingressos." };
     }
-    quantities.set(item.kind, quantities.get(item.kind)! + item.qty);
+    quantities.set(item.ticketTypeId, item.qty);
   }
 
-  const quantity = [...quantities.values()].reduce((sum, qty) => sum + qty, 0);
+  // Cada unidade tem ao menos 1 pessoa; o total exato de pessoas o banco confere.
+  const units = [...quantities.values()].reduce((sum, qty) => sum + qty, 0);
   if (!input.slug.trim() || !buyer.name || !buyer.email.includes("@")) {
     return { error: "Preencha nome e e-mail para continuar." };
   }
-  if (quantity === 0) {
+  if (units === 0) {
     return { error: "Selecione pelo menos um ingresso." };
   }
-  if (quantity > MAX_PEOPLE_PER_ORDER) {
-    return {
-      error: `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} ingressos por pedido.`,
-    };
+  if (units > MAX_PEOPLE_PER_ORDER) {
+    return { error: LIMIT_MESSAGE };
   }
   if (input.acceptedPrivacy !== true) {
     return { error: PRIVACY_REQUIRED_MESSAGE };
@@ -93,7 +104,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   const provider = getPaymentProvider();
   const items = [...quantities.entries()]
     .filter(([, qty]) => qty > 0)
-    .map(([kind, qty]) => ({ kind, qty }));
+    .map(([ticketTypeId, qty]) => ({ ticket_type_id: ticketTypeId, qty }));
   const { data: order, error: orderError } = await admin
     .rpc("create_checkout_order", {
       p_event_id: event.id,
@@ -108,20 +119,41 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     .single();
 
   if (orderError || !order) {
-    if (orderError?.message.includes("Capacidade esgotada")) {
-      const availability = await loadEventAvailability(admin, event);
-      return {
-        error: capacityRefusalMessage(availability),
-        ...(availability ? { remaining: availability.remaining } : {}),
-      };
-    }
-    if (orderError?.message.includes("vendas deste evento estão fechadas")) {
-      return { error: "As vendas deste evento estão fechadas." };
-    }
-    return { error: "Não foi possível criar o pedido." };
+    return checkoutRefusal(admin, event.id, orderError?.message ?? "");
   }
 
   return { publicToken };
+}
+
+/** Traduz a recusa do banco e devolve a disponibilidade atual para a tela se ajustar. */
+async function checkoutRefusal(
+  admin: ReturnType<typeof createAdminClient>,
+  eventId: string,
+  message: string,
+): Promise<CheckoutResult> {
+  const typeSoldOut = message.match(/ESGOTADO_TIPO:([0-9a-f-]{36}):(\d+)/i);
+  if (message.includes("ESGOTADO_EVENTO") || typeSoldOut) {
+    const availability = await loadEventAvailability(admin, { id: eventId });
+    let error = capacityRefusalMessage(availability);
+    if (typeSoldOut) {
+      const { data: type } = await admin
+        .from("ticket_types")
+        .select("name")
+        .eq("id", typeSoldOut[1])
+        .maybeSingle();
+      error = typeRefusalMessage(type?.name ?? "Este ingresso", Number(typeSoldOut[2]));
+    }
+    return {
+      error,
+      ...(availability ? { availability: toCheckoutAvailability(availability) } : {}),
+    };
+  }
+  if (message.includes("LIMITE_PESSOAS")) return { error: LIMIT_MESSAGE };
+  if (message.includes("TIPO_INDISPONIVEL")) return { error: UNAVAILABLE_MESSAGE };
+  if (message.includes("vendas deste evento estão fechadas")) {
+    return { error: "As vendas deste evento estão fechadas." };
+  }
+  return { error: "Não foi possível criar o pedido." };
 }
 
 export type PendingOrderLookup =

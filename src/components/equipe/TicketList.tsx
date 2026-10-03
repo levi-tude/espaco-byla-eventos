@@ -28,6 +28,8 @@ export type TicketListItem = {
   buyerName: string;
   buyerEmail: string;
   kind: Enums<"ticket_kind">;
+  /** Nome do tipo com a categoria, ex.: "Casadinha — Inteira". */
+  typeLabel: string;
   status: Enums<"ticket_status">;
   orderStatus: Enums<"order_status">;
   decisionReason: string | null;
@@ -43,12 +45,6 @@ type Props = {
   eventId: string;
   remaining: number;
   tickets: TicketListItem[];
-};
-
-const kindLabels: Record<Enums<"ticket_kind">, string> = {
-  inteira: "Inteira",
-  meia: "Meia-entrada",
-  cortesia: "Cortesia",
 };
 
 const statusLabels: Record<Enums<"ticket_status">, string> = {
@@ -116,7 +112,7 @@ function groupOrders(tickets: TicketListItem[]): Map<string, OrderRefundInfo> {
     };
     if (ticket.status === "check_in") info.hasCheckIn = true;
     if (ticket.status === "pago" || ticket.status === "nao_pago" || ticket.status === "cancelado") {
-      info.summary.ticketLabels.push(`${kindLabels[ticket.kind]} — ${ticket.buyerName}`);
+      info.summary.ticketLabels.push(`${ticket.typeLabel} — ${ticket.buyerName}`);
     }
     orders.set(ticket.orderId, info);
   }
@@ -165,6 +161,15 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
       0,
     ),
   };
+  const byType = [
+    ...soldTickets
+      .reduce(
+        (counts, ticket) =>
+          counts.set(ticket.typeLabel, (counts.get(ticket.typeLabel) ?? 0) + 1),
+        new Map<string, number>(),
+      )
+      .entries(),
+  ];
 
   function submitCourtesy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -227,6 +232,12 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
           value={currency.format(totals.revenueCents / 100)}
         />
       </div>
+      {byType.length ? (
+        <p className="-mt-2 text-sm text-byla-muted">
+          Ingressos válidos por tipo:{" "}
+          {byType.map(([label, count]) => `${label}: ${count}`).join(" · ")}
+        </p>
+      ) : null}
 
       <form
         className="rounded-xl border border-byla-border bg-byla-surface p-6"
@@ -350,7 +361,7 @@ export function TicketList({ eventId, remaining, tickets }: Props) {
                       {ticket.buyerEmail}
                     </span>
                   </td>
-                  <td className="px-3 py-4">{kindLabels[ticket.kind]}</td>
+                  <td className="px-3 py-4">{ticket.typeLabel}</td>
                   <td className="px-3 py-4">
                     <span className="flex flex-wrap items-center gap-1.5">
                       <span

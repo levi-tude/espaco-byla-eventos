@@ -38,7 +38,7 @@ import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit"
 
 const checkoutInput = {
   slug: "show",
-  items: [{ kind: "inteira" as const, qty: 2 }],
+  items: [{ ticketTypeId: "20000000-0000-4000-8000-000000000001", qty: 2 }],
   buyer: { name: "Comprador", email: "comprador@example.com" },
   acceptedPrivacy: true,
 };
@@ -103,7 +103,10 @@ describe("proteção do checkout e do pagamento", () => {
     expect(result).toHaveProperty("publicToken");
     expect(mocks.rpc).toHaveBeenCalledWith(
       "create_checkout_order",
-      expect.objectContaining({ p_privacy_policy_version: PRIVACY_POLICY_VERSION }),
+      expect.objectContaining({
+        p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+        p_items: [{ ticket_type_id: "20000000-0000-4000-8000-000000000001", qty: 2 }],
+      }),
     );
   });
 

@@ -28,33 +28,67 @@ on conflict (id) do update set
   capacity = excluded.capacity,
   sales_open = excluded.sales_open;
 
-insert into public.ticket_types (id, event_id, kind, price_cents, active)
+insert into public.ticket_types (
+  id, event_id, kind, preset, name, price_cents, people_per_unit, max_units, sort_order, active
+)
 values
   (
     '20000000-0000-4000-8000-000000000001',
     '10000000-0000-4000-8000-000000000001',
     'inteira',
+    'inteira',
+    'Inteira',
     5000,
+    1,
+    null,
+    0,
     true
   ),
   (
     '20000000-0000-4000-8000-000000000002',
     '10000000-0000-4000-8000-000000000001',
     'meia',
+    'meia',
+    'Meia-entrada',
     2500,
+    1,
+    null,
+    1,
+    true
+  ),
+  (
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000001',
+    'inteira',
+    'casadinha',
+    'Casadinha',
+    9000,
+    2,
+    20,
+    2,
     true
   ),
   (
     '20000000-0000-4000-8000-000000000003',
     '10000000-0000-4000-8000-000000000001',
     'cortesia',
+    null,
+    'Cortesia',
     0,
+    1,
+    null,
+    1000,
     true
   )
 on conflict (id) do update set
   event_id = excluded.event_id,
   kind = excluded.kind,
+  preset = excluded.preset,
+  name = excluded.name,
   price_cents = excluded.price_cents,
+  people_per_unit = excluded.people_per_unit,
+  max_units = excluded.max_units,
+  sort_order = excluded.sort_order,
   active = excluded.active;
 
 insert into public.orders (
@@ -129,11 +163,78 @@ on conflict (id) do update set
   payment_external_id = excluded.payment_external_id,
   paid_at = excluded.paid_at;
 
+insert into public.order_items (
+  id,
+  order_id,
+  ticket_type_id,
+  name,
+  kind,
+  unit_price_cents,
+  people_per_unit,
+  quantity,
+  line_total_cents
+)
+values
+  (
+    '50000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000001',
+    'Inteira',
+    'inteira',
+    5000,
+    1,
+    1,
+    5000
+  ),
+  (
+    '50000000-0000-4000-8000-000000000002',
+    '30000000-0000-4000-8000-000000000002',
+    '20000000-0000-4000-8000-000000000002',
+    'Meia-entrada',
+    'meia',
+    2500,
+    1,
+    1,
+    2500
+  ),
+  (
+    '50000000-0000-4000-8000-000000000003',
+    '30000000-0000-4000-8000-000000000003',
+    '20000000-0000-4000-8000-000000000003',
+    'Cortesia',
+    'cortesia',
+    0,
+    1,
+    1,
+    0
+  ),
+  (
+    '50000000-0000-4000-8000-000000000004',
+    '30000000-0000-4000-8000-000000000004',
+    '20000000-0000-4000-8000-000000000001',
+    'Inteira',
+    'inteira',
+    5000,
+    1,
+    1,
+    5000
+  )
+on conflict (id) do update set
+  order_id = excluded.order_id,
+  ticket_type_id = excluded.ticket_type_id,
+  name = excluded.name,
+  kind = excluded.kind,
+  unit_price_cents = excluded.unit_price_cents,
+  people_per_unit = excluded.people_per_unit,
+  quantity = excluded.quantity,
+  line_total_cents = excluded.line_total_cents;
+
 insert into public.tickets (
   id,
   order_id,
   event_id,
   ticket_type_id,
+  order_item_id,
   kind,
   status,
   code,
@@ -148,6 +249,7 @@ values
     '30000000-0000-4000-8000-000000000001',
     '10000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000001',
+    '50000000-0000-4000-8000-000000000001',
     'inteira',
     'nao_pago',
     'QR-TESTE-NAO-PAGO',
@@ -161,6 +263,7 @@ values
     '30000000-0000-4000-8000-000000000002',
     '10000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000002',
+    '50000000-0000-4000-8000-000000000002',
     'meia',
     'pago',
     'QR-TESTE-PAGO',
@@ -174,6 +277,7 @@ values
     '30000000-0000-4000-8000-000000000003',
     '10000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000003',
+    '50000000-0000-4000-8000-000000000003',
     'cortesia',
     'check_in',
     'QR-TESTE-CHECK-IN',
@@ -187,6 +291,7 @@ values
     '30000000-0000-4000-8000-000000000004',
     '10000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000001',
+    '50000000-0000-4000-8000-000000000004',
     'inteira',
     'cancelado',
     'QR-TESTE-CANCELADO',
@@ -199,6 +304,7 @@ on conflict (id) do update set
   order_id = excluded.order_id,
   event_id = excluded.event_id,
   ticket_type_id = excluded.ticket_type_id,
+  order_item_id = excluded.order_item_id,
   kind = excluded.kind,
   status = excluded.status,
   code = excluded.code,

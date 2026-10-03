@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 
+import { ticketKindLabels } from "@/lib/domain/ticket-types";
 import type { Enums } from "@/types/database";
 
 type CheckInResponse =
@@ -10,6 +11,7 @@ type CheckInResponse =
       ok: true;
       buyerName: string;
       kind: Enums<"ticket_kind">;
+      typeLabel?: string;
     }
   | {
       ok: false;
@@ -21,12 +23,6 @@ type Result =
   | { tone: "loading"; message: "Verificando ingresso..." }
   | { tone: "success"; message: "Pode entrar"; detail: string }
   | { tone: "error"; message: string };
-
-const kindLabels: Record<Enums<"ticket_kind">, string> = {
-  inteira: "Inteira",
-  meia: "Meia-entrada",
-  cortesia: "Cortesia",
-};
 
 const resultStyles: Record<Result["tone"], string> = {
   idle: "border-byla-border bg-byla-surface text-foreground",
@@ -77,7 +73,7 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
           setResult({
             tone: "success",
             message: "Pode entrar",
-            detail: `${data.buyerName} · ${kindLabels[data.kind]}`,
+            detail: `${data.buyerName} · ${data.typeLabel ?? ticketKindLabels[data.kind]}`,
           });
           setManualCode("");
         } else {

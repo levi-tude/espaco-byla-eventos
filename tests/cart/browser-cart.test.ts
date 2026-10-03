@@ -18,8 +18,12 @@ function memoryStorage() {
   };
 }
 
+const INTEIRA = "20000000-0000-4000-8000-000000000001";
+const MEIA = "20000000-0000-4000-8000-000000000002";
+const CASADINHA = "20000000-0000-4000-8000-000000000004";
+
 const cart = {
-  quantities: { inteira: 2, meia: 1 },
+  quantities: { [INTEIRA]: 2, [CASADINHA]: 1 },
   name: "Comprador",
   email: "comprador@example.com",
   phone: "",
@@ -28,8 +32,20 @@ const cart = {
 const NOW = Date.parse("2026-10-01T15:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
 
+function legacyCart(quantities: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    v: 1,
+    quantities,
+    name: "Comprador",
+    email: "comprador@example.com",
+    phone: "",
+    updatedAt: NOW,
+    ...extra,
+  });
+}
+
 describe("carrinho no navegador", () => {
-  it("grava e lê de volta a seleção e os dados", () => {
+  it("grava e lê de volta a seleção (por tipo) e os dados", () => {
     const storage = memoryStorage();
     writeCart(storage, "show", cart, NOW);
     expect(readCart(storage, "show", NOW + 1000)).toEqual({ ...cart, updatedAt: NOW });
@@ -39,7 +55,7 @@ describe("carrinho no navegador", () => {
     const storage = memoryStorage();
     writeCart(storage, "show", cart, NOW);
     expect(readCart(storage, "outro-show", NOW)).toBeNull();
-    expect(cartStorageKey("show")).toBe("byla:cart:v1:show");
+    expect(cartStorageKey("show")).toBe("byla:cart:v2:show");
   });
 
   it("vence depois de 7 dias e é apagado", () => {
@@ -50,17 +66,17 @@ describe("carrinho no navegador", () => {
     expect(storage.data.size).toBe(0);
   });
 
-  it("ignora versão diferente ou conteúdo inválido", () => {
-    expect(parseCart(JSON.stringify({ v: 2, ...cart, updatedAt: NOW }), NOW)).toBeNull();
+  it("ignora versão desconhecida ou conteúdo inválido", () => {
+    expect(parseCart(JSON.stringify({ v: 3, ...cart, updatedAt: NOW }), NOW)).toBeNull();
     expect(parseCart("{quebrado", NOW)).toBeNull();
     expect(parseCart(null, NOW)).toBeNull();
   });
 
-  it("saneia quantidades e textos adulterados", () => {
+  it("saneia quantidades, ids e textos adulterados", () => {
     const parsed = parseCart(
       JSON.stringify({
-        v: 1,
-        quantities: { inteira: 999, meia: -3, cortesia: 5 },
+        v: 2,
+        quantities: { [INTEIRA]: 999, [MEIA]: -3, "../hack": 5, [CASADINHA]: 1.5 },
         name: 42,
         email: "x".repeat(400),
         phone: null,
@@ -68,7 +84,7 @@ describe("carrinho no navegador", () => {
       }),
       NOW,
     );
-    expect(parsed?.quantities).toEqual({ inteira: 10, meia: 0 });
+    expect(parsed?.quantities).toEqual({ [INTEIRA]: 10 });
     expect(parsed?.name).toBe("");
     expect(parsed?.email).toHaveLength(320);
     expect(parsed?.phone).toBe("");
@@ -80,7 +96,7 @@ describe("carrinho no navegador", () => {
     writeCart(
       storage,
       "show",
-      { quantities: { inteira: 0, meia: 0 }, name: " ", email: "", phone: "" },
+      { quantities: { [INTEIRA]: 0 }, name: " ", email: "", phone: "" },
       NOW,
     );
     expect(storage.data.size).toBe(0);
@@ -93,12 +109,9 @@ describe("carrinho no navegador", () => {
     expect(readCart(storage, "show", NOW)?.pendingOrderToken).toBe(token);
   });
 
-  it("carrinho antigo (sem pedido) continua válido e token adulterado é ignorado", () => {
-    expect(parseCart(JSON.stringify({ v: 1, ...cart, updatedAt: NOW }), NOW)).not.toHaveProperty(
-      "pendingOrderToken",
-    );
+  it("token adulterado é ignorado", () => {
     const parsed = parseCart(
-      JSON.stringify({ v: 1, ...cart, pendingOrderToken: "../x?y", updatedAt: NOW }),
+      JSON.stringify({ v: 2, ...cart, pendingOrderToken: "../x?y", updatedAt: NOW }),
       NOW,
     );
     expect(parsed).not.toBeNull();
@@ -110,23 +123,19 @@ describe("carrinho no navegador", () => {
     writeCart(
       storage,
       "show",
-      {
-        quantities: { inteira: 0, meia: 0 },
-        name: "",
-        email: "",
-        phone: "",
-        pendingOrderToken: "token-1",
-      },
+      { quantities: {}, name: "", email: "", phone: "", pendingOrderToken: "token-1" },
       NOW,
     );
     expect(readCart(storage, "show", NOW)?.pendingOrderToken).toBe("token-1");
   });
 
-  it("apaga ao confirmar o pagamento", () => {
+  it("apaga ao confirmar o pagamento (inclusive o carrinho antigo)", () => {
     const storage = memoryStorage();
     writeCart(storage, "show", cart, NOW);
+    storage.setItem(cartStorageKey("show", 1), legacyCart({ inteira: 1 }));
     clearCart(storage, "show");
     expect(readCart(storage, "show", NOW)).toBeNull();
+    expect(storage.data.size).toBe(0);
   });
 
   it("sem armazenamento disponível não quebra", () => {
@@ -145,5 +154,64 @@ describe("carrinho no navegador", () => {
     expect(() => writeCart(failing, "show", cart, NOW)).not.toThrow();
     expect(() => clearCart(failing, "show")).not.toThrow();
     expect(readCart(null, "show", NOW)).toBeNull();
+  });
+});
+
+describe("carrinho antigo (antes dos tipos configuráveis)", () => {
+  it("inteira e meia viram os tipos prontos à venda", () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      cartStorageKey("show", 1),
+      legacyCart({ inteira: 2, meia: 1 }, { pendingOrderToken: "token-1" }),
+    );
+    expect(readCart(storage, "show", NOW, { inteira: INTEIRA, meia: MEIA })).toEqual({
+      quantities: { [INTEIRA]: 2, [MEIA]: 1 },
+      name: "Comprador",
+      email: "comprador@example.com",
+      phone: "",
+      pendingOrderToken: "token-1",
+      updatedAt: NOW,
+    });
+  });
+
+  it("categoria que não está mais à venda é descartada com aviso", () => {
+    const parsed = parseCart(legacyCart({ inteira: 2, meia: 1 }), NOW, { inteira: INTEIRA });
+    expect(parsed?.quantities).toEqual({ [INTEIRA]: 2 });
+    expect(parsed?.droppedItems).toBe(true);
+  });
+
+  it("sem itens descartados não há aviso", () => {
+    const parsed = parseCart(legacyCart({ inteira: 2, meia: 0 }), NOW, { inteira: INTEIRA });
+    expect(parsed).not.toHaveProperty("droppedItems");
+  });
+
+  it("ao gravar, o carrinho antigo dá lugar ao novo", () => {
+    const storage = memoryStorage();
+    storage.setItem(cartStorageKey("show", 1), legacyCart({ inteira: 1 }));
+    const converted = readCart(storage, "show", NOW, { inteira: INTEIRA });
+    writeCart(
+      storage,
+      "show",
+      {
+        quantities: converted!.quantities,
+        name: converted!.name,
+        email: converted!.email,
+        phone: converted!.phone,
+      },
+      NOW,
+    );
+    expect([...storage.data.keys()]).toEqual([cartStorageKey("show")]);
+  });
+
+  it("o carrinho novo tem prioridade sobre o antigo", () => {
+    const storage = memoryStorage();
+    storage.setItem(cartStorageKey("show", 1), legacyCart({ inteira: 5 }));
+    storage.setItem(
+      cartStorageKey("show"),
+      JSON.stringify({ v: 2, ...cart, updatedAt: NOW }),
+    );
+    expect(readCart(storage, "show", NOW, { inteira: INTEIRA })?.quantities).toEqual(
+      cart.quantities,
+    );
   });
 });

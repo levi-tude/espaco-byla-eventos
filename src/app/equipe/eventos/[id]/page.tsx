@@ -7,11 +7,12 @@ import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { TicketList } from "@/components/equipe/TicketList";
+import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
 import { salesState } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
 import { isRecentlyPaid } from "@/lib/domain/status";
+import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
-import { ticketKindLabels } from "@/lib/tickets/qr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -40,8 +41,12 @@ export default async function EventoEquipePage({
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("ticket_types")
-      .select("kind, price_cents")
-      .eq("event_id", id),
+      .select("id, preset, name, kind, price_cents, people_per_unit, max_units")
+      .eq("event_id", id)
+      .neq("kind", "cortesia")
+      .is("archived_at", null)
+      .order("sort_order")
+      .order("id"),
     supabase
       .from("tickets")
       .select("id", { count: "exact", head: true })
@@ -50,14 +55,14 @@ export default async function EventoEquipePage({
     supabase
       .from("tickets")
       .select(
-        "id, order_id, buyer_name, kind, status, price_cents, checked_in_at, orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
+        "id, order_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
       )
       .eq("event_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("orders")
       .select(
-        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, payment_provider, tickets(id, kind, buyer_name, status)",
+        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, payment_provider, tickets(id, kind, buyer_name, status, order_items(name))",
       )
       .eq("event_id", id)
       .eq("status", "aguardando_decisao")
@@ -76,10 +81,23 @@ export default async function EventoEquipePage({
   const gallery = await loadEventGallery(supabase, event.id);
 
   const availability = await loadEventAvailability(createAdminClient(), event);
-  const fullPrice =
-    ticketTypes?.find(({ kind }) => kind === "inteira")?.price_cents ?? 0;
-  const halfPrice =
-    ticketTypes?.find(({ kind }) => kind === "meia")?.price_cents ?? 0;
+  const typeAvailability = new Map(
+    (availability?.types ?? []).map((type) => [type.ticketTypeId, type]),
+  );
+  const editorTypes: EditorTicketType[] = (ticketTypes ?? []).map((type) => {
+    const current = typeAvailability.get(type.id);
+    return {
+      id: type.id,
+      preset: type.preset,
+      name: type.name,
+      priceCents: type.price_cents,
+      peoplePerUnit: type.people_per_unit,
+      maxUnits: type.max_units,
+      hasSales: current?.hasSales ?? true,
+      unitsSold: current?.unitsSold ?? 0,
+      unitsTaken: current?.unitsTaken ?? 0,
+    };
+  });
   const soldCount = availability?.sold ?? sold ?? 0;
   const remaining =
     availability?.remaining ?? Math.max(event.capacity - soldCount, 0);
@@ -144,7 +162,8 @@ export default async function EventoEquipePage({
           paymentProvider: order.payment_provider,
           hasCheckIn: order.tickets.some(({ status }) => status === "check_in"),
           ticketLabels: order.tickets.map(
-            (ticket) => `${ticketKindLabels[ticket.kind]} — ${ticket.buyer_name}`,
+            (ticket) =>
+              `${ticketTypeLabel(itemName(ticket.order_items), ticket.kind)} — ${ticket.buyer_name}`,
           ),
         }))}
       />
@@ -192,8 +211,7 @@ export default async function EventoEquipePage({
           venue: event.venue,
           description: event.description,
           capacity: event.capacity,
-          fullPriceCents: fullPrice,
-          halfPriceCents: halfPrice,
+          ticketTypes: editorTypes,
           coverImageUrl: event.cover_image_url,
           salesOpen: event.sales_open,
         }}
@@ -216,6 +234,7 @@ export default async function EventoEquipePage({
             buyerName: ticket.buyer_name,
             buyerEmail: order.buyer_email,
             kind: ticket.kind,
+            typeLabel: ticketTypeLabel(itemName(ticket.order_items), ticket.kind),
             status: ticket.status,
             orderStatus: order.status,
             decisionReason: order.decision_reason,

@@ -14,6 +14,27 @@ export type EventAvailability = {
   remaining: number;
 };
 
+/** Situação de um tipo à venda, contada em unidades (1 Casadinha = 1 unidade). */
+export type TypeAvailability = {
+  ticketTypeId: string;
+  unitsTaken: number;
+  unitsSold: number;
+  maxUnits: number | null;
+  /** `null` = sem limite próprio (vale só a lotação do evento). */
+  remainingUnits: number | null;
+  hasSales: boolean;
+};
+
+export type EventAvailabilityWithTypes = EventAvailability & {
+  types: TypeAvailability[];
+};
+
+/** O mínimo que o checkout precisa para refazer os limites depois de uma recusa. */
+export type CheckoutAvailability = {
+  remaining: number;
+  typeRemaining: Record<string, number | null>;
+};
+
 export type SalesState = "open" | "closed" | "sold_out" | "held";
 
 /** `occupied` vem de `event_occupied_count`: vendidos + reservas ativas. */
@@ -77,18 +98,31 @@ export function maxSelectableUnits({
     : Math.min(units, Math.max(typeRemainingUnits, 0));
 }
 
-/** Reduz a seleção, na ordem dada, para caber nos lugares restantes e no máximo por compra. */
-export function fitSelection<K extends string>(
-  quantities: Record<K, number>,
-  order: readonly K[],
+export type SelectableType = {
+  id: string;
+  peoplePerUnit: number;
+  remainingUnits: number | null;
+};
+
+/**
+ * Reduz a seleção, na ordem dos tipos, para caber nos lugares restantes, no
+ * limite de cada tipo e no máximo de pessoas por compra. Tipos que não estão na
+ * lista saem da seleção.
+ */
+export function fitSelection(
+  quantities: Readonly<Record<string, number>>,
+  types: readonly SelectableType[],
   remaining: number,
-): Record<K, number> {
+): Record<string, number> {
   let budget = Math.max(0, Math.min(remaining, MAX_PEOPLE_PER_ORDER));
-  const fitted = { ...quantities };
-  for (const key of order) {
-    const qty = Math.min(Math.max(0, Math.trunc(fitted[key]) || 0), budget);
-    fitted[key] = qty;
-    budget -= qty;
+  const fitted: Record<string, number> = {};
+  for (const type of types) {
+    const perUnit = Math.max(1, Math.trunc(type.peoplePerUnit) || 1);
+    let qty = Math.max(0, Math.trunc(quantities[type.id] ?? 0) || 0);
+    if (type.remainingUnits !== null) qty = Math.min(qty, Math.max(type.remainingUnits, 0));
+    qty = Math.min(qty, Math.floor(budget / perUnit));
+    fitted[type.id] = qty;
+    budget -= qty * perUnit;
   }
   return fitted;
 }
@@ -96,6 +130,31 @@ export function fitSelection<K extends string>(
 export function remainingNotice(remaining: number): string | null {
   if (remaining <= 0 || remaining > LOW_AVAILABILITY_THRESHOLD) return null;
   return remaining === 1 ? "Resta 1 lugar" : `Restam ${remaining} lugares`;
+}
+
+/** Aviso por tipo com limite próprio: só quando está acabando. */
+export function typeRemainingNotice(remainingUnits: number | null): string | null {
+  if (remainingUnits === null || remainingUnits > LOW_AVAILABILITY_THRESHOLD) return null;
+  if (remainingUnits <= 0) return "Esgotado";
+  return remainingUnits === 1 ? "Resta 1" : `Restam ${remainingUnits}`;
+}
+
+export function typeRefusalMessage(name: string, remainingUnits: number): string {
+  if (remainingUnits <= 0) return `“${name}” esgotou. Ajustamos sua seleção.`;
+  return remainingUnits === 1
+    ? `Resta apenas 1 “${name}”. Ajustamos sua seleção.`
+    : `Restam apenas ${remainingUnits} “${name}”. Ajustamos sua seleção.`;
+}
+
+export function toCheckoutAvailability(
+  availability: EventAvailabilityWithTypes,
+): CheckoutAvailability {
+  return {
+    remaining: availability.remaining,
+    typeRemaining: Object.fromEntries(
+      availability.types.map((type) => [type.ticketTypeId, type.remainingUnits]),
+    ),
+  };
 }
 
 export function capacityRefusalMessage(availability: EventAvailability | null): string {

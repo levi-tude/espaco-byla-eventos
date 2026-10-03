@@ -80,6 +80,60 @@ export type Database = {
           },
         ];
       };
+      order_items: {
+        Row: {
+          created_at: string;
+          id: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          line_total_cents: number;
+          name: string;
+          order_id: string;
+          people_per_unit: number;
+          quantity: number;
+          ticket_type_id: string;
+          unit_price_cents: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["ticket_kind"];
+          line_total_cents: number;
+          name: string;
+          order_id: string;
+          people_per_unit: number;
+          quantity: number;
+          ticket_type_id: string;
+          unit_price_cents: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["ticket_kind"];
+          line_total_cents?: number;
+          name?: string;
+          order_id?: string;
+          people_per_unit?: number;
+          quantity?: number;
+          ticket_type_id?: string;
+          unit_price_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_items_ticket_type_id_fkey";
+            columns: ["ticket_type_id"];
+            isOneToOne: false;
+            referencedRelation: "ticket_types";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       order_refunds: {
         Row: {
           amount_cents: number;
@@ -243,24 +297,42 @@ export type Database = {
       ticket_types: {
         Row: {
           active: boolean;
+          archived_at: string | null;
           event_id: string;
           id: string;
           kind: Database["public"]["Enums"]["ticket_kind"];
+          max_units: number | null;
+          name: string;
+          people_per_unit: number;
+          preset: string | null;
           price_cents: number;
+          sort_order: number;
         };
         Insert: {
           active?: boolean;
+          archived_at?: string | null;
           event_id: string;
           id?: string;
           kind: Database["public"]["Enums"]["ticket_kind"];
+          max_units?: number | null;
+          name: string;
+          people_per_unit?: number;
+          preset?: string | null;
           price_cents: number;
+          sort_order?: number;
         };
         Update: {
           active?: boolean;
+          archived_at?: string | null;
           event_id?: string;
           id?: string;
           kind?: Database["public"]["Enums"]["ticket_kind"];
+          max_units?: number | null;
+          name?: string;
+          people_per_unit?: number;
+          preset?: string | null;
           price_cents?: number;
+          sort_order?: number;
         };
         Relationships: [
           {
@@ -283,6 +355,7 @@ export type Database = {
           id: string;
           kind: Database["public"]["Enums"]["ticket_kind"];
           order_id: string;
+          order_item_id: string;
           price_cents: number;
           status: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id: string;
@@ -297,6 +370,7 @@ export type Database = {
           id?: string;
           kind: Database["public"]["Enums"]["ticket_kind"];
           order_id: string;
+          order_item_id: string;
           price_cents: number;
           status?: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id: string;
@@ -311,11 +385,19 @@ export type Database = {
           id?: string;
           kind?: Database["public"]["Enums"]["ticket_kind"];
           order_id?: string;
+          order_item_id?: string;
           price_cents?: number;
           status?: Database["public"]["Enums"]["ticket_status"];
           ticket_type_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "tickets_order_item_id_fkey";
+            columns: ["order_item_id"];
+            isOneToOne: false;
+            referencedRelation: "order_items";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "tickets_event_id_fkey";
             columns: ["event_id"];
@@ -406,6 +488,10 @@ export type Database = {
           total_cents: number;
         }[];
       };
+      event_availability: {
+        Args: { p_event_id: string };
+        Returns: Json;
+      };
       event_occupied_count: {
         Args: { p_event_id: string; p_exclude_order_id?: string | null };
         Returns: number;
@@ -440,16 +526,23 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: number;
       };
+      save_event_ticket_types: {
+        Args: { p_event_id: string; p_types: Json };
+        Returns: undefined;
+      };
+      ticket_type_units_taken: {
+        Args: { p_exclude_order_id?: string | null; p_ticket_type_id: string };
+        Returns: number;
+      };
       update_event_with_capacity: {
         Args: {
           p_capacity: number;
           p_cover_image_url: string | null;
           p_description: string;
           p_event_id: string;
-          p_full_price_cents: number;
-          p_half_price_cents: number;
           p_name: string;
           p_starts_at: string;
+          p_ticket_types: Json;
           p_venue: string;
         };
         Returns: undefined;

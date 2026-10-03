@@ -1,5 +1,6 @@
 import { DownloadTicketPdf } from "@/components/public/DownloadTicketPdf";
-import { ticketKindLabels as kindLabels, ticketQrDataUrl } from "@/lib/tickets/qr";
+import { ticketTypeLabel } from "@/lib/domain/ticket-types";
+import { ticketQrDataUrl } from "@/lib/tickets/qr";
 import type { Enums } from "@/types/database";
 
 type TicketQrProps = {
@@ -9,6 +10,8 @@ type TicketQrProps = {
   venue: string;
   holderName: string;
   kind: Enums<"ticket_kind">;
+  /** Nome do tipo gravado no pedido (ex.: "Casadinha"). */
+  typeName?: string | null;
   status: "pago" | "check_in";
 };
 
@@ -35,9 +38,11 @@ export async function TicketQr({
   venue,
   holderName,
   kind,
+  typeName,
   status,
 }: TicketQrProps) {
   const qrDataUrl = await ticketQrDataUrl(code);
+  const typeLabel = ticketTypeLabel(typeName, kind);
   const fileName = `ingresso-${safeFileName(eventName)}-${safeFileName(holderName)}-${kind}`;
 
   return (
@@ -48,7 +53,7 @@ export async function TicketQr({
       <h2 className="mt-2 font-display text-3xl tracking-wide text-foreground">
         {eventName}
       </h2>
-      <p className="mt-1 text-sm text-byla-muted">{kindLabels[kind]}</p>
+      <p className="mt-1 text-sm text-byla-muted">{typeLabel}</p>
       <div className="mx-auto my-5 inline-block rounded-xl bg-white p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -85,7 +90,7 @@ export async function TicketQr({
           venue,
           fileName: fileName || "ingresso",
           holderName,
-          kindLabel: kindLabels[kind],
+          kindLabel: typeLabel,
           qrDataUrl,
           statusLabel: statusLabels[status],
         }}

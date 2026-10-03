@@ -6,6 +6,7 @@ import {
   type PaidOrderOutcome,
   type SupabaseAdmin,
 } from "@/lib/domain/orders";
+import { orderItemName } from "@/lib/domain/ticket-types";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
 import type { ProviderIds } from "@/lib/payments/types";
 
@@ -141,7 +142,7 @@ export async function sendOrderTicketsEmail(
       .single(),
     admin
       .from("tickets")
-      .select("code, buyer_name, kind")
+      .select("code, buyer_name, kind, order_items(name)")
       .eq("order_id", orderId)
       .eq("status", "pago")
       .order("created_at"),
@@ -173,6 +174,7 @@ export async function sendOrderTicketsEmail(
       code: ticket.code,
       holderName: ticket.buyer_name,
       kind: ticket.kind,
+      typeName: orderItemName(ticket.order_items),
     })),
     publicToken: order.public_token,
   });

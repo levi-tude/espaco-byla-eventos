@@ -9,6 +9,7 @@ import { TicketQr } from "@/components/public/TicketQr";
 import { eventDateFormatter } from "@/lib/datetime";
 import { maskEmail } from "@/lib/domain/mask";
 import { resumeCheckoutPath } from "@/lib/domain/public-token";
+import { orderItemName } from "@/lib/domain/ticket-types";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -313,7 +314,7 @@ export default async function PedidoPage({
 
   const { data: tickets, error: ticketsError } = await admin
     .from("tickets")
-    .select("code, buyer_name, kind, status")
+    .select("code, buyer_name, kind, status, order_items(name)")
     .eq("order_id", order.id)
     .in("status", ["pago", "check_in"])
     .order("created_at");
@@ -365,6 +366,7 @@ export default async function PedidoPage({
                 key={ticket.code}
                 kind={ticket.kind}
                 status={ticket.status as "pago" | "check_in"}
+                typeName={orderItemName(ticket.order_items)}
                 venue={event.venue}
               />
             ))}

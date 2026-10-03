@@ -62,7 +62,7 @@ Os status abaixo são **novos ou mudam de uso**.
 
 **Estorno (`refund_status`, enum novo):** `solicitado`, `concluido`, `falhou`.
 
-**Categoria do tipo (`ticket_kind`):** novo valor `outro` (para pacotes e tipos livres).
+**Categoria do tipo (`ticket_kind`):** ~~novo valor `outro`~~ — **sem mudança** (decisão do dono em 2026-10-03: pacotes e tipos novos são da categoria Inteira; ver seção 6).
 
 ---
 
@@ -274,28 +274,37 @@ Os status abaixo são **novos ou mudam de uso**.
 
 ### 6.1 Comportamento
 
+> **Decisões do dono em 2026-10-03** (substituem a versão anterior desta seção):
+> - Todo evento tem **tipos prontos** com número de pessoas **fixo**: **Inteira** (1 pessoa), **Meia-entrada** (1), **Casadinha** (2 pessoas = 2 ingressos inteira) e **Pacote família** (4 pessoas = 4 ingressos inteira). A **Cortesia** continua só da equipe, nunca vendida.
+> - O preço **nunca** vem pronto: a equipe sempre informa. O limite por tipo é opcional.
+> - Em cada evento a equipe **marca** quais tipos prontos vende e define o preço. Tipo desmarcado não aparece ao comprador; tipo marcado exige preço válido.
+> - **"Criar novo tipo"**: nome, pessoas (1 a 10), preço e limite opcional.
+> - Casadinha e Pacote família geram ingressos da categoria **Inteira**. Rótulo na lista da equipe, portaria, e-mail, PDF e página do pedido: "Casadinha — Inteira".
+> - Eventos que já existem mantêm Inteira, Meia e Cortesia com os preços atuais; Casadinha e Pacote família começam **desmarcadas**.
+>
+> Escolhas de implementação (opção mais segura, reportadas ao dono):
+> - Tipo criado pela equipe é sempre da categoria **Inteira** (meia só pelo tipo pronto "Meia-entrada"); por isso o enum `outro` foi descartado e `ticket_kind` não muda.
+> - Os nomes dos tipos prontos e "Cortesia" são reservados: tipo novo não pode usá-los.
+> - Remarcar um tipo pronto reativa o mesmo registro (as vendas antigas continuam contando no limite dele).
+> - Ordem: tipos prontos na ordem fixa, depois os criados pela equipe (estes podem subir/descer entre si).
+
 **Equipe:** no formulário do evento, os campos "Preço inteira/meia" viram a seção **"Tipos de ingresso"**:
-- **Campos de cada linha:**
-  - nome (1 a 60 caracteres);
-  - categoria (Inteira, Meia-entrada ou Outro; a cortesia é automática e não aparece na lista);
-  - preço;
-  - pessoas por unidade (1 a 10);
-  - limite de unidades (opcional; vazio = sem limite próprio).
-- **Botões:** "Adicionar tipo", "Remover", e setas para subir e descer (ordem de exibição).
-- **Evento novo:** começa com Inteira e Meia-entrada.
-- **Remover um tipo:**
-  - sem vendas: some da lista;
-  - com vendas: aviso "Este tipo já tem vendas. Ele sai da venda, mas continua no histórico e os ingressos vendidos seguem válidos."
+- **Tipos prontos:** caixa "Vender Casadinha" (etc.), o que cada unidade gera ("2 pessoas · gera 2 ingressos inteira"), preço e limite opcional.
+- **Tipos novos ("+ Criar novo tipo"):** nome (1 a 60 caracteres), pessoas por unidade (1 a 10), preço e limite de unidades (opcional; vazio = sem limite próprio); botões "Subir", "Descer" e "Remover".
+- **Evento novo:** começa com Inteira e Meia-entrada marcadas, sem preço.
+- **Desmarcar ou remover um tipo:**
+  - sem vendas: sai da venda;
+  - com vendas: confirmação "Este tipo já tem vendas. Ele sai da venda, mas continua no histórico e os ingressos vendidos seguem válidos."
 - **Tipo com vendas:**
-  - nome e preço podem mudar; o histórico mantém o nome e o preço da época da compra;
-  - "pessoas por unidade" não pode mudar ("Para mudar, remova e crie outro tipo"), porque isso quebraria a contagem.
+  - nome (só nos tipos novos) e preço podem mudar; o histórico mantém o nome e o preço da época da compra;
+  - "pessoas por unidade" de tipo novo não pode mudar ("Crie um tipo novo se precisar"), porque isso quebraria a contagem.
 
 **Comprador:**
-- **Página do evento e checkout:** listam os tipos ativos na ordem definida, com o preço e, quando a unidade tem mais de uma pessoa, "para 2 pessoas".
+- **Página do evento e checkout:** listam os tipos à venda na ordem definida, com o preço e, quando a unidade tem mais de uma pessoa, o conteúdo ("2 ingressos inteira").
 - **Pacote:** comprar 1 casadinha gera **2 ingressos, cada um com seu QR**. Cada QR ocupa 1 vaga.
 - **Nomes dos titulares:** cada ingresso continua com o nome do comprador (como hoje). Pedir o nome de cada pessoa não está no escopo.
 
-**Portaria, lista, e-mail e PDF:** o rótulo do ingresso passa a ser o nome do tipo (ex.: "Casadinha"). Os totais da equipe são agrupados por tipo.
+**Portaria, lista, e-mail e PDF:** o rótulo do ingresso passa a ser "nome do tipo — categoria" (ex.: "Casadinha — Inteira"; quando o nome é a própria categoria, só "Inteira"). A lista da equipe mostra os ingressos válidos agrupados por tipo.
 
 ### 6.2 Regras
 - **Preço, total, pessoas e estoque:** sempre calculados na RPC.
@@ -307,11 +316,12 @@ Os status abaixo são **novos ou mudam de uso**.
 
 ### 6.3 Banco
 
-**Migration `20261005090000_ticket_kind_outro.sql`:** `alter type ticket_kind add value 'outro'` (separada, pelo mesmo motivo dos enums de pagamento).
+~~**Migration `20261005090000_ticket_kind_outro.sql`**~~ — descartada (decisão do dono em 2026-10-03; ver 6.1).
 
-**Migration `20261005100000_ticket_types_v2.sql`**
+**Migration `20261005100000_ticket_types_v2.sql`** (única da fase)
 - **`ticket_types`, colunas novas:**
   - `name text not null` (preenchido nos dados atuais antes do `not null`) com check de 1 a 60 caracteres sem espaços nas pontas;
+  - `preset text` (`inteira`, `meia`, `casadinha`, `familia` ou nulo para tipo novo/cortesia). Um check garante que cada tipo pronto tem nome, categoria e pessoas fixos (Casadinha = inteira × 2; Pacote família = inteira × 4); outro check garante que tipo novo é `inteira`; índice único parcial: um tipo pronto ativo de cada por evento;
   - `people_per_unit int not null default 1 check (between 1 and 10)`;
   - `max_units int check (max_units > 0)`;
   - `sort_order int not null default 0`;
@@ -339,12 +349,15 @@ Os status abaixo são **novos ou mudam de uso**.
   - insere pedido, `order_items` e `qty × people_per_unit` ingressos por linha;
   - reserva de 15 min (já vem da migration de pagamento).
   - Erros com prefixo estável para a ação traduzir: `ESGOTADO_EVENTO:<restantes>`, `ESGOTADO_TIPO:<ticket_type_id>:<restantes>`, `LIMITE_PESSOAS`, `TIPO_INDISPONIVEL`.
-- **`save_event_ticket_types(p_event_id uuid, p_types jsonb)`** — chamada por `createEvent`/`updateEvent`, que deixam de inserir os tipos direto:
-  - insere, atualiza e arquiva os tipos;
-  - recusa mudar `people_per_unit` de tipo com vendas;
+- **`save_event_ticket_types(p_event_id uuid, p_types jsonb)`** — chamada por `createEvent` (com o evento recém-criado; se falhar, o evento é desfeito):
+  - itens: tipo pronto `{preset, price_cents, max_units}` (nome, categoria e pessoas vêm do banco) ou tipo novo `{id|null, name, people_per_unit, price_cents, max_units}` (categoria `inteira`);
+  - insere, atualiza, reativa (tipo pronto remarcado) e arquiva os tipos omitidos;
+  - recusa mudar `people_per_unit` de tipo com vendas, limite menor que o já ocupado e nome reservado;
   - garante a cortesia;
-  - exige pelo menos 1 tipo vendável ativo.
-- **`update_event_with_capacity`:** nova versão sem os parâmetros de preço (os tipos vão para a função acima). A checagem "capacidade não pode ser menor que o ocupado" continua.
+  - exige de 1 a 20 tipos vendáveis com preço > 0.
+- **`update_event_with_capacity`:** nova versão com `p_ticket_types` no lugar dos preços; salva evento e tipos na mesma transação. A checagem "capacidade não pode ser menor que o ocupado" continua.
+- **Dados atuais:** Inteira → tipo pronto `inteira`, Meia → `meia`, mesmos preços; Cortesia continua; Casadinha e Pacote família não são criados (= desmarcados). Cada pedido antigo ganha uma linha em `order_items` por categoria, e cada ingresso antigo aponta para ela.
+- **Compatibilidade na janela do deploy:** `create_checkout_order` ainda aceita o formato antigo `{kind, qty}` (só Inteira/Meia prontas). **Aplicar a migration antes do deploy do código.**
 - **`issue_courtesy_ticket`:** busca a cortesia não arquivada e cria um `order_items` de 1 unidade.
 - **`event_availability(p_event_id uuid) returns jsonb`** — usada também pelo item D:
   - `capacity`, `sold` (pessoas em `pago`/`check_in`), `held` (pessoas em reservas ativas e estornos `solicitado`), `remaining`;
@@ -362,7 +375,8 @@ Os status abaixo são **novos ou mudam de uso**.
 - **Rótulos:**
   - `TicketList`, `CheckInScanner`, `TicketQr`, `DownloadTicketPdf`, e-mail e `api/check-in` usam o nome copiado (`order_items.name` via `order_item_id`; ingressos antigos recebem `order_items` na migração);
   - `ticketKindLabels` fica só como reserva para a categoria.
-- **Tipos TypeScript:** regenerar `src/types/database.ts` (com o MCP do Eventos).
+- **Tipos TypeScript:** `src/types/database.ts` atualizado à mão (regenerar com o MCP do Eventos depois de aplicar a migration).
+- **Carrinho `v2`:** quantidades por id do tipo; o carrinho `v1` (inteira/meia) é convertido para os tipos prontos à venda, ou os itens são descartados com o aviso "Alguns itens não estão mais disponíveis".
 
 ### 6.5 Testes
 - **SQL:**
@@ -571,7 +585,7 @@ Cada fase pode ir para produção sozinha. As que mexem no banco exigem aprovaç
 | **2. Pagamento mais seguro** | Enums; colunas de IDs e decisão; reserva de 15 min; extensão da reserva pelo PIX; `mark_order_paid` v2 (`aguardando_decisao`, aceita `expirado`); classificação `refunded` ≠ pago; `confirmOrderPaid` sem falso alerta; check-in por lista de permitidos; seção "Precisa de decisão" com **Aceitar mesmo assim** (até a fase 3, o texto orienta: "para devolver, aguarde o botão Estornar"); pendentes antigos → `expirado` | Sim (2 migrations) | 1 (recomendado) | M |
 | **3. Estorno** | `order_refunds` e RPCs; chamada `/refund` com idempotência; aviso `order.refunded`; e-mail ao comprador; botão "Estornar pedido" (inclui pedidos aguardando decisão); "Cancelar" só para cortesia; página do pedido "Estornado" | Sim | 2 | M-G |
 | **4. Alterar seleção e retomar** | "Alterar seleção" (cancela no Mercado Pago e no banco); `?retomar=`; aviso de pedido pendente no checkout; "Escolher de novo" no tempo esgotado | Não (usa RPC da fase 2) | 2 | M |
-| **5. Tipos de ingresso** | Enum `outro`; `ticket_types` v2; `order_items`; checkout v3; editor de tipos; rótulos; `event_availability` com limite por tipo; carrinho `v2` | Sim (2 migrations + dados) | 2; capa e galeria em `main` | G |
+| **5. Tipos de ingresso** | Tipos prontos (Inteira, Meia, Casadinha, Pacote família) + tipos novos; `ticket_types` v2; `order_items`; checkout v3; editor de tipos; rótulos; `event_availability` com limite por tipo; carrinho `v2` | Sim (1 migration + dados) | 2; capa e galeria em `main` | G |
 | **6. Lembrete** | Nova versão da política; migration dos lembretes; rota, e-mail e descadastro; depois, com aprovação separada, extensões + Vault + jobs | Sim (2 etapas) | 4 (retomar), 2 (`expirado`) | M |
 
 - **Prioridade do dono:** a fase 5 pode subir antes da 3 ou da 4 sem conflito de banco, desde que a 2 já esteja feita.
@@ -597,8 +611,7 @@ Cada fase pode ir para produção sozinha. As que mexem no banco exigem aprovaç
    - `20261002100000_payment_states_enums`;
    - `20261002110000_payment_states`;
    - `20261003100000_order_refunds`;
-   - `20261005090000_ticket_kind_outro`;
-   - `20261005100000_ticket_types_v2` (com migração de dados);
+   - `20261005100000_ticket_types_v2` (com migração de dados; `ticket_kind_outro` descartada em 2026-10-03);
    - `20261006100000_abandoned_reminders`;
    - `20261006110000_reminder_jobs`.
 5. **Instalar `pg_cron` e `pg_net`** e criar o segredo `abandoned_cron_secret` no Vault (o dono cria o segredo).

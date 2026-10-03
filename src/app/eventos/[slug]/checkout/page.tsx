@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
-import { CheckoutForm } from "./checkout-form";
+import { type CheckoutTicketType, CheckoutForm } from "./checkout-form";
 import { HeldPendingOrder } from "./pending-order-banner";
-import type { CartKind } from "@/lib/cart/browser-cart";
 import { buildCheckoutResume, type CheckoutResume } from "@/lib/cart/resume";
 import { salesState, salesStateMessages } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
@@ -16,7 +15,7 @@ async function loadResume(
   admin: ReturnType<typeof createAdminClient>,
   eventId: string,
   publicToken: string,
-  offeredKinds: CartKind[],
+  offeredTypeIds: string[],
 ): Promise<CheckoutResume | null> {
   const { data: order } = await admin
     .from("orders")
@@ -26,17 +25,13 @@ async function loadResume(
     .maybeSingle();
   if (!order) return null;
 
-  const { data: tickets, error } = await admin
-    .from("tickets")
-    .select("kind")
+  const { data: items, error } = await admin
+    .from("order_items")
+    .select("ticket_type_id, quantity")
     .eq("order_id", order.id);
   if (error) return null;
 
-  return buildCheckoutResume({
-    order,
-    ticketKinds: (tickets ?? []).map((ticket) => ticket.kind),
-    offeredKinds,
-  });
+  return buildCheckoutResume({ order, items: items ?? [], offeredTypeIds });
 }
 
 export default async function CheckoutPage({
@@ -57,24 +52,33 @@ export default async function CheckoutPage({
   const [{ data: ticketTypes }, availability] = await Promise.all([
     admin
       .from("ticket_types")
-      .select("kind, price_cents")
+      .select("id, name, kind, preset, price_cents, people_per_unit")
       .eq("event_id", event.id)
-      .in("kind", ["inteira", "meia"])
+      .neq("kind", "cortesia")
+      .is("archived_at", null)
       .eq("active", true)
-      .order("price_cents", { ascending: false }),
+      .order("sort_order")
+      .order("id"),
     loadEventAvailability(admin, event),
   ]);
-  const publicTicketTypes = (ticketTypes ?? []).flatMap((ticketType) =>
-    ticketType.kind === "inteira" || ticketType.kind === "meia"
-      ? [{ kind: ticketType.kind, priceCents: ticketType.price_cents }]
-      : [],
+  const typeRemaining = new Map(
+    (availability?.types ?? []).map((type) => [type.ticketTypeId, type.remainingUnits]),
   );
+  const publicTicketTypes: CheckoutTicketType[] = (ticketTypes ?? []).map((type) => ({
+    id: type.id,
+    name: type.name,
+    kind: type.kind,
+    preset: type.preset,
+    priceCents: type.price_cents,
+    peoplePerUnit: type.people_per_unit,
+    remainingUnits: typeRemaining.get(type.id) ?? null,
+  }));
   const resume = resumeToken
     ? await loadResume(
         admin,
         event.id,
         resumeToken,
-        publicTicketTypes.map(({ kind }) => kind),
+        publicTicketTypes.map(({ id }) => id),
       )
     : null;
   const state = salesState(event.sales_open, availability);

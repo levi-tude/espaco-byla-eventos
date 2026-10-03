@@ -10,6 +10,12 @@ import {
   updateEvent,
 } from "@/app/equipe/eventos/actions";
 import { CoverField } from "@/components/equipe/CoverField";
+import {
+  type EditorTicketType,
+  initialTicketTypesState,
+  ticketTypesFromState,
+  TicketTypesEditor,
+} from "@/components/equipe/TicketTypesEditor";
 import { toEventInputValue } from "@/lib/datetime";
 
 type EventFormProps = {
@@ -20,30 +26,54 @@ type EventFormProps = {
     venue: string;
     description: string;
     capacity: number;
-    fullPriceCents: number;
-    halfPriceCents: number;
+    ticketTypes: EditorTicketType[];
     coverImageUrl: string | null;
     salesOpen: boolean;
   };
 };
-
-function toCents(value: string) {
-  return Math.round(Number(value.replace(",", ".")) * 100);
-}
-
-function priceValue(cents?: number) {
-  return cents === undefined ? "" : (cents / 100).toFixed(2);
-}
 
 export function EventForm({ event }: EventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
+  const [ticketTypes, setTicketTypes] = useState(() =>
+    initialTicketTypesState(event?.ticketTypes),
+  );
+  // Depois de salvar (ou se outra pessoa da equipe mudar os tipos), o editor
+  // recomeça do banco: tipo novo já salvo precisa do id para não ser recriado.
+  // Vendas ficam de fora da chave para a atualização automática não apagar edições.
+  const savedTypesKey = JSON.stringify(
+    (event?.ticketTypes ?? []).map(({ id, preset, name, priceCents, peoplePerUnit, maxUnits }) => [
+      id,
+      preset,
+      name,
+      priceCents,
+      peoplePerUnit,
+      maxUnits,
+    ]),
+  );
+  const [loadedTypesKey, setLoadedTypesKey] = useState(savedTypesKey);
+  if (loadedTypesKey !== savedTypesKey) {
+    setLoadedTypesKey(savedTypesKey);
+    setTicketTypes(initialTicketTypesState(event?.ticketTypes));
+  }
+  const sales = Object.fromEntries(
+    (event?.ticketTypes ?? []).map((type) => [
+      type.preset ? `preset:${type.preset}` : `id:${type.id}`,
+      type,
+    ]),
+  );
 
   function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setMessage(null);
+
+    const types = ticketTypesFromState(ticketTypes);
+    if (!types.ok) {
+      setMessage(types.error);
+      return;
+    }
 
     const data = new FormData(formEvent.currentTarget);
     const input: EventInput = {
@@ -52,8 +82,7 @@ export function EventForm({ event }: EventFormProps) {
       venue: String(data.get("venue") ?? ""),
       description: String(data.get("description") ?? ""),
       capacity: Number(data.get("capacity")),
-      fullPriceCents: toCents(String(data.get("fullPrice") ?? "")),
-      halfPriceCents: toCents(String(data.get("halfPrice") ?? "")),
+      ticketTypes: types.types,
       coverImageUrl: String(data.get("coverImageUrl") ?? ""),
     };
 
@@ -140,32 +169,14 @@ export function EventForm({ event }: EventFormProps) {
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium">
-          Preço inteira (R$)
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={priceValue(event?.fullPriceCents)}
-            min="0"
-            name="fullPrice"
-            required
-            step="0.01"
-            type="number"
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium">
-          Preço meia (R$)
-          <input
-            className="rounded-lg border border-byla-border px-3 py-2.5 font-normal"
-            defaultValue={priceValue(event?.halfPriceCents)}
-            min="0"
-            name="halfPrice"
-            required
-            step="0.01"
-            type="number"
-          />
-        </label>
       </div>
+
+      <TicketTypesEditor
+        disabled={isPending}
+        onChange={setTicketTypes}
+        sales={sales}
+        value={ticketTypes}
+      />
 
       <label className="grid gap-2 text-sm font-medium">
         Descrição

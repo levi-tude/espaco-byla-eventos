@@ -7,7 +7,6 @@ import { FormEvent, useEffect, useState, useTransition } from "react";
 import {
   type BrowserCart,
   browserStorage,
-  type CartKind,
   readCart,
   writeCart,
 } from "@/lib/cart/browser-cart";
@@ -17,26 +16,37 @@ import {
   MAX_PEOPLE_PER_ORDER,
   maxSelectableUnits,
   remainingNotice,
+  type SelectableType,
+  typeRemainingNotice,
 } from "@/lib/domain/availability";
+import {
+  ticketKindLabels,
+  unitContentsLabel,
+} from "@/lib/domain/ticket-types";
 import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
 import { useMounted } from "@/lib/use-mounted";
+import type { Enums } from "@/types/database";
 
 import { findPendingOrder, startCheckout } from "./actions";
 import { PendingOrderBanner } from "./pending-order-banner";
 
-type TicketKind = CartKind;
-
-type TicketType = {
-  kind: TicketKind;
+export type CheckoutTicketType = {
+  id: string;
+  name: string;
+  kind: Enums<"ticket_kind">;
+  preset: string | null;
   priceCents: number;
+  peoplePerUnit: number;
+  /** Unidades restantes do limite próprio do tipo; `null` = sem limite. */
+  remainingUnits: number | null;
 };
 
-type Quantities = Record<TicketKind, number>;
+type Quantities = Record<string, number>;
 type Buyer = Pick<BrowserCart, "name" | "email" | "phone">;
 
 type CheckoutFormProps = {
   slug: string;
-  ticketTypes: TicketType[];
+  ticketTypes: CheckoutTicketType[];
   /** Lugares livres agora (descontando reservas); `null` se não foi possível consultar. */
   remaining: number | null;
   /** Pedido anterior (`?retomar=`) que preenche a escolha e os dados. */
@@ -48,17 +58,19 @@ const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-const kindLabels: Record<TicketKind, string> = {
-  inteira: "Inteira",
-  meia: "Meia-entrada",
-};
-
-const EMPTY_QUANTITIES: Quantities = { inteira: 0, meia: 0 };
 const EMPTY_BUYER: Buyer = { name: "", email: "", phone: "" };
 
 function parseQty(raw: string): number {
   const digits = raw.replace(/\D/g, "").slice(0, 3);
   return digits ? Number(digits) : 0;
+}
+
+function qtyOf(quantities: Quantities, id: string): number {
+  return quantities[id] ?? 0;
+}
+
+function sameSelection(a: Quantities, b: Quantities, ids: readonly string[]) {
+  return ids.every((id) => qtyOf(a, id) === qtyOf(b, id));
 }
 
 export function CheckoutForm(props: CheckoutFormProps) {
@@ -80,31 +92,49 @@ function CheckoutFormFields({
   resume,
   restoreCart,
 }: CheckoutFormProps & { restoreCart: boolean }) {
-  const kinds = ticketTypes.map(({ kind }) => kind);
+  const ids = ticketTypes.map(({ id }) => id);
   const [remaining, setRemaining] = useState(initialRemaining);
+  const [typeRemaining, setTypeRemaining] = useState<Record<string, number | null>>(
+    () => Object.fromEntries(ticketTypes.map((type) => [type.id, type.remainingUnits])),
+  );
   const capacityLeft = remaining ?? MAX_PEOPLE_PER_ORDER;
+  const selectable = (limits: Record<string, number | null>): SelectableType[] =>
+    ticketTypes.map((type) => ({
+      id: type.id,
+      peoplePerUnit: type.peoplePerUnit,
+      remainingUnits: limits[type.id] ?? null,
+    }));
+
   const [initial] = useState(() => {
-    const cart = restoreCart ? readCart(browserStorage(), slug) : null;
+    // Carrinho de antes dos tipos configuráveis: inteira/meia viram os tipos prontos.
+    const legacyKinds = {
+      inteira: ticketTypes.find((type) => type.preset === "inteira")?.id,
+      meia: ticketTypes.find((type) => type.preset === "meia")?.id,
+    };
+    const cart = restoreCart
+      ? readCart(browserStorage(), slug, Date.now(), legacyKinds)
+      : null;
     const cartToken = cart?.pendingOrderToken ?? null;
     // Um pedido mais novo feito neste navegador vale mais que o link de retomada.
     const preferCart = Boolean(cart && cartToken && cartToken !== resume?.publicToken);
     const source = resume && !preferCart ? resume : null;
-    const requested = source?.quantities ?? cart?.quantities ?? EMPTY_QUANTITIES;
-    const offered = Object.fromEntries(
-      (Object.keys(EMPTY_QUANTITIES) as TicketKind[]).map((kind) => [
-        kind,
-        kinds.includes(kind) ? (requested[kind] ?? 0) : 0,
-      ]),
-    ) as Quantities;
+    const requested = source?.quantities ?? cart?.quantities ?? {};
+    const offered: Quantities = Object.fromEntries(
+      ids.map((id) => [id, qtyOf(requested, id)]),
+    );
+    const droppedFromRequest = Object.entries(requested).some(
+      ([id, qty]) => qty > 0 && !ids.includes(id),
+    );
     // Pedido ainda reservado: os lugares dele não entram em "restantes"; mostra como está.
     const quantities = source?.awaitingUntil
       ? offered
-      : fitSelection(offered, kinds, capacityLeft);
+      : fitSelection(offered, selectable(typeRemaining), capacityLeft);
     const pendingToken = resume?.awaitingUntil
       ? resume.publicToken
       : cartToken && cartToken !== resume?.publicToken
         ? cartToken
         : null;
+    const fromCart = source === null && cart !== null;
     return {
       quantities,
       buyer: source
@@ -113,10 +143,12 @@ function CheckoutFormFields({
           ? { name: cart.name, email: cart.email, phone: cart.phone }
           : EMPTY_BUYER,
       adjusted:
-        source !== null &&
-        !source.awaitingUntil &&
-        (source.droppedItems ||
-          kinds.some((kind) => quantities[kind] !== source.quantities[kind])),
+        (source !== null &&
+          !source.awaitingUntil &&
+          (source.droppedItems ||
+            droppedFromRequest ||
+            !sameSelection(quantities, source.quantities, ids))) ||
+        (fromCart && (Boolean(cart.droppedItems) || droppedFromRequest)),
       pendingToken,
       pendingUntil: pendingToken && resume?.awaitingUntil ? resume.awaitingUntil : null,
     };
@@ -133,21 +165,22 @@ function CheckoutFormFields({
   const [pending, startTransition] = useTransition();
   const awaitingPayment = pendingToken !== null && pendingUntil !== null;
   const totalCents = ticketTypes.reduce(
-    (sum, ticketType) =>
-      sum + ticketType.priceCents * quantities[ticketType.kind],
+    (sum, type) => sum + type.priceCents * qtyOf(quantities, type.id),
     0,
   );
-  const totalQty = ticketTypes.reduce(
-    (sum, ticketType) => sum + quantities[ticketType.kind],
-    0,
-  );
+  const peopleIn = (current: Quantities) =>
+    ticketTypes.reduce(
+      (sum, type) => sum + type.peoplePerUnit * qtyOf(current, type.id),
+      0,
+    );
+  const totalPeople = peopleIn(quantities);
   const selectionLimit = Math.min(capacityLeft, MAX_PEOPLE_PER_ORDER);
   const notice = remaining === null ? null : remainingNotice(remaining);
   const limitHint =
-    totalQty > 0 && totalQty >= selectionLimit
+    totalPeople > 0 && totalPeople >= selectionLimit
       ? selectionLimit < MAX_PEOPLE_PER_ORDER
         ? "Você escolheu todos os lugares disponíveis no momento."
-        : `Máximo de ${MAX_PEOPLE_PER_ORDER} ingressos por compra.`
+        : `Máximo de ${MAX_PEOPLE_PER_ORDER} pessoas por compra.`
       : "";
 
   useEffect(() => {
@@ -187,19 +220,25 @@ function CheckoutFormFields({
     router.replace(checkoutPath);
   }
 
-  function maxFor(kind: TicketKind, current: Quantities = quantities) {
-    const selected = kinds.reduce((sum, item) => sum + current[item], 0);
+  function maxFor(type: CheckoutTicketType, current: Quantities = quantities) {
     return maxSelectableUnits({
       remaining: capacityLeft,
-      peopleSelectedElsewhere: selected - current[kind],
+      peopleSelectedElsewhere:
+        peopleIn(current) - type.peoplePerUnit * qtyOf(current, type.id),
+      peoplePerUnit: type.peoplePerUnit,
+      typeRemainingUnits: typeRemaining[type.id] ?? null,
     });
   }
 
-  function setQty(kind: TicketKind, next: number | ((qty: number) => number)) {
+  function setQty(
+    type: CheckoutTicketType,
+    next: number | ((qty: number) => number),
+  ) {
     setQuantities((current) => {
-      const wanted = typeof next === "function" ? next(current[kind]) : next;
-      const safe = Math.max(0, Math.min(maxFor(kind, current), Math.trunc(wanted) || 0));
-      return current[kind] === safe ? current : { ...current, [kind]: safe };
+      const currentQty = qtyOf(current, type.id);
+      const wanted = typeof next === "function" ? next(currentQty) : next;
+      const safe = Math.max(0, Math.min(maxFor(type, current), Math.trunc(wanted) || 0));
+      return currentQty === safe ? current : { ...current, [type.id]: safe };
     });
   }
 
@@ -208,7 +247,7 @@ function CheckoutFormFields({
   }
 
   function clearSelection() {
-    setQuantities(EMPTY_QUANTITIES);
+    setQuantities({});
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -221,19 +260,22 @@ function CheckoutFormFields({
       try {
         const result = await startCheckout({
           slug,
-          items: ticketTypes.map(({ kind }) => ({
-            kind,
-            qty: quantities[kind],
-          })),
+          items: ticketTypes
+            .filter((type) => qtyOf(quantities, type.id) > 0)
+            .map((type) => ({ ticketTypeId: type.id, qty: qtyOf(quantities, type.id) })),
           buyer,
           acceptedPrivacy: data.get("privacy") === "on",
         });
         if ("error" in result) {
           setError(result.error);
-          const updated = result.remaining;
-          if (typeof updated === "number") {
-            setRemaining(updated);
-            setQuantities((current) => fitSelection(current, kinds, updated));
+          const updated = result.availability;
+          if (updated) {
+            const limits = { ...typeRemaining, ...updated.typeRemaining };
+            setRemaining(updated.remaining);
+            setTypeRemaining(limits);
+            setQuantities((current) =>
+              fitSelection(current, selectable(limits), updated.remaining),
+            );
           }
           return;
         }
@@ -282,50 +324,57 @@ function CheckoutFormFields({
             {notice}
           </p>
         ) : null}
-        {ticketTypes.map((ticketType) => {
-          const qty = quantities[ticketType.kind];
-          const max = maxFor(ticketType.kind);
+        {ticketTypes.map((type) => {
+          const qty = qtyOf(quantities, type.id);
+          const max = maxFor(type);
+          const typeNotice = typeRemainingNotice(typeRemaining[type.id] ?? null);
+          const showContents =
+            type.peoplePerUnit > 1 || type.name !== ticketKindLabels[type.kind];
           return (
             <div
               className="flex items-center justify-between gap-4 rounded-xl border border-byla-border bg-byla-overlay p-4"
-              key={ticketType.kind}
+              key={type.id}
             >
-              <div>
-                <p className="font-medium text-foreground">
-                  {kindLabels[ticketType.kind]}
-                </p>
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">{type.name}</p>
                 <p className="text-sm text-byla-muted">
-                  {moneyFormatter.format(ticketType.priceCents / 100)}
+                  {moneyFormatter.format(type.priceCents / 100)}
+                  {showContents
+                    ? ` · ${unitContentsLabel(type.peoplePerUnit, type.kind)}`
+                    : ""}
                 </p>
+                {typeNotice ? (
+                  <p className="text-xs font-semibold text-amber-700 dark:text-byla-yellow">
+                    {typeNotice}
+                  </p>
+                ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
-                  aria-label={`Diminuir ${kindLabels[ticketType.kind]}`}
+                  aria-label={`Diminuir ${type.name}`}
                   className={stepperClass}
                   disabled={qty <= 0 || pending}
-                  onClick={() => setQty(ticketType.kind, (current) => current - 1)}
+                  onClick={() => setQty(type, (current) => current - 1)}
                   type="button"
                 >
                   −
                 </button>
                 <input
-                  aria-label={`Quantidade ${kindLabels[ticketType.kind]}`}
+                  aria-label={`Quantidade ${type.name}`}
                   className={`${fieldClass} w-14 text-center`}
                   disabled={pending || (max === 0 && qty === 0)}
                   inputMode="numeric"
                   max={max}
                   min={0}
-                  onChange={(event) =>
-                    setQty(ticketType.kind, parseQty(event.target.value))
-                  }
+                  onChange={(event) => setQty(type, parseQty(event.target.value))}
                   type="text"
                   value={String(qty)}
                 />
                 <button
-                  aria-label={`Aumentar ${kindLabels[ticketType.kind]}`}
+                  aria-label={`Aumentar ${type.name}`}
                   className={stepperClass}
                   disabled={qty >= max || pending}
-                  onClick={() => setQty(ticketType.kind, (current) => current + 1)}
+                  onClick={() => setQty(type, (current) => current + 1)}
                   type="button"
                 >
                   +
@@ -338,7 +387,7 @@ function CheckoutFormFields({
           <p aria-live="polite" className="text-sm text-byla-muted">
             {limitHint}
           </p>
-          {totalQty > 0 ? (
+          {totalPeople > 0 ? (
             <button
               className="text-sm font-medium text-byla-blue underline underline-offset-2 disabled:opacity-50"
               disabled={pending}
@@ -419,7 +468,10 @@ function CheckoutFormFields({
 
       <div className="flex items-center justify-between border-t border-byla-border pt-5">
         <span className="font-medium text-foreground">
-          Total{totalQty > 0 ? ` · ${totalQty} ingresso${totalQty === 1 ? "" : "s"}` : ""}
+          Total
+          {totalPeople > 0
+            ? ` · ${totalPeople} ingresso${totalPeople === 1 ? "" : "s"}`
+            : ""}
         </span>
         <strong className="text-2xl text-amber-700 dark:text-byla-yellow">
           {moneyFormatter.format(totalCents / 100)}

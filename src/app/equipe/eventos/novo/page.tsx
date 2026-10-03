@@ -15,7 +15,7 @@ export default function NovoEventoPage() {
         Novo evento
       </h1>
       <p className="mb-8 mt-1 text-byla-muted">
-        Cadastre as informações e os preços dos ingressos.
+        Cadastre as informações, escolha os tipos de ingresso à venda e defina os preços.
       </p>
       <EventForm />
       <p className="mt-6 rounded-xl border border-dashed border-byla-border p-5 text-sm text-byla-muted">

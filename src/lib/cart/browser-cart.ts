@@ -1,34 +1,52 @@
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
+import { isUuid } from "@/lib/domain/ticket-types";
 
-export type CartKind = "inteira" | "meia";
+/** Categorias do carrinho antigo (v1), antes dos tipos configuráveis. */
+export type LegacyCartKind = "inteira" | "meia";
+
+/** Para onde vão as quantidades do carrinho antigo: id do tipo pronto à venda. */
+export type LegacyKindMap = Partial<Record<LegacyCartKind, string>>;
 
 export type BrowserCart = {
-  quantities: Record<CartKind, number>;
+  /** Unidades por id de tipo de ingresso. */
+  quantities: Record<string, number>;
   name: string;
   email: string;
   phone: string;
   /** Pedido criado a partir deste carrinho que pode ainda estar aguardando pagamento. */
   pendingOrderToken?: string;
+  /** Carrinho antigo tinha item que não está mais à venda e ficou de fora. */
+  droppedItems?: boolean;
   updatedAt: number;
 };
 
 type CartStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-const CART_VERSION = 1;
+const CART_VERSION = 2;
+const LEGACY_VERSION = 1;
 const CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const CART_KINDS: readonly CartKind[] = ["inteira", "meia"];
+const LEGACY_KINDS: readonly LegacyCartKind[] = ["inteira", "meia"];
 const MAX_QTY = 10;
+const MAX_TYPES = 20;
 const FIELD_LIMITS = { name: 200, email: 320, phone: 40 } as const;
 
-export function cartStorageKey(slug: string) {
-  return `byla:cart:v${CART_VERSION}:${slug}`;
+export function cartStorageKey(slug: string, version = CART_VERSION) {
+  return `byla:cart:v${version}:${slug}`;
 }
 
 function cleanText(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
-export function parseCart(raw: string | null, now = Date.now()): BrowserCart | null {
+function cleanQty(value: unknown): number {
+  return Number.isInteger(value) ? Math.min(Math.max(value as number, 0), MAX_QTY) : 0;
+}
+
+export function parseCart(
+  raw: string | null,
+  now = Date.now(),
+  legacyKinds: LegacyKindMap = {},
+): BrowserCart | null {
   if (!raw) return null;
   let data: unknown;
   try {
@@ -38,7 +56,7 @@ export function parseCart(raw: string | null, now = Date.now()): BrowserCart | n
   }
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
-  if (record.v !== CART_VERSION) return null;
+  if (record.v !== CART_VERSION && record.v !== LEGACY_VERSION) return null;
 
   const updatedAt = record.updatedAt;
   if (
@@ -53,15 +71,23 @@ export function parseCart(raw: string | null, now = Date.now()): BrowserCart | n
     record.quantities && typeof record.quantities === "object"
       ? (record.quantities as Record<string, unknown>)
       : {};
-  const quantities = Object.fromEntries(
-    CART_KINDS.map((kind) => {
-      const qty = rawQuantities[kind];
-      return [
-        kind,
-        Number.isInteger(qty) ? Math.min(Math.max(qty as number, 0), MAX_QTY) : 0,
-      ];
-    }),
-  ) as Record<CartKind, number>;
+  const quantities: Record<string, number> = {};
+  let droppedItems = false;
+  if (record.v === CART_VERSION) {
+    for (const [id, value] of Object.entries(rawQuantities).slice(0, MAX_TYPES)) {
+      const qty = cleanQty(value);
+      if (isUuid(id) && qty > 0) quantities[id] = qty;
+    }
+  } else {
+    // v1 guardava por categoria: inteira/meia viram os tipos prontos do evento.
+    for (const kind of LEGACY_KINDS) {
+      const qty = cleanQty(rawQuantities[kind]);
+      if (qty === 0) continue;
+      const id = legacyKinds[kind];
+      if (id) quantities[id] = qty;
+      else droppedItems = true;
+    }
+  }
 
   return {
     quantities,
@@ -71,14 +97,17 @@ export function parseCart(raw: string | null, now = Date.now()): BrowserCart | n
     ...(isPublicTokenFormat(record.pendingOrderToken)
       ? { pendingOrderToken: record.pendingOrderToken }
       : {}),
+    ...(droppedItems ? { droppedItems } : {}),
     updatedAt,
   };
 }
 
-export function isEmptyCart(cart: Omit<BrowserCart, "updatedAt">): boolean {
+type StoredCart = Omit<BrowserCart, "updatedAt" | "droppedItems">;
+
+export function isEmptyCart(cart: StoredCart): boolean {
   return (
     !cart.pendingOrderToken &&
-    CART_KINDS.every((kind) => cart.quantities[kind] === 0) &&
+    Object.values(cart.quantities).every((qty) => qty === 0) &&
     !cart.name.trim() &&
     !cart.email.trim() &&
     !cart.phone.trim()
@@ -95,14 +124,24 @@ export function browserStorage(): CartStorage | null {
   }
 }
 
-export function readCart(storage: CartStorage | null, slug: string, now = Date.now()) {
+/** Lê o carrinho atual; sem ele, aproveita o carrinho antigo (v1) do mesmo evento. */
+export function readCart(
+  storage: CartStorage | null,
+  slug: string,
+  now = Date.now(),
+  legacyKinds: LegacyKindMap = {},
+) {
   if (!storage) return null;
   try {
-    const key = cartStorageKey(slug);
-    const raw = storage.getItem(key);
-    const cart = parseCart(raw, now);
-    if (raw && !cart) storage.removeItem(key);
-    return cart;
+    for (const version of [CART_VERSION, LEGACY_VERSION]) {
+      const key = cartStorageKey(slug, version);
+      const raw = storage.getItem(key);
+      if (!raw) continue;
+      const cart = parseCart(raw, now, legacyKinds);
+      if (cart) return cart;
+      storage.removeItem(key);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -111,17 +150,24 @@ export function readCart(storage: CartStorage | null, slug: string, now = Date.n
 export function writeCart(
   storage: CartStorage | null,
   slug: string,
-  cart: Omit<BrowserCart, "updatedAt">,
+  cart: StoredCart,
   now = Date.now(),
 ) {
   if (!storage) return;
   try {
     const key = cartStorageKey(slug);
+    storage.removeItem(cartStorageKey(slug, LEGACY_VERSION));
+    const quantities = Object.fromEntries(
+      Object.entries(cart.quantities).filter(([, qty]) => qty > 0),
+    );
     if (isEmptyCart(cart)) {
       storage.removeItem(key);
       return;
     }
-    storage.setItem(key, JSON.stringify({ v: CART_VERSION, ...cart, updatedAt: now }));
+    storage.setItem(
+      key,
+      JSON.stringify({ v: CART_VERSION, ...cart, quantities, updatedAt: now }),
+    );
   } catch {
     // Sem armazenamento disponível: segue sem carrinho salvo.
   }
@@ -131,6 +177,7 @@ export function clearCart(storage: CartStorage | null, slug: string) {
   if (!storage) return;
   try {
     storage.removeItem(cartStorageKey(slug));
+    storage.removeItem(cartStorageKey(slug, LEGACY_VERSION));
   } catch {
     // Sem armazenamento disponível: nada a apagar.
   }

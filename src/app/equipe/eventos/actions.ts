@@ -6,6 +6,12 @@ import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { assertStaff } from "@/lib/auth/staff";
 import { parseEventInputValue } from "@/lib/datetime";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
+import {
+  normalizeTicketTypes,
+  type TicketTypeInput,
+  type TicketTypeRpcItem,
+  ticketTypesErrorMessage,
+} from "@/lib/domain/ticket-types";
 import { createPublicToken } from "@/lib/domain/tickets";
 import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
 import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
@@ -19,9 +25,13 @@ export type EventInput = {
   venue: string;
   description: string;
   capacity: number;
-  fullPriceCents: number;
-  halfPriceCents: number;
+  /** Tipos à venda na ordem de exibição; a cortesia o banco garante sozinho. */
+  ticketTypes: TicketTypeInput[];
   coverImageUrl?: string | null;
+};
+
+type NormalizedEventInput = Omit<EventInput, "ticketTypes"> & {
+  ticketTypes: TicketTypeRpcItem[];
 };
 
 function isHttpUrl(value: string): boolean {
@@ -33,7 +43,7 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function normalizeInput(input: EventInput): EventInput {
+function normalizeInput(input: EventInput): NormalizedEventInput {
   const normalized = {
     ...input,
     name: input.name.trim(),
@@ -50,14 +60,8 @@ function normalizeInput(input: EventInput): EventInput {
     throw new ActionError("Informe uma capacidade válida.");
   }
 
-  if (
-    !Number.isInteger(normalized.fullPriceCents) ||
-    normalized.fullPriceCents < 0 ||
-    !Number.isInteger(normalized.halfPriceCents) ||
-    normalized.halfPriceCents < 0
-  ) {
-    throw new ActionError("Informe preços válidos.");
-  }
+  const ticketTypes = normalizeTicketTypes(input.ticketTypes);
+  if (!ticketTypes.ok) throw new ActionError(ticketTypes.error);
 
   const startsAt = parseEventInputValue(normalized.startsAt);
   if (Number.isNaN(startsAt.getTime())) {
@@ -68,7 +72,11 @@ function normalizeInput(input: EventInput): EventInput {
     throw new ActionError("Informe uma URL válida para a capa.");
   }
 
-  return { ...normalized, startsAt: startsAt.toISOString() };
+  return {
+    ...normalized,
+    ticketTypes: ticketTypes.items,
+    startsAt: startsAt.toISOString(),
+  };
 }
 
 async function uniqueSlug(name: string) {
@@ -177,31 +185,18 @@ async function createEventOrThrow(input: EventInput): Promise<{ id: string }> {
     throw new ActionError("Não foi possível criar o evento.");
   }
 
-  // PostgREST envia null se `active` for omitido — a coluna é NOT NULL.
-  const { error: ticketTypesError } = await supabase.from("ticket_types").insert([
-    {
-      event_id: event.id,
-      kind: "inteira",
-      price_cents: normalized.fullPriceCents,
-      active: true,
-    },
-    {
-      event_id: event.id,
-      kind: "meia",
-      price_cents: normalized.halfPriceCents,
-      active: true,
-    },
-    {
-      event_id: event.id,
-      kind: "cortesia",
-      price_cents: 0,
-      active: true,
-    },
-  ]);
+  // Tipos só são gravados pela função do banco (service_role), que também cria a cortesia.
+  const { error: ticketTypesError } = await createAdminClient().rpc(
+    "save_event_ticket_types",
+    { p_event_id: event.id, p_types: normalized.ticketTypes },
+  );
 
   if (ticketTypesError) {
     await supabase.from("events").delete().eq("id", event.id);
-    throw new ActionError("Não foi possível criar os tipos de ingresso.");
+    throw new ActionError(
+      ticketTypesErrorMessage(ticketTypesError.message) ??
+        "Não foi possível criar os tipos de ingresso.",
+    );
   }
 
   revalidateEventSurfaces(event.id, slug);
@@ -226,8 +221,7 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
     p_description: normalized.description,
     p_capacity: normalized.capacity,
     p_cover_image_url: normalized.coverImageUrl ?? null,
-    p_full_price_cents: normalized.fullPriceCents,
-    p_half_price_cents: normalized.halfPriceCents,
+    p_ticket_types: normalized.ticketTypes,
   });
 
   if (eventError) {
@@ -236,7 +230,9 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
         "A capacidade não pode ser menor que os ingressos já reservados.",
       );
     }
-    throw new ActionError("Não foi possível salvar o evento.");
+    throw new ActionError(
+      ticketTypesErrorMessage(eventError.message) ?? "Não foi possível salvar o evento.",
+    );
   }
 
   const previousCoverPath = coverPathFromUrl(supabaseUrl(), previous?.cover_image_url);

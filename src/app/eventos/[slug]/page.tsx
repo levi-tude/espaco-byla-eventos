@@ -6,6 +6,7 @@ import { EventGallery } from "@/components/public/EventGallery";
 import { eventDateFormatter } from "@/lib/datetime";
 import { salesState, salesStateMessages } from "@/lib/domain/availability";
 import { loadEventAvailability } from "@/lib/domain/event-availability";
+import { unitContentsLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -19,11 +20,6 @@ const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
-
-const kindLabels: Record<string, string> = {
-  inteira: "Inteira",
-  meia: "Meia-entrada",
-};
 
 export default async function EventoPublicoPage({
   params,
@@ -43,15 +39,22 @@ export default async function EventoPublicoPage({
   const [{ data: ticketTypes }, availability] = await Promise.all([
     supabase
       .from("ticket_types")
-      .select("kind, price_cents")
+      .select("id, name, kind, price_cents, people_per_unit")
       .eq("event_id", event.id)
-      .in("kind", ["inteira", "meia"])
+      .neq("kind", "cortesia")
+      .is("archived_at", null)
       .eq("active", true)
-      .order("price_cents", { ascending: false }),
+      .order("sort_order")
+      .order("id"),
     loadEventAvailability(createAdminClient(), event),
   ]);
 
   const state = salesState(event.sales_open, availability);
+  const soldOutTypes = new Set(
+    (availability?.types ?? [])
+      .filter((type) => type.remainingUnits === 0)
+      .map((type) => type.ticketTypeId),
+  );
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col pb-28 md:pb-12">
@@ -101,13 +104,20 @@ export default async function EventoPublicoPage({
                   {ticketTypes.map((ticketType) => (
                     <div
                       className="flex items-center justify-between gap-4"
-                      key={ticketType.kind}
+                      key={ticketType.id}
                     >
                       <dt className="text-byla-muted">
-                        {kindLabels[ticketType.kind] ?? ticketType.kind}
+                        {ticketType.name}
+                        {ticketType.people_per_unit > 1 ? (
+                          <span className="block text-xs">
+                            {unitContentsLabel(ticketType.people_per_unit, ticketType.kind)}
+                          </span>
+                        ) : null}
                       </dt>
-                      <dd className="font-medium text-foreground">
-                        {moneyFormatter.format(ticketType.price_cents / 100)}
+                      <dd className="text-right font-medium text-foreground">
+                        {soldOutTypes.has(ticketType.id)
+                          ? "Esgotado"
+                          : moneyFormatter.format(ticketType.price_cents / 100)}
                       </dd>
                     </div>
                   ))}
