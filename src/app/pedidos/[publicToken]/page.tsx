@@ -1,11 +1,15 @@
-import Link from "next/link";
+import { Ban, Clock, Hourglass, type LucideIcon, Undo2 } from "lucide-react";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { OrderPayment } from "@/components/public/OrderPayment";
 import { PaymentConfirmed } from "@/components/public/PaymentConfirmed";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
 import { maskEmail } from "@/lib/domain/mask";
 import { resumeCheckoutPath } from "@/lib/domain/public-token";
@@ -31,7 +35,7 @@ async function resolveStaffBackNav(eventId: string, eventSlug: string) {
   if (!user) {
     return {
       backHref: `/eventos/${eventSlug}`,
-      backLabel: "← Voltar",
+      backLabel: "Voltar",
     };
   }
 
@@ -44,13 +48,13 @@ async function resolveStaffBackNav(eventId: string, eventSlug: string) {
   if (profile) {
     return {
       backHref: `/equipe/eventos/${eventId}`,
-      backLabel: "← Voltar ao gerenciamento",
+      backLabel: "Voltar ao gerenciamento",
     };
   }
 
   return {
     backHref: `/eventos/${eventSlug}`,
-    backLabel: "← Voltar",
+    backLabel: "Voltar",
   };
 }
 
@@ -63,6 +67,47 @@ const moneyFormatter = new Intl.NumberFormat("pt-BR", {
 
 function isReservationExpired(expiresAt: string | null) {
   return expiresAt !== null && Date.parse(expiresAt) <= Date.now();
+}
+
+function OrderShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <main className="flex min-h-full flex-1 flex-col">
+      <SiteHeader />
+      <div
+        className={`mx-auto w-full flex-1 px-4 pb-16 pt-2 sm:px-6 sm:pt-4 ${
+          wide ? "max-w-5xl" : "max-w-2xl"
+        }`}
+      >
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function StatusCard({
+  icon: Icon,
+  tone,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  tone: "warning" | "neutral";
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center sm:p-8"
+      role="status"
+    >
+      <Icon
+        aria-hidden
+        className={`mx-auto h-12 w-12 ${tone === "warning" ? "text-byla-warning" : "text-byla-muted"}`}
+      />
+      <h1 className="mt-3 font-display text-4xl tracking-wide text-foreground">{title}</h1>
+      <div className="mt-4 grid gap-3 text-base text-byla-muted">{children}</div>
+    </section>
+  );
 }
 
 async function lookupPendingPayment(
@@ -142,41 +187,47 @@ export default async function PedidoPage({
       (!initialPix && isReservationExpired(order.expires_at));
 
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
-        <SiteHeader variant="equipe" />
-        <div className="grid gap-6 pt-4">
+      <OrderShell>
+        <div className="grid gap-5">
           <TicketPageNav
             backHref={backNav.backHref}
             backLabel={backNav.backLabel}
             eventSlug={event.slug}
           />
           <header>
-            <p className="text-sm font-medium text-byla-yellow">Pagamento</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-byla-accent-text">
+              Pagamento
+            </p>
             <h1 className="mt-1 font-display text-4xl tracking-wide text-foreground">
               {event.name}
             </h1>
-            <p className="mt-2 text-byla-muted">
-              {dateFormatter.format(new Date(event.starts_at))} · Total{" "}
-              <strong className="text-foreground">
+            <p className="mt-2 text-base text-byla-muted">
+              {dateFormatter.format(new Date(event.starts_at))}
+            </p>
+            <p className="mt-3 flex items-baseline justify-between gap-3 rounded-xl border border-byla-border bg-byla-surface px-4 py-3 text-base text-foreground">
+              Total
+              <strong className="text-xl">
                 {moneyFormatter.format(order.total_cents / 100)}
               </strong>
             </p>
           </header>
           {expired ? (
-            <section className="rounded-2xl border border-byla-border bg-byla-surface p-8 text-center">
-              <h2 className="font-display text-3xl tracking-wide text-foreground">
+            <section className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center sm:p-8">
+              <Clock aria-hidden className="mx-auto h-12 w-12 text-byla-warning" />
+              <h2 className="mt-3 font-display text-3xl tracking-wide text-foreground">
                 Tempo esgotado
               </h2>
-              <p className="mt-3 text-byla-muted">
+              <p className="mt-3 text-base text-byla-muted">
                 A reserva deste pedido expirou. Você pode escolher de novo; seus
                 dados já vêm preenchidos.
               </p>
-              <Link
-                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-byla-blue px-5 py-3 font-semibold text-white transition hover:brightness-110"
+              <ButtonLink
+                className="mt-6 w-full sm:w-auto"
                 href={resumeCheckoutPath(event.slug, publicToken)}
+                size="lg"
               >
                 Escolher de novo com os mesmos dados
-              </Link>
+              </ButtonLink>
             </section>
           ) : publicKey ? (
             <OrderPayment
@@ -188,47 +239,38 @@ export default async function PedidoPage({
               reservationExpiresAt={order.expires_at}
             />
           ) : (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <Notice live={false} tone="warning">
               Pagamento em configuração. Falta a chave pública do Mercado Pago
               no ambiente.
-            </p>
+            </Notice>
           )}
         </div>
-      </main>
+      </OrderShell>
     );
   }
 
   if (order.status === "aguardando_decisao") {
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
-        <SiteHeader variant="equipe" />
-        <div className="pt-4">
-          <TicketPageNav
-            backHref={backNav.backHref}
-            backLabel={backNav.backLabel}
-            eventSlug={event.slug}
-          />
-          <section
-            className="w-full rounded-2xl border border-amber-600/40 bg-amber-50 p-8 text-center text-amber-950 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-50"
-            role="status"
-          >
-            <h1 className="font-display text-4xl tracking-wide">
-              Pagamento recebido
-            </h1>
-            <p className="mt-4">
-              Seu pagamento de{" "}
-              <strong>{moneyFormatter.format(order.total_cents / 100)}</strong>{" "}
-              chegou, mas precisa ser conferido pela nossa equipe antes de os
-              ingressos serem liberados.
-            </p>
-            <p className="mt-3">
-              Se os ingressos forem liberados, você recebe os QR Codes por
-              e-mail em <strong>{maskEmail(order.buyer_email)}</strong>. Se não
-              houver lugar, o valor será devolvido.
-            </p>
-          </section>
-        </div>
-      </main>
+      <OrderShell>
+        <TicketPageNav
+          backHref={backNav.backHref}
+          backLabel={backNav.backLabel}
+          eventSlug={event.slug}
+        />
+        <StatusCard icon={Hourglass} title="Pagamento recebido" tone="warning">
+          <p className="text-foreground">
+            Seu pagamento de{" "}
+            <strong>{moneyFormatter.format(order.total_cents / 100)}</strong>{" "}
+            chegou, mas precisa ser conferido pela nossa equipe antes de os
+            ingressos serem liberados.
+          </p>
+          <p>
+            Se os ingressos forem liberados, você recebe os QR Codes por
+            e-mail em <strong className="text-foreground">{maskEmail(order.buyer_email)}</strong>. Se não
+            houver lugar, o valor será devolvido.
+          </p>
+        </StatusCard>
+      </OrderShell>
     );
   }
 
@@ -246,34 +288,27 @@ export default async function PedidoPage({
     const amount = moneyFormatter.format((refund?.amount_cents ?? order.total_cents) / 100);
 
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
-        <SiteHeader variant="equipe" />
-        <div className="pt-4">
-          <TicketPageNav
-            backHref={backNav.backHref}
-            backLabel={backNav.backLabel}
-            eventSlug={event.slug}
-          />
-          <section
-            className="w-full rounded-2xl border border-byla-border bg-byla-surface p-8 text-center"
-            role="status"
-          >
-            <h1 className="font-display text-4xl tracking-wide text-foreground">
-              {done ? "Pedido estornado" : "Estorno em andamento"}
-            </h1>
-            <p className="mt-4 text-foreground">
-              {done ? "Pedido estornado" : "Estorno solicitado"}
-              {when ? ` em ${dateFormatter.format(new Date(when))}` : ""}.{" "}
-              {done
-                ? `O valor de ${amount} foi devolvido para o meio de pagamento usado.`
-                : `O valor de ${amount} está sendo devolvido para o meio de pagamento usado.`}
-            </p>
-            <p className="mt-3 text-byla-muted">
-              Os ingressos deste pedido não são mais válidos.
-            </p>
-          </section>
-        </div>
-      </main>
+      <OrderShell>
+        <TicketPageNav
+          backHref={backNav.backHref}
+          backLabel={backNav.backLabel}
+          eventSlug={event.slug}
+        />
+        <StatusCard
+          icon={Undo2}
+          title={done ? "Pedido estornado" : "Estorno em andamento"}
+          tone="neutral"
+        >
+          <p className="text-foreground">
+            {done ? "Pedido estornado" : "Estorno solicitado"}
+            {when ? ` em ${dateFormatter.format(new Date(when))}` : ""}.{" "}
+            {done
+              ? `O valor de ${amount} foi devolvido para o meio de pagamento usado.`
+              : `O valor de ${amount} está sendo devolvido para o meio de pagamento usado.`}
+          </p>
+          <p>Os ingressos deste pedido não são mais válidos.</p>
+        </StatusCard>
+      </OrderShell>
     );
   }
 
@@ -281,34 +316,31 @@ export default async function PedidoPage({
     const changedByBuyer =
       order.status === "cancelado" && order.cancel_reason === "alterado_pelo_comprador";
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
-        <SiteHeader variant="equipe" />
-        <div className="pt-4">
-          <TicketPageNav
-            backHref={backNav.backHref}
-            backLabel={backNav.backLabel}
-            eventSlug={event.slug}
-          />
-          <section className="w-full rounded-2xl border border-byla-border bg-byla-surface p-8 text-center">
-            <h1 className="font-display text-4xl tracking-wide text-foreground">
-              Ingressos indisponíveis
-            </h1>
-            <p className="mt-4 text-byla-muted">
-              {changedByBuyer
-                ? "Este pedido foi cancelado quando você alterou a seleção."
-                : "Este pedido foi cancelado ou expirou."}
-            </p>
-            {changedByBuyer ? (
-              <Link
-                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-lg bg-byla-blue px-5 py-3 font-semibold text-white transition hover:brightness-110"
+      <OrderShell>
+        <TicketPageNav
+          backHref={backNav.backHref}
+          backLabel={backNav.backLabel}
+          eventSlug={event.slug}
+        />
+        <StatusCard icon={Ban} title="Ingressos indisponíveis" tone="neutral">
+          <p>
+            {changedByBuyer
+              ? "Este pedido foi cancelado quando você alterou a seleção."
+              : "Este pedido foi cancelado ou expirou."}
+          </p>
+          {changedByBuyer ? (
+            <div className="mt-3">
+              <ButtonLink
+                className="w-full sm:w-auto"
                 href={resumeCheckoutPath(event.slug, publicToken)}
+                size="lg"
               >
                 Escolher de novo com os mesmos dados
-              </Link>
-            ) : null}
-          </section>
-        </div>
-      </main>
+              </ButtonLink>
+            </div>
+          ) : null}
+        </StatusCard>
+      </OrderShell>
     );
   }
 
@@ -324,9 +356,8 @@ export default async function PedidoPage({
   const isCourtesy = order.payment_provider === COURTESY_PROVIDER;
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-      <SiteHeader variant="equipe" />
-      <div className="pt-4">
+    <OrderShell wide>
+      <div>
         <TicketPageNav
           backHref={backNav.backHref}
           backLabel={backNav.backLabel}
@@ -341,22 +372,22 @@ export default async function PedidoPage({
           title={isCourtesy ? "Ingresso confirmado!" : "Pagamento confirmado!"}
         />
 
-        <header className="mt-10 text-center">
+        <header className="mx-auto mt-10 max-w-2xl text-center">
           <h2 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl">
             Seus ingressos
           </h2>
-          <p className="mt-4 text-byla-muted">
+          <p className="mt-3 text-base text-foreground">
             {event.name} · {dateFormatter.format(new Date(event.starts_at))}
           </p>
-          <p className="mt-1 text-byla-muted">{event.venue}</p>
-          <p className="mt-4 text-sm text-byla-muted">
+          <p className="mt-1 text-base text-byla-muted">{event.venue}</p>
+          <p className="mt-4 text-base text-byla-muted">
             Apresente o QR Code na entrada. Cada ingresso deve ser usado uma
             única vez. Use “Baixar ingresso (PDF)” para guardar no celular.
           </p>
         </header>
 
         {tickets?.length ? (
-          <section className="mt-10 grid gap-6 sm:grid-cols-2">
+          <section className="mt-8 grid gap-6 md:grid-cols-2">
             {tickets.map((ticket) => (
               <TicketQr
                 code={ticket.code}
@@ -372,11 +403,9 @@ export default async function PedidoPage({
             ))}
           </section>
         ) : (
-          <p className="mt-10 rounded-xl border border-byla-border bg-byla-surface p-6 text-center text-byla-muted">
-            Nenhum ingresso disponível para este pedido.
-          </p>
+          <EmptyState className="mt-8" title="Nenhum ingresso disponível para este pedido." />
         )}
       </div>
-    </main>
+    </OrderShell>
   );
 }

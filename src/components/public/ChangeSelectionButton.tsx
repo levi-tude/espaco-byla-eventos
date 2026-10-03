@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
 
 import { changeOrderSelection } from "@/app/pedidos/[publicToken]/actions";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
 
 type Props = {
   publicToken: string;
@@ -58,22 +60,15 @@ export function ChangeSelectionButton({
 
   return (
     <div className={`grid gap-2 ${className}`}>
-      <button
-        className="min-h-11 rounded-lg border border-byla-border bg-byla-surface px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-byla-blue/60 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={pending}
+      <Button
+        loading={pending}
+        loadingLabel="Cancelando este pedido…"
         onClick={change}
-        type="button"
+        variant="secondary"
       >
-        {pending ? "Cancelando este pedido…" : "Alterar seleção"}
-      </button>
-      {message ? (
-        <p
-          className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
-          role="alert"
-        >
-          {message}
-        </p>
-      ) : null}
+        Alterar seleção
+      </Button>
+      {message ? <Notice tone="warning">{message}</Notice> : null}
     </div>
   );
 }

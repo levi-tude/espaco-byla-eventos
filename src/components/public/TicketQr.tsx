@@ -46,8 +46,8 @@ export async function TicketQr({
   const fileName = `ingresso-${safeFileName(eventName)}-${safeFileName(holderName)}-${kind}`;
 
   return (
-    <article className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center shadow-lg shadow-black/10 dark:shadow-black/40">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-byla-yellow">
+    <article className="rounded-2xl border border-byla-border bg-byla-surface p-5 text-center shadow-lg shadow-black/10 sm:p-6 dark:shadow-black/40">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-byla-accent-text">
         Espaço Byla Eventos
       </p>
       <h2 className="mt-2 font-display text-3xl tracking-wide text-foreground">
@@ -64,9 +64,9 @@ export async function TicketQr({
           width={256}
         />
       </div>
-      <p className="font-medium text-foreground">{holderName}</p>
+      <p className="text-lg font-semibold text-foreground">{holderName}</p>
       <div className="mt-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-byla-muted">
+        <p className="text-sm font-semibold text-byla-muted">
           Código para digitação manual
         </p>
         <code className="mt-1 block select-all break-all rounded-lg border border-byla-border bg-byla-overlay px-3 py-2 text-sm text-foreground">
@@ -74,10 +74,10 @@ export async function TicketQr({
         </code>
       </div>
       <p
-        className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
+        className={`mt-3 inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${
           status === "pago"
-            ? "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
-            : "bg-zinc-500/15 text-zinc-700 dark:bg-white/10 dark:text-zinc-200"
+            ? "border-byla-success/40 bg-byla-success-bg text-byla-success"
+            : "border-byla-neutral/30 bg-byla-neutral-bg text-byla-neutral"
         }`}
       >
         {statusLabels[status]}

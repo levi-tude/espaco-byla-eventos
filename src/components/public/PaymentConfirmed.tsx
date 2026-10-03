@@ -31,14 +31,14 @@ export function PaymentConfirmed({
 
   return (
     <section
-      className={`rounded-2xl border border-emerald-600/40 bg-emerald-50 p-6 text-center text-emerald-950 md:p-8 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-50 ${
+      className={`rounded-2xl border border-byla-success/40 bg-byla-success-bg p-6 text-center text-foreground md:p-8 ${
         justConfirmed ? "motion-safe:animate-success-in" : ""
       }`}
       role="status"
     >
       <CircleCheck
         aria-hidden="true"
-        className="mx-auto h-14 w-14 text-emerald-600 dark:text-emerald-400"
+        className="mx-auto h-14 w-14 text-byla-success"
         strokeWidth={2.2}
       />
       <h1

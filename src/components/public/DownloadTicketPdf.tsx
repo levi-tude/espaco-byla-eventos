@@ -1,7 +1,10 @@
 "use client";
 
 import { jsPDF } from "jspdf";
+import { Download } from "lucide-react";
 import { useState } from "react";
+
+import { Button } from "@/components/ui/Button";
 
 export type TicketPdfPayload = {
   eventName: string;
@@ -109,13 +112,15 @@ export function DownloadTicketPdf({ ticket }: Props) {
   }
 
   return (
-    <button
-      className="mt-4 w-full rounded-lg bg-byla-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-      disabled={busy}
+    <Button
+      className="mt-4"
+      fullWidth
+      loading={busy}
+      loadingLabel="Gerando PDF..."
       onClick={download}
-      type="button"
     >
-      {busy ? "Gerando PDF..." : "Baixar ingresso (PDF)"}
-    </button>
+      <Download aria-hidden className="h-5 w-5" />
+      Baixar ingresso (PDF)
+    </Button>
   );
 }
