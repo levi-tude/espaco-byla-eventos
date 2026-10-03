@@ -1,6 +1,6 @@
 # Sessões dentro do evento — design
 
-Data: 2026-10-03 · Status: **PRONTA PARA APROVAÇÃO (v4) — ainda não aprovada.** Todas as decisões do dono estão na seção 2; nenhuma dúvida bloqueia a implementação (a decisão 14 foi adiada de propósito, seção 17) · Base: código em `origin/feat/mvp` (`91efe7a`), que já inclui o check-in pela função do banco `check_in_ticket`, a equipe só lendo `tickets`/`orders` e o lembrete de compra não finalizada. Migrations até `20261010110000_abandoned_reminders_schedule.sql`.
+Data: 2026-10-03 · Status: **APROVADA pelo dono em 2026-10-03 às 20:19 (v4)** ("pode implementar direto da melhor forma possível"). Todas as decisões do dono estão na seção 2; nenhuma dúvida bloqueia a implementação (a decisão 14 foi adiada de propósito, seção 17) · Base: código em `origin/feat/mvp` (`91efe7a`), que já inclui o check-in pela função do banco `check_in_ticket`, a equipe só lendo `tickets`/`orders` e o lembrete de compra não finalizada. Migrations até `20261010110000_abandoned_reminders_schedule.sql`.
 
 Legenda: **[V]** verificado em código ou na central de ajuda oficial · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -774,7 +774,7 @@ Motivo de o visual ir primeiro: as sessões **acrescentam** conteúdo a essas te
 
 ### 16.2 Ordem recomendada
 
-1. **Aprovação desta spec** pelo dono → plano de implementação (tarefas pequenas, um commit por passo).
+1. **Aprovação desta spec** pelo dono (feita em 2026-10-03 às 20:19) → plano de implementação (tarefas pequenas, um commit por passo).
 2. **Sessões, fase 1** (banco e servidor) **em paralelo** com os passos 1–7 e 11 do mobile-first. Antes do deploy: aprovação da migration e aviso ao dono de que a venda passa a fechar 5 min após o início.
 3. **Mobile-first, passos 7–10** (check-in, painel, checkout, pedido).
 4. **Sessões, fase 2** (portaria, pedido, ingresso, e-mails) — depois dos passos 7 e 10.
@@ -807,7 +807,7 @@ Se o mobile-first atrasar, as fases 2 e 3 podem ir antes, desde que a outra fren
 
 ## 17. Decisões adiadas e pendências
 
-**Nenhuma pendência bloqueia a implementação.** Falta só a aprovação desta spec.
+**Nenhuma pendência bloqueia a implementação.** Spec aprovada pelo dono em 2026-10-03 às 20:19.
 
 - **Decisão 14 — reembolso para quem não pode ir no novo horário: adiada.** Enquanto isso: o e-mail de mudança de horário é neutro ("Em caso de dúvidas, responda este e-mail"), sem prometer reembolso; a equipe decide caso a caso e estorna pelo botão "Estornar pedido". Deve ser decidida junto com os **Termos de compra** (página ainda pendente no projeto, com as regras de reembolso e cancelamento). Quando decidida, muda só a frase do e-mail e o texto dos Termos.
 - **Termos de compra (pendente do projeto, fora desta spec):** devem incluir também o que acontece quando uma sessão é cancelada (devolução integral) e quando o horário muda (decisão 14).
