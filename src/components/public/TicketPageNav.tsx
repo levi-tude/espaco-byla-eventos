@@ -2,33 +2,35 @@
 
 import Link from "next/link";
 
+import { BackLink } from "@/components/ui/BackLink";
+
 type Props = {
   backHref: string;
   backLabel?: string;
   eventSlug?: string | null;
 };
 
-const navBtn =
-  "rounded-lg border border-byla-border bg-byla-surface px-4 py-2.5 text-sm font-medium text-foreground transition hover:border-byla-blue/60";
+const navLink =
+  "inline-flex min-h-11 items-center rounded-lg px-3 text-base text-byla-muted no-underline transition hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
 
 export function TicketPageNav({
   backHref,
-  backLabel = "← Voltar",
+  backLabel = "Voltar",
   eventSlug,
 }: Props) {
   return (
-    <div className="mb-8 flex flex-wrap items-center gap-3">
-      <Link className={navBtn} href={backHref}>
+    <nav aria-label="Navegação do pedido" className="mb-6 flex flex-wrap items-center gap-x-1 gap-y-1">
+      <BackLink className="mr-auto" href={backHref}>
         {backLabel}
-      </Link>
-      <Link className={navBtn} href="/">
+      </BackLink>
+      <Link className={navLink} href="/">
         Início
       </Link>
       {eventSlug ? (
-        <Link className={navBtn} href={`/eventos/${eventSlug}`}>
+        <Link className={navLink} href={`/eventos/${eventSlug}`}>
           Página do evento
         </Link>
       ) : null}
-    </div>
+    </nav>
   );
 }
