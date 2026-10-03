@@ -13,11 +13,13 @@ import { CoverField } from "@/components/equipe/CoverField";
 import {
   type EditorTicketType,
   initialTicketTypesState,
+  limitedTypesFromState,
   ticketTypesFromState,
   TicketTypesEditor,
 } from "@/components/equipe/TicketTypesEditor";
 import { toEventInputValue } from "@/lib/datetime";
 import { parseQuotaInput, quotaSummary, quotasError } from "@/lib/domain/quotas";
+import { typeLimitsError, typeLimitsSummary } from "@/lib/domain/type-limits";
 
 type EventFormProps = {
   event?: {
@@ -93,6 +95,17 @@ export function EventForm({ event }: EventFormProps) {
       ? null
       : quotaSummary(capacityValue, { inteiraQuota, meiaQuota });
 
+  const limitTypes = limitedTypesFromState(ticketTypes);
+  const limitProblem =
+    !quotaProblem &&
+    inteiraQuota !== undefined &&
+    meiaQuota !== undefined &&
+    Number.isInteger(capacityValue) &&
+    capacityValue > 0
+      ? typeLimitsError(capacityValue, { inteiraQuota, meiaQuota }, limitTypes)
+      : null;
+  const limitSummary = typeLimitsSummary(capacityValue, limitTypes);
+
   function setCount(field: keyof Counts, value: string) {
     setCounts((current) => ({ ...current, [field]: value }));
   }
@@ -114,6 +127,10 @@ export function EventForm({ event }: EventFormProps) {
     }
     if (quotaProblem || inteiraQuota === undefined || meiaQuota === undefined) {
       setMessage(quotaProblem);
+      return;
+    }
+    if (limitProblem) {
+      setMessage(limitProblem);
       return;
     }
 
@@ -263,6 +280,14 @@ export function EventForm({ event }: EventFormProps) {
         sales={sales}
         value={ticketTypes}
       />
+      {limitProblem || limitSummary ? (
+        <p
+          aria-live="polite"
+          className={limitProblem ? "-mt-2 text-sm font-medium text-byla-danger" : "-mt-2 text-sm text-byla-muted"}
+        >
+          {limitProblem ?? limitSummary}
+        </p>
+      ) : null}
 
       <label className="grid gap-2 text-sm font-medium">
         Descrição

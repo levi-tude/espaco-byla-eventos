@@ -288,6 +288,13 @@ Os status abaixo são **novos ou mudam de uso**.
 >   - O formulário mostra "Total 100 · Inteiras 60 · Meias 40" e "Faltam X para distribuir".
 >   - No checkout, um tipo para no menor entre: cota da categoria, limite próprio do tipo, total do evento e 10 pessoas por compra. Reservas pendentes contam como na lotação; a checagem roda sob a mesma trava do evento. O comprador vê "Esgotado"/"Resta N" coerentes; a equipe vê vendidos/cota por categoria na página do evento.
 >   - Eventos existentes ficam sem cotas (nada muda).
+> - **Limite de cada tipo dentro do total** (bug do dono em 2026-10-03: limite 50 na Inteira com total 10 era aceito; regra decidida pela coordenação, ajustável pelo dono):
+>   - O limite continua em unidades, mas é conferido em **ingressos (pessoas)**: limite × pessoas por unidade (3 casadinhas = 6 ingressos). A tela mostra "Até 3 unidades = 6 ingressos" nos tipos de mais de uma pessoa.
+>   - Cada limite ≤ total do evento e ≤ quantidade da sua categoria (inteiras/meias), se houver.
+>   - Soma dos limites de todos os tipos com limite ≤ total; soma dos limites dos tipos inteira ≤ quantidade de inteiras (idem meias). Tipos sem limite dividem o que sobrar.
+>   - Reduzir o total ou uma quantidade abaixo dos limites é recusado com a mesma mensagem, orientando a diminuir o limite ou aumentar o total.
+>   - Resumo ao vivo abaixo dos tipos: "Limites dos tipos: 6 de 10 ingressos. Os tipos sem limite dividem os 4 que sobram."
+>   - Validado no formulário e na ação do servidor (`src/lib/domain/type-limits.ts`). Sem migration: só a ação da equipe grava tipos (o banco nega escrita direta), e a venda continua barrada pela lotação e pelas cotas no banco. Dados existentes não mudam; a regra vale ao salvar.
 >
 > Escolhas de implementação (opção mais segura, reportadas ao dono):
 > - Tipo criado pela equipe é sempre da categoria **Inteira** (meia só pelo tipo pronto "Meia-entrada"); por isso o enum `outro` foi descartado e `ticket_kind` não muda.

@@ -8,6 +8,7 @@ import {
   type TicketTypeInput,
   unitContentsLabel,
 } from "@/lib/domain/ticket-types";
+import type { LimitedType } from "@/lib/domain/type-limits";
 
 /** Tipo à venda como a página da equipe carrega do banco. */
 export type EditorTicketType = {
@@ -110,6 +111,27 @@ export function initialTicketTypesState(types?: EditorTicketType[]): TicketTypes
   return { presets, customs };
 }
 
+/** Limites como estão na tela, para o resumo ao vivo; limite ainda inválido conta como vazio. */
+export function limitedTypesFromState(state: TicketTypesState): LimitedType[] {
+  const types: LimitedType[] = TICKET_PRESETS.filter(
+    ({ preset }) => state.presets[preset].checked,
+  ).map(({ preset, name, kind, peoplePerUnit }) => ({
+    name,
+    kind,
+    peoplePerUnit,
+    maxUnits: parseLimit(state.presets[preset].maxUnits) ?? null,
+  }));
+  for (const row of state.customs) {
+    types.push({
+      name: row.name.trim() || "tipo novo",
+      kind: "inteira",
+      peoplePerUnit: row.peoplePerUnit,
+      maxUnits: parseLimit(row.maxUnits) ?? null,
+    });
+  }
+  return types;
+}
+
 /** Converte o formulário para a ação; o servidor e o banco validam de novo. */
 export function ticketTypesFromState(
   state: TicketTypesState,
@@ -168,6 +190,38 @@ function SalesHint({ sales, maxUnits }: { sales?: SalesInfo; maxUnits: string })
         : ""}
       {limit ? ` · limite: ${limit}` : ""}
     </p>
+  );
+}
+
+function LimitField({
+  label,
+  peoplePerUnit,
+  value,
+  onChange,
+}: {
+  label: string;
+  peoplePerUnit: number;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const units = parseLimit(value);
+  return (
+    <label className="grid gap-1 text-sm">
+      {peoplePerUnit > 1 ? "Limite de unidades (opcional)" : "Limite (opcional)"}
+      <input
+        aria-label={`Limite ${label}`}
+        className={inputClass}
+        inputMode="numeric"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Sem limite"
+        value={value}
+      />
+      {peoplePerUnit > 1 && units ? (
+        <span className="text-xs text-byla-muted">
+          Até {units} {units === 1 ? "unidade" : "unidades"} = {units * peoplePerUnit} ingressos
+        </span>
+      ) : null}
+    </label>
   );
 }
 
@@ -240,13 +294,14 @@ export function TicketTypesEditor({
     <fieldset className="grid gap-4" disabled={disabled}>
       <legend className="text-sm font-medium">Tipos de ingresso</legend>
       <p className="mt-1 text-sm text-byla-muted">
-        Marque os tipos que serão vendidos e informe o preço. O limite é opcional
-        (em branco, vale só a capacidade do evento). Cortesias são emitidas pela
-        equipe na lista de ingressos.
+        Marque os tipos que serão vendidos e informe o preço. O limite é opcional e
+        conta ingressos: cada limite e a soma deles precisam caber no total (e na
+        quantidade de inteiras ou meias, se houver). Em branco, o tipo divide o que
+        sobrar. Cortesias são emitidas pela equipe na lista de ingressos.
       </p>
 
       <div className="grid gap-3">
-        {TICKET_PRESETS.map(({ preset, name }) => {
+        {TICKET_PRESETS.map(({ preset, name, peoplePerUnit }) => {
           const row = value.presets[preset];
           return (
             <div
@@ -282,17 +337,12 @@ export function TicketTypesEditor({
                       value={row.price}
                     />
                   </label>
-                  <label className="grid gap-1 text-sm">
-                    Limite (opcional)
-                    <input
-                      aria-label={`Limite ${name}`}
-                      className={inputClass}
-                      inputMode="numeric"
-                      onChange={(event) => setPreset(preset, { maxUnits: event.target.value })}
-                      placeholder="Sem limite"
-                      value={row.maxUnits}
-                    />
-                  </label>
+                  <LimitField
+                    label={name}
+                    onChange={(maxUnits) => setPreset(preset, { maxUnits })}
+                    peoplePerUnit={peoplePerUnit}
+                    value={row.maxUnits}
+                  />
                 </div>
               ) : null}
             </div>
@@ -359,17 +409,12 @@ export function TicketTypesEditor({
                       value={row.price}
                     />
                   </label>
-                  <label className="grid gap-1 text-sm">
-                    Limite (opcional)
-                    <input
-                      aria-label={`Limite ${label}`}
-                      className={inputClass}
-                      inputMode="numeric"
-                      onChange={(event) => setCustom(row.key, { maxUnits: event.target.value })}
-                      placeholder="Sem limite"
-                      value={row.maxUnits}
-                    />
-                  </label>
+                  <LimitField
+                    label={label}
+                    onChange={(maxUnits) => setCustom(row.key, { maxUnits })}
+                    peoplePerUnit={row.peoplePerUnit}
+                    value={row.maxUnits}
+                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button

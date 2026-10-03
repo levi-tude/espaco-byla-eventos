@@ -157,6 +157,43 @@ describe("tipos de ingresso ao editar evento", () => {
     expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      { capacity: 10, inteiraQuota: null, meiaQuota: null, ticketTypes: [{ preset: "inteira" as const, priceCents: 5000, maxUnits: 50 }] },
+      "O limite de “Inteira” (50) passa do total do evento (10). Diminua o limite ou aumente o total.",
+    ],
+    [
+      { ...input, ticketTypes: [{ preset: "casadinha" as const, priceCents: 9000, maxUnits: 31 }] },
+      "O limite de “Casadinha” (31 × 2 pessoas = 62 ingressos) passa da quantidade de inteiras (60). Diminua o limite ou aumente a quantidade de inteiras.",
+    ],
+    [
+      {
+        capacity: 10,
+        inteiraQuota: null,
+        meiaQuota: null,
+        ticketTypes: [
+          { preset: "inteira" as const, priceCents: 5000, maxUnits: 8 },
+          { preset: "meia" as const, priceCents: 2500, maxUnits: 6 },
+        ],
+      },
+      "A soma dos limites dos tipos (14 ingressos) passa do total (10). Diminua algum limite ou aumente o total.",
+    ],
+  ])("limite fora do total ou da cota é recusado antes do banco (%#)", async (change, error) => {
+    expect(await updateEvent(eventId, { ...input, ...change })).toEqual({ ok: false, error });
+    expect(await createEvent({ ...input, ...change })).toEqual({ ok: false, error });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it("reduzir o total abaixo da soma dos limites é recusado", async () => {
+    expect(await updateEvent(eventId, { ...input, capacity: 39, inteiraQuota: null, meiaQuota: null })).toEqual({
+      ok: false,
+      error:
+        "O limite de “Casadinha” (20 × 2 pessoas = 40 ingressos) passa do total do evento (39). Diminua o limite ou aumente o total.",
+    });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
   it("cota abaixo do já vendido é recusada com o número", async () => {
     mocks.adminRpc.mockResolvedValue({ error: { message: "COTA_MENOR:inteira:62" } });
     expect(await updateEvent(eventId, input)).toEqual({

@@ -14,6 +14,7 @@ import {
 } from "@/lib/domain/ticket-types";
 import { quotaDbErrorMessage, quotasError } from "@/lib/domain/quotas";
 import { createPublicToken } from "@/lib/domain/tickets";
+import { limitedTypesFromRpcItems, typeLimitsError } from "@/lib/domain/type-limits";
 import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
 import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
 import { mediaObjectExists, removeMediaObjects } from "@/lib/media/storage";
@@ -70,6 +71,12 @@ function normalizeInput(input: EventInput): NormalizedEventInput {
 
   const ticketTypes = normalizeTicketTypes(input.ticketTypes);
   if (!ticketTypes.ok) throw new ActionError(ticketTypes.error);
+  const limitError = typeLimitsError(
+    normalized.capacity,
+    quotas,
+    limitedTypesFromRpcItems(ticketTypes.items),
+  );
+  if (limitError) throw new ActionError(limitError);
 
   const startsAt = parseEventInputValue(normalized.startsAt);
   if (Number.isNaN(startsAt.getTime())) {

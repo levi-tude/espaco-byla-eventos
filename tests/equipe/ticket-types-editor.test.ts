@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type EditorTicketType,
   initialTicketTypesState,
+  limitedTypesFromState,
   parsePriceCents,
   ticketTypesFromState,
 } from "@/components/equipe/TicketTypesEditor";
@@ -21,6 +22,22 @@ function saved(overrides: Partial<EditorTicketType>): EditorTicketType {
     ...overrides,
   };
 }
+
+describe("limites na tela para o resumo ao vivo", () => {
+  it("lê os tipos marcados e os novos; limite ainda inválido conta como vazio", () => {
+    const state = initialTicketTypesState();
+    state.presets.inteira.maxUnits = "50";
+    state.presets.meia.maxUnits = "abc";
+    state.presets.casadinha = { checked: true, price: "", maxUnits: "3" };
+    state.customs.push({ key: "k", id: null, name: " ", peoplePerUnit: 6, price: "", maxUnits: "2" });
+    expect(limitedTypesFromState(state)).toEqual([
+      { name: "Inteira", kind: "inteira", peoplePerUnit: 1, maxUnits: 50 },
+      { name: "Meia-entrada", kind: "meia", peoplePerUnit: 1, maxUnits: null },
+      { name: "Casadinha", kind: "inteira", peoplePerUnit: 2, maxUnits: 3 },
+      { name: "tipo novo", kind: "inteira", peoplePerUnit: 6, maxUnits: 2 },
+    ]);
+  });
+});
 
 describe("preço digitado pela equipe", () => {
   it.each([
