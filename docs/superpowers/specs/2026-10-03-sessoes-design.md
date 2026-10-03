@@ -1,10 +1,21 @@
 # Sessões dentro do evento — design
 
-Data: 2026-10-03 · Status: **RASCUNHO v3 — todas as decisões do dono registradas (seção 2), incluindo a 9 (opção D); faltam só as dúvidas da seção 16** · Base: código em `origin/feat/mvp` (`91efe7a`), que já inclui o check-in pela função do banco `check_in_ticket`, a equipe só lendo `tickets`/`orders` e o lembrete de compra não finalizada. Migrations até `20261010110000_abandoned_reminders_schedule.sql`.
+Data: 2026-10-03 · Status: **PRONTA PARA APROVAÇÃO (v4) — ainda não aprovada.** Todas as decisões do dono estão na seção 2; nenhuma dúvida bloqueia a implementação (a decisão 14 foi adiada de propósito, seção 17) · Base: código em `origin/feat/mvp` (`91efe7a`), que já inclui o check-in pela função do banco `check_in_ticket`, a equipe só lendo `tickets`/`orders` e o lembrete de compra não finalizada. Migrations até `20261010110000_abandoned_reminders_schedule.sql`.
 
 Legenda: **[V]** verificado em código ou na central de ajuda oficial · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
 Ponto de partida (dono, 2026-10-03): um evento pode ter **mais de uma sessão** (ex.: 19h e 20h30), modeladas **dentro do evento**. A maioria dos eventos continua com sessão única, e cada sessão vende no máximo cerca de 100 ingressos.
+
+## Resumo executivo
+
+- **O que muda:** um evento pode ter várias sessões (ex.: 19h e 20h30). Cada sessão tem a sua lotação, as suas cotas e os seus preços. Os eventos de hoje viram eventos de 1 sessão, sem perder nada.
+- **Comprador:** escolhe a sessão primeiro e vê essa escolha em todos os passos (checkout, pagamento, ingresso, e-mail). Uma sessão por compra. Na home, cada evento mostra as sessões em botõezinhos.
+- **Portaria:** ingresso de outra sessão é recusado, e ingresso de sessão cancelada também.
+- **Venda:** fecha sozinha 5 minutos depois do início de cada sessão; a equipe pode fechar antes.
+- **Mudou o horário:** a equipe avisa todos os compradores por e-mail com um botão.
+- **Cancelar sessão:** não apaga nada e não devolve dinheiro sozinho. A equipe estorna um por um ou "todos de uma vez", com confirmação forte, e cada comprador recebe e-mail.
+- **E-mails:** respeitam o limite grátis de 100 por dia; se acabar, o resto sai sozinho quando o limite renova (21h), com botão de reserva.
+- **Prazo:** 13,5 a 20,5 dias de trabalho no total. Para vender um evento de 2 sessões bastam as fases 1 a 4 (8 a 12 dias). A ordem considera o redesign mobile-first (seção 16).
 
 ---
 
@@ -44,6 +55,9 @@ Ponto de partida (dono, 2026-10-03): um evento pode ter **mais de uma sessão** 
 | 10 | Mudar horário com vendas | **A + novo:** aviso na tela **e** botão para **enviar automaticamente** um e-mail de alteração de horário a todos os compradores pagos daquela sessão (seção 10). |
 | 11 | Home | Um card por evento, com as **sessões destacadas no card** (chips com data e horário, "Esgotada" riscada, "+2" quando forem muitas). Seção 12. |
 | 12 | Nome da sessão | **B** — nome opcional (ex.: "Sessão infantil"), mostrado junto do horário. |
+| 13 | E-mail na hora do cancelamento | **Sim** (2026-10-03 20:15): caixa "Avisar os compradores por e-mail agora" **já marcada**; a equipe pode desmarcar. Texto: a sessão foi cancelada e o valor será devolvido. Mesmo controle do limite diário (sai depois se estourar). Seção 9.4.5. |
+| 14 | Reembolso para quem não pode ir no novo horário | **Adiada** (2026-10-03 20:15: "ainda não pode ser confirmado"). O e-mail de mudança de horário **não promete reembolso**: texto neutro, com "Em caso de dúvidas, responda este e-mail". A equipe continua podendo estornar caso a caso pelo botão que já existe. Não bloqueia a implementação; será decidida junto com os **Termos de compra** (pendentes). Seções 10.5 e 17. |
+| 15 | Envio que para no limite diário | **Sim** (2026-10-03 20:15): continua **sozinho** quando o limite renova, com botão **"Continuar envio"** de reserva. Depende do agendador (`pg_cron` + `pg_net`) estar ligado: item do plano de ativação (seção 16.4). Vale para aviso de horário, aviso de cancelamento e e-mails de estorno. |
 
 ---
 
@@ -139,7 +153,7 @@ Como o e-mail mostra a data de um grupo/categoria; se a venda fecha sozinha no i
 | `sales_open` | `boolean not null default true` | botão "Encerrar vendas desta sessão" (decisão 6) |
 | `status` | `text not null default 'ativa'` | `check (status in ('ativa', 'cancelada'))` (decisão 9) |
 | `cancelled_at`, `cancelled_by` (→ `auth.users`), `cancelled_by_name`, `cancel_reason` | | preenchidos juntos quando `cancelada` (check de consistência); motivo de 5 a 500 caracteres |
-| `cancel_notice_sent_at` | `timestamptz` | e-mail de cancelamento enviado (dúvida 1, seção 16) |
+| `cancel_notice_sent_at` | `timestamptz` | e-mail de cancelamento pedido (decisão 13) |
 | `archived_at` | `timestamptz` | sessão sem vendas removida pela equipe: some da venda e da página; continua no histórico |
 | `created_at`, `updated_at` | `timestamptz` | |
 
@@ -352,7 +366,7 @@ A última sessão de um evento nunca é apagada nem arquivada (o evento precisa 
 - Cabeçalho com a sessão em letras grandes (formato padrão) e o texto: "Cancelar a sessão **não devolve o dinheiro automaticamente**. Depois de cancelar, você poderá estornar os pedidos um por um ou todos de uma vez."
 - **Impacto**, calculado no banco na hora de abrir a tela: "N pedidos pagos · R$ X recebidos", "N pedidos aguardando decisão · R$ Y", "N pedidos pendentes (serão cancelados)", "M cortesias", e, se houver, "N pedidos com entrada já registrada (não poderão ser estornados pelo site)".
 - **Motivo** obrigatório (5 a 500 caracteres; ex.: "Chuva forte, espaço alagado").
-- Caixa "Avisar os compradores por e-mail agora" (dúvida 1, seção 16).
+- Caixa "Avisar os compradores por e-mail agora", **já marcada** (decisão 13); a equipe pode desmarcar (ex.: cancelou por engano e vai reativar logo).
 - Campo **"Digite CANCELAR para confirmar"** (maiúsculas ou minúsculas). Botão só habilita com o texto e o motivo preenchidos.
 - O servidor confere de novo o texto, o motivo e se a sessão ainda está ativa; números diferentes dos mostrados não bloqueiam (cancelar não mexe em dinheiro), mas a tela de resultado mostra os números finais.
 
@@ -440,9 +454,9 @@ Só aparece em **sessão cancelada** com pelo menos 1 pedido estornável. Toda a
 
 Todos usam a fila `session_notices` / `session_notice_deliveries` (seção 6.4), com **chave única (comunicado, pedido)**: o mesmo e-mail nunca vai duas vezes ao mesmo pedido, e todos respeitam o limite diário (seção 10.4).
 
-- **Aviso de cancelamento** (só se a caixa for marcada; dúvida 1): 1 por pedido pago, aguardando decisão ou cortesia. Assunto "Sessão cancelada — <Evento>". Texto: "A sessão de <sessão> foi cancelada. Motivo: <motivo>. Seus ingressos não valem mais para entrada. O valor pago será devolvido integralmente e você receberá outro e-mail quando a devolução for feita." (cortesia: sem a frase do valor).
+- **Aviso de cancelamento** (caixa marcada por padrão; decisão 13): 1 por pedido pago, aguardando decisão ou cortesia. Assunto "Sessão cancelada — <Evento>". Texto: "A sessão de <sessão> foi cancelada. Motivo: <motivo>. Seus ingressos não valem mais para entrada. O valor pago será devolvido integralmente e você receberá outro e-mail quando a devolução for feita." (cortesia: sem a frase do valor).
 - **Estorno de sessão cancelada:** 1 por pedido estornado, um por um ou em lote. Assunto "Sessão cancelada — valor devolvido — <Evento>". Texto: sessão cancelada, valor devolvido e prazo por meio de pagamento (o mesmo texto do e-mail de estorno atual). Sai **quando o estorno é confirmado** (na hora, ou quando o banco confirmar um "em processamento").
-- No lote, cada e-mail é tentado logo depois do estorno do pedido; se o uso do dia passou de 80, fica `pendente` e segue a mesma continuação do aviso de horário (dúvida 3). O painel mostra "E-mails: 25 de 28 enviados; 3 serão enviados depois das 21h".
+- No lote, cada e-mail é tentado logo depois do estorno do pedido; se o uso do dia passou de 80, fica `pendente` e segue a mesma continuação do aviso de horário (decisão 15, seção 10.4). O painel mostra "E-mails: 25 de 28 enviados; 3 serão enviados depois das 21h".
 - Textos para o comprador **sem nome de fornecedor** ("banco responsável pelo pagamento").
 
 ---
@@ -478,7 +492,9 @@ Todos usam a fila `session_notices` / `session_notice_deliveries` (seção 6.4),
 - **Reserva para ingressos:** o envio para quando o uso do dia (cabeçalho `x-resend-daily-quota` da última resposta) chega a **80**, deixando 20 para ingressos e alertas. Constante em `src/lib/notices/rules.ts`.
 - Também para ao receber `daily_quota_exceeded`.
 - O que sobrar fica `pendente` com a mensagem: "Enviados 63 de 80. Os 17 restantes serão enviados depois das 21h (quando o limite diário de e-mails renova)."
-- **Continuação [R]** (dúvida 3, seção 16): automática pelo mesmo agendador do lembrete (job a cada 15 min que também processa avisos pendentes, prioridade acima do lembrete), e um botão "Continuar envio" na tela como reserva.
+- **Continuação** (decisão 15): **automática** pelo mesmo agendador do lembrete (job a cada 15 min que também processa os comunicados pendentes, com prioridade acima do lembrete), e um botão **"Continuar envio"** na tela como reserva.
+  - O agendador (`pg_cron` + `pg_net`) hoje está **desligado** até o dono ativar. Enquanto estiver desligado, só o botão funciona, e a tela diz: "Os restantes serão enviados quando alguém clicar em Continuar envio depois das 21h." Ligar o agendador está no plano de ativação (seção 16.4).
+  - O job só envia comunicados (aviso de horário, aviso de cancelamento, e-mail de estorno); **nunca faz estornos** (seção 9.4.4).
 - **Progresso na tela:** enquanto a página está aberta, o envio roda em lotes de até 10 por chamada (com a pausa de 600 ms entre e-mails já usada no lembrete) e a barra mostra "Enviando… 30 de 57". Fechar a página não perde nada: o restante continua pelo agendador ou pelo botão.
 - Histórico no cartão: "Aviso enviado por <nome> em 03/10 às 19h52 — 57 de 57 entregues."
 
@@ -491,7 +507,9 @@ Todos usam a fila `session_notices` / `session_notice_deliveries` (seção 6.4),
   - local do evento;
   - "Seus ingressos continuam valendo. Não precisa fazer nada.";
   - botão **"Ver meus ingressos"** (página do pedido);
-  - frase sobre quem não puder ir no novo horário (depende da dúvida 2, seção 16).
+  - texto neutro, **sem prometer reembolso** (decisão 14, adiada): "Em caso de dúvidas, responda este e-mail."
+- As respostas vão para o e-mail de contato do Espaço: os e-mails de sessão saem com `reply_to` = variável de ambiente `PRIVACY_CONTACT_EMAIL` (a mesma da Política de Privacidade; nada fixo no código). Sem a variável, a frase "responda este e-mail" não aparece.
+- A equipe continua podendo estornar caso a caso pelo botão "Estornar pedido". Quando a decisão 14 for tomada (junto com os Termos de compra), só a frase do e-mail muda.
 - Sem QR no e-mail (evita reenvio de ingressos e e-mail pesado); os QRs estão na página do pedido e no e-mail original, que continuam válidos.
 
 ---
@@ -627,7 +645,7 @@ Cada fase vai para produção sozinha. Fases com banco exigem aprovação de cad
 - **Check-in:** a fase 2 troca a assinatura de `check_in_ticket` (que acabou de entrar). Manter a antiga na janela de deploy, com falha fechada para eventos de várias sessões.
 - **Lembrete:** `claim_abandoned_order_reminders` lê `events.capacity`/`starts_at`; precisa da v2 já na fase 1, senão usa números desatualizados.
 - **Limite de e-mails:** aviso de horário, lembrete (até 30/dia) e ingressos dividem 100/dia. O aviso para em 80; num dia de muitas vendas + aviso grande, parte do aviso vai depois das 21h. Se o volume crescer, considerar plano pago do serviço de e-mail.
-- **Layout mobile-first:** mexe nas mesmas telas das fases 2–4 (evento, checkout, home, painel, check-in). Regra: lógica aqui, visual lá; a fase 4 começa quando essas telas estabilizarem.
+- **Layout mobile-first:** mexe nas mesmas telas das fases 2–4 (evento, checkout, home, painel, check-in). Regra: lógica aqui, visual lá; ordem detalhada na seção 16.
 - **Editor maior na equipe:** preços por sessão aumentam o formulário; mitigado por "copiar da anterior", "aplicar a todas" e pela tela de sessão única igual à de hoje.
 - **Deploy em duas etapas:** migration antes do código (compatibilidade na seção 6.5).
 - **Fuso:** horários sempre em `America/Sao_Paulo` na tela (`src/lib/datetime.ts`); comparações no banco com `timestamptz`. O limite do e-mail renova às 21h de Brasília.
@@ -641,20 +659,62 @@ Cada fase vai para produção sozinha. Fases com banco exigem aprovação de cad
 
 ---
 
-## 16. Decisões pendentes (perguntas ao dono)
+## 16. Dependências e ordem de execução
 
-Responder uma por vez.
+### 16.1 Onde as sessões e o redesign mobile-first se cruzam
 
-**1. Quando a equipe cancelar uma sessão, os compradores recebem um e-mail na hora (antes do estorno)?**
-- A) Sim: a tela de cancelamento traz a caixa "Avisar os compradores por e-mail agora" já marcada. O e-mail diz que a sessão foi cancelada, que os ingressos não valem mais e que o dinheiro será devolvido integralmente, com outro e-mail quando a devolução for feita. **← recomendado** (o comprador não fica sabendo só na porta; a equipe pode desmarcar se for reativar logo)
-- B) Não: o comprador só recebe o e-mail quando o pedido dele for estornado.
+O plano visual mobile-first (`docs/superpowers/specs/2026-10-03-redesign-mobile-first-plano.md`, seção 6) ainda vai mexer em telas que as sessões também mudam. Regra geral: **lógica aqui, visual lá**, e **nunca as duas frentes no mesmo arquivo ao mesmo tempo**.
 
-**2. Quem não puder ir no novo horário (mudança de horário) pode pedir o dinheiro de volta?**
-- A) Sim: o e-mail de mudança diz "Se não puder ir no novo horário, responda este e-mail que devolvemos 100%", e a equipe estorna pelo botão de sempre. **← recomendado** (a Sympla orienta oferecer reembolso quando a data muda)
-- B) Não: o e-mail só informa o novo horário.
+| Tela | Passo do mobile-first | Fase das sessões que mexe nela | Quem vai primeiro [R] |
+| --- | --- | --- | --- |
+| Componentes `ui/` e cores | 1 | Todas usam (seletor, chips, faixa da sessão) | Mobile-first |
+| Home e card do evento | 3 | 4 (chips das sessões, "A partir de") | Mobile-first |
+| Página do evento | 4 | 4 (escolha da sessão, preços por sessão) | Mobile-first |
+| Check-in | 7 | 2 (escolha da sessão, "Sessão errada", "Sessão cancelada") | Mobile-first |
+| **Painel do evento** | **8** | 3 (seletor de sessão, números por sessão, editor), 5 (cartão do aviso), 6 (cancelar, estornos) | **Mobile-first** (a fase 3 encaixa as sessões na nova ordem do painel aprovada pelo dono) |
+| Formulário do evento | (4.10 do plano) | 3 (cartões de sessão e preços por sessão) | Mobile-first, se estiver no mesmo ciclo; senão as sessões, com os componentes `ui/` |
+| **Checkout** | **9** | 1 (só a função do banco, sem tela), 4 (cartão da sessão, carrinho `v3`) | **Mobile-first** |
+| Pedido e pagamento | 10 | 2 (sessão acima do QR), 6 (sessão cancelada esconde QRs) | Mobile-first |
 
-**3. Se o limite diário de e-mails acabar no meio de um envio (aviso de horário, aviso de cancelamento ou e-mails de estorno), o resto vai sozinho depois das 21h?**
-- A) Sim, sozinho, usando o mesmo agendador do lembrete (precisa estar ligado), e também com um botão "Continuar envio" na tela. **← recomendado**
-- B) Só pelo botão "Continuar envio", que alguém da equipe clica depois das 21h.
+Motivo de o visual ir primeiro: as sessões **acrescentam** conteúdo a essas telas; montar em cima do layout novo evita refazer o visual duas vezes. A fase 1 das sessões não muda nenhuma tela (exceto o fechamento automático da venda) e pode correr em paralelo.
 
-Os estornos em si nunca rodam sozinhos: só com alguém da equipe na tela (seção 9.4.4).
+### 16.2 Ordem recomendada
+
+1. **Aprovação desta spec** pelo dono → plano de implementação (tarefas pequenas, um commit por passo).
+2. **Sessões, fase 1** (banco e servidor) **em paralelo** com os passos 1–7 e 11 do mobile-first. Antes do deploy: aprovação da migration e aviso ao dono de que a venda passa a fechar 5 min após o início.
+3. **Mobile-first, passos 7–10** (check-in, painel, checkout, pedido).
+4. **Sessões, fase 2** (portaria, pedido, ingresso, e-mails) — depois dos passos 7 e 10.
+5. **Sessões, fase 3** (equipe cria sessões) — depois do passo 8 e do formulário.
+6. **Sessões, fase 4** (comprador escolhe a sessão) — depois dos passos 3, 4 e 9. A partir daqui dá para vender um evento de 2 sessões.
+7. **Sessões, fase 5** (aviso de horário).
+8. **Sessões, fase 6** (cancelar e estornos) — só depois do ensaio com o Mercado Pago de teste (seção 15.1).
+9. **Sessões, fase 7** (limpeza) — com as fases 1–6 em produção e estáveis.
+
+Se o mobile-first atrasar, as fases 2 e 3 podem ir antes, desde que a outra frente faça rebase em cima delas; a fase 4 (checkout e página do evento) espera de qualquer jeito.
+
+### 16.3 Regras de coordenação
+
+- Cada fase em uma branch nova a partir do `feat/mvp` atualizado; antes de começar, conferir o histórico dos arquivos que a fase vai tocar.
+- Componentes novos das sessões (seletor de sessão, chips, faixa "Você está comprando para", faixa "Sessão cancelada") usam os componentes e cores do passo 1 do mobile-first, sem estilo próprio.
+- Conflito no mesmo arquivo: para e combina com a outra frente antes de seguir (sem resolver "no escuro").
+- Mudanças de banco seguem a regra do projeto: só no **Espaço Byla Eventos**, com conferência do fingerprint e aprovação de cada migration.
+
+### 16.4 Plano de ativação (fora do código, com aprovação do dono)
+
+| Quando | O quê | Por quê |
+| --- | --- | --- |
+| Antes do deploy da fase 1 | Aprovar as migrations de estrutura e de dados; avisar que a venda fecha 5 min após o início | Mudança de banco e de comportamento em produção |
+| Antes da fase 5 ir ao ar | **Ligar o agendador** (`pg_cron` + `pg_net`, job a cada 15 min, rota protegida por segredo) que hoje está desligado | Decisão 15: continuar envios sozinho quando o limite renova. Sem ele, só o botão "Continuar envio" funciona |
+| Antes da fase 5 ir ao ar | Conferir a variável `PRIVACY_CONTACT_EMAIL` na Vercel | `reply_to` dos e-mails de sessão (decisão 14) |
+| Antes da fase 6 ir ao ar | Ensaio completo com as credenciais de teste do Mercado Pago; aprovação do dono | Mexe com dinheiro (seção 15.2) |
+| Primeiro uso real da fase 6 | Acompanhar o primeiro "Estornar todos" (de preferência um lote pequeno) | Conferir estornos e e-mails na vida real |
+
+---
+
+## 17. Decisões adiadas e pendências
+
+**Nenhuma pendência bloqueia a implementação.** Falta só a aprovação desta spec.
+
+- **Decisão 14 — reembolso para quem não pode ir no novo horário: adiada.** Enquanto isso: o e-mail de mudança de horário é neutro ("Em caso de dúvidas, responda este e-mail"), sem prometer reembolso; a equipe decide caso a caso e estorna pelo botão "Estornar pedido". Deve ser decidida junto com os **Termos de compra** (página ainda pendente no projeto, com as regras de reembolso e cancelamento). Quando decidida, muda só a frase do e-mail e o texto dos Termos.
+- **Termos de compra (pendente do projeto, fora desta spec):** devem incluir também o que acontece quando uma sessão é cancelada (devolução integral) e quando o horário muda (decisão 14).
+- **E-mail de reativação de sessão:** fora de escopo (seção 9.4.2); a tela alerta a equipe para avisar por fora.
