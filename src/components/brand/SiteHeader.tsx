@@ -25,7 +25,7 @@ export function SiteHeader({ variant = "public", onMedia = false }: Props) {
           }`}
           href={variant === "equipe" ? "/equipe" : "/"}
         >
-          <BrandMark forceDark={onMedia} size={36} />
+          <BrandMark className="rounded-md object-contain" forceDark={onMedia} size={36} />
           <span
             className={`font-display text-lg tracking-wide sm:text-xl ${
               onMedia ? "text-white" : "text-foreground"

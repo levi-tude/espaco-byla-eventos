@@ -21,7 +21,7 @@ export function CoverImage({ src, alt = "", priority = false, className }: Cover
           className,
         )}
       >
-        <BrandMark className="object-contain opacity-80" forceDark size={56} />
+        <BrandMark className="object-contain opacity-80 mix-blend-screen" forceDark size={112} />
       </div>
     );
   }
