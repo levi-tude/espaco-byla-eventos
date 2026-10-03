@@ -1,8 +1,13 @@
 "use client";
 
+import { CircleCheck, CircleX, LoaderCircle, ScanLine } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 
+import { Button } from "@/components/ui/Button";
+import { controlClasses } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
+import { cx } from "@/components/ui/cx";
 import type { Enums } from "@/types/database";
 
 type CheckInResponse =
@@ -28,11 +33,19 @@ const kindLabels: Record<Enums<"ticket_kind">, string> = {
   cortesia: "Cortesia",
 };
 
+/** O resultado cobre a câmera para a equipe ver de longe; o leitor já fica pausado nesse momento. */
 const resultStyles: Record<Result["tone"], string> = {
-  idle: "border-byla-border bg-byla-surface text-foreground",
-  loading: "border-amber-500/40 bg-amber-950/40 text-amber-100",
-  success: "border-emerald-500 bg-emerald-950/50 text-emerald-100",
-  error: "border-red-500 bg-red-950/50 text-red-100",
+  idle: "px-3 pb-2 pt-3 text-white/90",
+  loading: "absolute inset-0 z-10 bg-black/75 text-white",
+  success: "absolute inset-0 z-10 bg-byla-success-solid/95 text-white",
+  error: "absolute inset-0 z-10 bg-byla-danger-solid/95 text-white",
+};
+
+const resultIcons: Record<Result["tone"], typeof ScanLine> = {
+  idle: ScanLine,
+  loading: LoaderCircle,
+  success: CircleCheck,
+  error: CircleX,
 };
 
 export function CheckInScanner({ eventId }: { eventId: string }) {
@@ -163,72 +176,99 @@ export function CheckInScanner({ eventId }: { eventId: string }) {
     }
   }
 
+  const ResultIcon = resultIcons[result.tone];
+  const idle = result.tone === "idle";
+
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl bg-zinc-950 p-3 shadow-lg">
+    <div className="space-y-4">
+      <section className="relative overflow-hidden rounded-2xl bg-zinc-950 p-2 shadow-lg sm:p-3">
         <div
           aria-label="Leitor de QR Code"
-          className="mx-auto aspect-square max-h-[62vh] w-full max-w-xl overflow-hidden rounded-xl"
+          className="mx-auto aspect-square max-h-[60dvh] w-full max-w-xl overflow-hidden rounded-xl"
           id="check-in-reader"
         />
-      </section>
 
-      {cameraError ? (
-        <p
-          className="rounded-xl border border-amber-500/40 bg-amber-950/40 p-4 text-base font-medium text-amber-100"
-          role="alert"
+        <div
+          aria-live="assertive"
+          className={cx(
+            "flex items-center justify-center text-center",
+            idle ? "gap-2" : "flex-col gap-2 p-6",
+            resultStyles[result.tone],
+          )}
         >
-          {cameraError}
-        </p>
-      ) : null}
-
-      <section
-        aria-live="assertive"
-        className={`rounded-2xl border-2 p-6 text-center ${resultStyles[result.tone]}`}
-      >
-        <p className="text-3xl font-bold">{result.message}</p>
-        {"detail" in result ? (
-          <p className="mt-2 text-lg font-semibold">{result.detail}</p>
-        ) : null}
-        {awaitingNext ? (
-          <button
-            className={`mt-5 min-h-12 rounded-xl px-6 text-base font-semibold text-foreground ${
-              result.tone === "success" ? "bg-emerald-800" : "bg-zinc-900"
-            }`}
-            onClick={scanNextTicket}
-            type="button"
-          >
-            Próximo ingresso
-          </button>
-        ) : null}
+          <ResultIcon
+            aria-hidden
+            className={cx(
+              "shrink-0",
+              idle ? "h-5 w-5" : "h-16 w-16",
+              result.tone === "loading" && "animate-spin motion-reduce:animate-none",
+            )}
+          />
+          <p className={idle ? "text-base font-medium" : "text-3xl font-bold"}>
+            {result.message}
+          </p>
+          {"detail" in result ? (
+            <p className="text-lg font-semibold">{result.detail}</p>
+          ) : null}
+          {awaitingNext ? (
+            <button
+              className="mt-3 min-h-12 rounded-xl bg-white px-6 text-base font-semibold text-zinc-900 transition hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              onClick={scanNextTicket}
+              type="button"
+            >
+              Próximo ingresso
+            </button>
+          ) : null}
+        </div>
       </section>
+
+      {cameraError ? <Notice tone="warning">{cameraError}</Notice> : null}
 
       <form
-        className="rounded-2xl border border-byla-border bg-byla-surface p-5"
+        className="rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-5"
         onSubmit={submitManualCode}
       >
-        <label className="text-base font-semibold" htmlFor="manual-code">
+        <label className="text-base font-semibold text-foreground" htmlFor="manual-code">
           Digitar código do ingresso
         </label>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
+            autoCapitalize="none"
             autoComplete="off"
-            className="min-h-12 flex-1 rounded-xl border border-byla-border px-4 text-lg"
+            className={cx(controlClasses, "min-h-12 flex-1 text-lg")}
             id="manual-code"
             onChange={(event) => setManualCode(event.target.value)}
             placeholder="Código do ingresso"
+            spellCheck={false}
             value={manualCode}
           />
-          <button
-            className="min-h-12 rounded-xl bg-byla-blue px-6 text-base font-semibold text-white disabled:opacity-50"
-            disabled={
-              !manualCode.trim() || result.tone === "loading" || awaitingNext
-            }
+          <Button
+            disabled={!manualCode.trim() || result.tone === "loading" || awaitingNext}
+            size="lg"
             type="submit"
           >
             Verificar
-          </button>
+          </Button>
         </div>
+        {!idle ? (
+          <p
+            aria-hidden
+            className={cx(
+              "mt-3 flex items-center gap-2 text-base font-semibold",
+              result.tone === "success" && "text-byla-success",
+              result.tone === "error" && "text-byla-danger",
+              result.tone === "loading" && "text-byla-muted",
+            )}
+          >
+            <ResultIcon
+              className={cx(
+                "h-5 w-5 shrink-0",
+                result.tone === "loading" && "animate-spin motion-reduce:animate-none",
+              )}
+            />
+            {result.message}
+          </p>
+        ) : null}
       </form>
     </div>
   );
