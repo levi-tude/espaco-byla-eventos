@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   from: vi.fn(),
+  getUser: vi.fn(),
+  adminRpc: vi.fn(),
   createAdminClient: vi.fn(),
 }));
 
@@ -12,7 +14,11 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
 }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: async () => ({ rpc: mocks.rpc, from: mocks.from }),
+  createServerClient: async () => ({
+    rpc: mocks.rpc,
+    from: mocks.from,
+    auth: { getUser: mocks.getUser },
+  }),
 }));
 
 import {
@@ -44,9 +50,13 @@ const staffActions = {
   cancelTicket: () => cancelTicket(eventId, "00000000-0000-4000-8000-000000000002"),
 };
 
+const staffUserId = "00000000-0000-4000-8000-0000000000ff";
+const ticketId = "00000000-0000-4000-8000-000000000002";
+
 describe("ações da equipe sem login de equipe", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } }, error: null });
     mocks.rpc.mockResolvedValue({ data: false, error: null });
   });
 
@@ -73,5 +83,59 @@ describe("ações da equipe sem login de equipe", () => {
     mocks.rpc.mockRejectedValue(new Error("connection refused 10.0.0.1:5432"));
     const result = await setSalesOpen(eventId, true);
     expect(result).toEqual({ ok: false, error: "Não foi possível alterar a venda." });
+  });
+});
+
+describe("cancelTicket (cortesia)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } }, error: null });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    mocks.createAdminClient.mockReturnValue({ rpc: mocks.adminRpc });
+    mocks.from.mockImplementation(() => {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: async () => ({ data: { slug: "show" }, error: null }),
+      };
+      return chain;
+    });
+  });
+
+  it("sem login é recusado antes de tocar no banco", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    expect(await cancelTicket(eventId, ticketId)).toEqual({
+      ok: false,
+      error: "Acesso restrito à equipe.",
+    });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "abc", `${ticketId}' or 1=1`])("recusa identificador inválido (%s)", async (invalid) => {
+    expect(await cancelTicket(eventId, invalid)).toEqual({
+      ok: false,
+      error: "Ingresso inválido.",
+    });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("cancela pela função do banco registrando quem pediu", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: "cancelled", error: null });
+    expect(await cancelTicket(eventId, ticketId)).toEqual({ ok: true, data: undefined });
+    expect(mocks.adminRpc).toHaveBeenCalledWith("cancel_courtesy_ticket", {
+      p_event_id: eventId,
+      p_ticket_id: ticketId,
+      p_staff_user_id: staffUserId,
+    });
+    expect(mocks.from).not.toHaveBeenCalledWith("tickets");
+  });
+
+  it("ingresso que não é cortesia sem entrada vira mensagem clara", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: "not_allowed", error: null });
+    expect(await cancelTicket(eventId, ticketId)).toEqual({
+      ok: false,
+      error:
+        "Só cortesias sem check-in podem ser canceladas. Ingresso pago se resolve com “Estornar pedido”.",
+    });
   });
 });

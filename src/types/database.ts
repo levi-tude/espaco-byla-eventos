@@ -374,6 +374,7 @@ export type Database = {
           buyer_name: string;
           cancelled_at: string | null;
           checked_in_at: string | null;
+          checked_in_by: string | null;
           code: string;
           created_at: string;
           event_id: string;
@@ -389,6 +390,7 @@ export type Database = {
           buyer_name: string;
           cancelled_at?: string | null;
           checked_in_at?: string | null;
+          checked_in_by?: string | null;
           code: string;
           created_at?: string;
           event_id: string;
@@ -404,6 +406,7 @@ export type Database = {
           buyer_name?: string;
           cancelled_at?: string | null;
           checked_in_at?: string | null;
+          checked_in_by?: string | null;
           code?: string;
           created_at?: string;
           event_id?: string;
@@ -486,6 +489,20 @@ export type Database = {
       cancel_pending_order: {
         Args: { p_order_id: string; p_reason: string };
         Returns: string;
+      };
+      cancel_courtesy_ticket: {
+        Args: { p_event_id: string; p_staff_user_id: string; p_ticket_id: string };
+        Returns: string;
+      };
+      check_in_ticket: {
+        Args: { p_code: string; p_event_id: string; p_staff_user_id: string };
+        Returns: {
+          buyer_name: string | null;
+          other_event_name: string | null;
+          outcome: string;
+          ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
+          type_name: string | null;
+        }[];
       };
       consume_rate_limit: {
         Args: {

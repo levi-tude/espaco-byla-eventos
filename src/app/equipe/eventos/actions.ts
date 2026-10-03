@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { assertStaff } from "@/lib/auth/staff";
+import { requireStaffUser } from "@/lib/auth/staff-user";
 import { parseEventInputValue } from "@/lib/datetime";
 import { resolveUniqueSlug, slugify } from "@/lib/domain/slug";
 import {
@@ -20,6 +21,9 @@ import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
 import { mediaObjectExists, removeMediaObjects } from "@/lib/media/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventInput = {
   name: string;
@@ -321,25 +325,24 @@ async function issueCourtesyOrThrow(
 }
 
 async function cancelTicketOrThrow(eventId: string, ticketId: string): Promise<undefined> {
-  if (!eventId || !ticketId) throw new ActionError("Ingresso inválido.");
+  if (
+    typeof eventId !== "string" ||
+    typeof ticketId !== "string" ||
+    !UUID_PATTERN.test(eventId) ||
+    !UUID_PATTERN.test(ticketId)
+  ) {
+    throw new ActionError("Ingresso inválido.");
+  }
 
-  await assertStaff();
-  const supabase = await createServerClient();
-  const { data: ticket, error } = await supabase
-    .from("tickets")
-    .update({
-      status: "cancelado",
-      cancelled_at: new Date().toISOString(),
-    })
-    .eq("id", ticketId)
-    .eq("event_id", eventId)
-    .eq("kind", "cortesia")
-    .eq("status", "pago")
-    .select("id")
-    .maybeSingle();
+  const { userId } = await requireStaffUser();
+  const { data, error } = await createAdminClient().rpc("cancel_courtesy_ticket", {
+    p_event_id: eventId,
+    p_ticket_id: ticketId,
+    p_staff_user_id: userId,
+  });
 
   if (error) throw new ActionError("Não foi possível cancelar o ingresso.");
-  if (!ticket) {
+  if (data !== "cancelled") {
     throw new ActionError(
       "Só cortesias sem check-in podem ser canceladas. Ingresso pago se resolve com “Estornar pedido”.",
     );
