@@ -96,6 +96,13 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-2 pl-5">
             <li>Criar seu pedido, processar o pagamento e emitir os ingressos.</li>
             <li>Enviar os ingressos e avisos sobre o seu pedido por e-mail.</li>
+            <li>
+              Se você começar uma compra e não concluir o pagamento, enviar{" "}
+              <strong className="text-foreground">um único lembrete</strong> por
+              e-mail sobre ela. Todo lembrete traz o link &ldquo;Não quero
+              receber lembretes&rdquo;; depois de confirmar, você não recebe mais
+              nenhum.
+            </li>
             <li>Conferir os ingressos na entrada do evento.</li>
             <li>Dar suporte, resolver problemas e prevenir fraudes.</li>
             <li>Cumprir obrigações legais, fiscais e contábeis.</li>
@@ -103,7 +110,7 @@ export default function PrivacyPage() {
           <p>
             Esses usos se baseiam na execução do contrato de compra, no
             cumprimento de obrigação legal e no legítimo interesse de manter o
-            site seguro (art. 7º da LGPD).{" "}
+            site seguro e de lembrar uma compra não concluída (art. 7º da LGPD).{" "}
             <strong className="text-foreground">
               Não vendemos seus dados e não enviamos propaganda.
             </strong>

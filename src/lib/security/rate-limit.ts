@@ -20,6 +20,7 @@ export const RATE_LIMITS = {
   paymentPerIp: { bucket: "payment:ip", limit: 20, windowSeconds: 600 },
   selectionChangePerOrder: { bucket: "selection:order", limit: 5, windowSeconds: 1800 },
   selectionChangePerIp: { bucket: "selection:ip", limit: 20, windowSeconds: 600 },
+  reminderOptoutPerIp: { bucket: "reminder-optout:ip", limit: 30, windowSeconds: 600 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =

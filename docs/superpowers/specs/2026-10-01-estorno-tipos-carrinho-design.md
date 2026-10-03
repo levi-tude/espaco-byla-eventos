@@ -491,6 +491,15 @@ Os status abaixo são **novos ou mudam de uso**.
 
 ## 9. Item F — Lembrete de compra não finalizada
 
+> **Decisões do dono em 2026-10-03** (implementadas em `feat/lembrete-abandono`; substituem o que divergir abaixo):
+> - Pedido cancelado por "Alterar seleção" **não** recebe lembrete (a pessoa continuou comprando). Recebem: `expirado` e `pendente` com reserva vencida, criados entre 1 h e 24 h atrás.
+> - **1 lembrete por e-mail e evento**, para sempre (não "7 dias"); só o pedido mais novo do e-mail no evento.
+> - Teto: **5 por execução** e **30 em 24 h** (janela móvel), a cada **15 min**.
+> - Nomes: rota `POST /api/cron/abandoned-reminders`, variável `REMINDER_CRON_SECRET`, segredo do Vault `reminder_cron_secret`.
+> - Descadastro por **token aleatório por pedido** guardado no banco (`orders.reminder_optout_token`), sem `REMINDER_UNSUBSCRIBE_SECRET`. Rota POST `/api/lembretes/cancelar`; página `/lembretes/cancelar` só com o botão.
+> - Migrations `20261010100000_abandoned_reminders` (tabelas e funções) e `20261010110000_abandoned_reminders_schedule` (extensões + função que chama o site). Sem `expire_stale_orders`: o critério já trata pendente vencido. Nenhuma migration agenda o job; ligar é um passo manual (`docs/superpowers/plans/2026-10-03-lembrete-ativacao.md`).
+> - Política de Privacidade versão `2026-10-03` (`REMINDER_MIN_POLICY_VERSION`).
+
 ### 9.1 Comportamento
 - **Quem recebe:** cerca de **1 hora** depois de criar o pedido (entre 60 e 70 min), um único e-mail "Você não finalizou sua compra", com o evento, data, itens e o botão **"Voltar e comprar"** → `/eventos/<slug>/checkout?retomar=<token>`. A reserva já venceu; o checkout é novo e já vem preenchido.
 - **Rodapé de todo lembrete:** "Não quero mais receber estes lembretes" → `/lembretes/cancelar?t=<token assinado>`. A página mostra um botão de confirmação; o registro acontece no POST, porque leitores de e-mail abrem links sozinhos. Também vai o cabeçalho `List-Unsubscribe` + `List-Unsubscribe-Post` (cancelamento com um clique).
