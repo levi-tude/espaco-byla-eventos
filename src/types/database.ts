@@ -9,6 +9,21 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      email_reminder_optouts: {
+        Row: {
+          created_at: string;
+          email_hash: string;
+        };
+        Insert: {
+          created_at?: string;
+          email_hash: string;
+        };
+        Update: {
+          created_at?: string;
+          email_hash?: string;
+        };
+        Relationships: [];
+      };
       events: {
         Row: {
           capacity: number;
@@ -221,6 +236,10 @@ export type Database = {
           provider_order_id: string | null;
           provider_payment_id: string | null;
           public_token: string;
+          reminder_attempts: number;
+          reminder_claimed_at: string | null;
+          reminder_optout_token: string | null;
+          reminder_sent_at: string | null;
           status: Database["public"]["Enums"]["order_status"];
           total_cents: number;
         };
@@ -245,6 +264,10 @@ export type Database = {
           provider_order_id?: string | null;
           provider_payment_id?: string | null;
           public_token: string;
+          reminder_attempts?: number;
+          reminder_claimed_at?: string | null;
+          reminder_optout_token?: string | null;
+          reminder_sent_at?: string | null;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents: number;
         };
@@ -269,6 +292,10 @@ export type Database = {
           provider_order_id?: string | null;
           provider_payment_id?: string | null;
           public_token?: string;
+          reminder_attempts?: number;
+          reminder_claimed_at?: string | null;
+          reminder_optout_token?: string | null;
+          reminder_sent_at?: string | null;
           status?: Database["public"]["Enums"]["order_status"];
           total_cents?: number;
         };
@@ -558,6 +585,37 @@ export type Database = {
       purge_rate_limit_hits: {
         Args: Record<PropertyKey, never>;
         Returns: number;
+      };
+      claim_abandoned_order_reminders: {
+        Args: { p_daily_cap: number; p_limit: number; p_min_policy_version: string };
+        Returns: {
+          buyer_email: string;
+          buyer_name: string;
+          event_name: string;
+          event_slug: string;
+          event_starts_at: string;
+          event_venue: string;
+          items: Json;
+          optout_token: string;
+          order_id: string;
+          public_token: string;
+        }[];
+      };
+      mark_abandoned_reminder_sent: {
+        Args: { p_order_id: string };
+        Returns: boolean;
+      };
+      release_abandoned_reminder: {
+        Args: { p_order_id: string };
+        Returns: boolean;
+      };
+      register_reminder_optout: {
+        Args: { p_token: string };
+        Returns: boolean;
+      };
+      reminder_email_hash: {
+        Args: { p_email: string };
+        Returns: string;
       };
       save_event_ticket_types: {
         Args: { p_event_id: string; p_types: Json };
