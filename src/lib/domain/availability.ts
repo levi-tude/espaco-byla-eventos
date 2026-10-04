@@ -23,6 +23,10 @@ export type TypeAvailability = {
   /** `null` = sem limite próprio (vale só a lotação do evento). */
   remainingUnits: number | null;
   hasSales: boolean;
+  /** Preço nesta sessão (`session_availability`); `null` = sem preço ou não informado. */
+  priceCents?: number | null;
+  /** À venda nesta sessão; `null`/ausente = não informado. */
+  onSale?: boolean | null;
 };
 
 /** Categorias com cota opcional no evento (a cortesia conta só na lotação). */

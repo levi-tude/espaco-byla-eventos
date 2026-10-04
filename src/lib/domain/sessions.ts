@@ -18,6 +18,110 @@ export type SessionSummary = {
   status: SessionStatus;
 };
 
+/** Sessão com a situação de venda (`event_sessions_summary`). */
+export type SessionSaleSummary = SessionSummary & {
+  /** Chave da equipe para esta sessão (a do evento vale à parte). */
+  salesOpen: boolean;
+  /** Evento e sessão abertos, sessão ativa e antes de início + 5 min. */
+  selling: boolean;
+  soldOut: boolean;
+  /** Lugares livres (vendidos e reservas ativas já descontados). */
+  remaining: number;
+  /** Menor preço à venda e não esgotado nesta sessão; `null` = nenhum. */
+  minPriceCents: number | null;
+};
+
+export type EventSessionsSummary = {
+  /** Menor preço entre as sessões vendendo e com lugar. */
+  minPriceCents: number | null;
+  sessions: SessionSaleSummary[];
+};
+
+/** "Últimos N" aparece com até 20 lugares (mesmo limite dos avisos de lotação). */
+export const SESSION_LOW_REMAINING = 20;
+
+function toCount(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+}
+
+function toPrice(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.trunc(number) : null;
+}
+
+/** Lê o JSON de `event_sessions_summary`; entradas inválidas são ignoradas. */
+export function parseEventSessionsSummary(value: unknown): EventSessionsSummary | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const data = value as Record<string, unknown>;
+  const rawSessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const sessions = rawSessions.flatMap((raw): SessionSaleSummary[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const item = raw as Record<string, unknown>;
+    if (typeof item.id !== "string" || typeof item.starts_at !== "string") return [];
+    return [
+      {
+        id: item.id,
+        name: typeof item.name === "string" ? item.name : null,
+        startsAt: item.starts_at,
+        endsAt: typeof item.ends_at === "string" ? item.ends_at : null,
+        status: item.status === "cancelada" ? "cancelada" : "ativa",
+        salesOpen: item.sales_open !== false,
+        selling: item.selling === true,
+        soldOut: item.sold_out === true,
+        remaining: toCount(item.remaining),
+        minPriceCents: toPrice(item.min_price_cents),
+      },
+    ];
+  });
+  sessions.sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+  return { minPriceCents: toPrice(data.min_price_cents), sessions };
+}
+
+/** Terminou: passou do término ou, sem término, 4 h depois do início. */
+export function isSessionFinished(
+  session: Pick<SessionSummary, "startsAt" | "endsAt">,
+  now = Date.now(),
+): boolean {
+  const start = Date.parse(session.startsAt);
+  if (!Number.isFinite(start)) return false;
+  const endParsed = session.endsAt ? Date.parse(session.endsAt) : Number.NaN;
+  const end = Number.isFinite(endParsed) ? endParsed : start + 4 * HOUR_MS;
+  return now > end;
+}
+
+/** Sessões que o comprador vê: ativas e ainda não terminadas, em ordem de horário. */
+export function buyerVisibleSessions<T extends SessionSaleSummary>(
+  sessions: readonly T[],
+  now = Date.now(),
+): T[] {
+  return sessions
+    .filter((session) => session.status === "ativa" && !isSessionFinished(session, now))
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+}
+
+export type SessionAvailabilityBadge =
+  | { kind: "sold_out"; label: string }
+  | { kind: "closed"; label: string }
+  | { kind: "low"; label: string }
+  | { kind: "open"; label: null };
+
+/** Selo da sessão para o comprador: "Esgotada", "Vendas encerradas" ou "Últimos N". */
+export function sessionAvailabilityBadge(session: SessionSaleSummary): SessionAvailabilityBadge {
+  if (session.soldOut) return { kind: "sold_out", label: "Esgotada" };
+  if (!session.selling) return { kind: "closed", label: "Vendas encerradas" };
+  if (session.remaining <= SESSION_LOW_REMAINING) {
+    return { kind: "low", label: `Últimos ${session.remaining}` };
+  }
+  return { kind: "open", label: null };
+}
+
+/** A sessão aceita compra agora (vendendo e com lugar). */
+export function sessionIsBuyable(session: SessionSaleSummary): boolean {
+  return session.status === "ativa" && session.selling && !session.soldOut && session.remaining > 0;
+}
+
 export function sessionSalesClosesAt(startsAt: string): Date {
   return new Date(Date.parse(startsAt) + SESSION_SALES_CLOSE_MINUTES * 60_000);
 }

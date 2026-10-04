@@ -126,6 +126,48 @@ export function formatSessionShort(startsAt: string | Date | null | undefined): 
   return `${start.weekdayShort}, ${start.dayPadded}/${start.monthPadded} · ${start.time}`;
 }
 
+/**
+ * Rótulo da sessão em botões, listas e no checkout:
+ * "Nome · sáb, 10/10 · 19h00 – 21h30" (nome e término só quando existem).
+ */
+export function formatSessionLabel(
+  name: string | null | undefined,
+  startsAt: string | Date | null | undefined,
+  endsAt?: string | Date | null,
+): string {
+  const short = formatSessionShort(startsAt);
+  const end = zonedParts(endsAt);
+  const start = zonedParts(startsAt);
+  const withEnd =
+    short && end && start
+      ? end.dayKey === start.dayKey
+        ? `${short} – ${end.time}`
+        : `${short} – ${end.time} (${end.weekdayShort})`
+      : short;
+  const trimmed = name?.trim();
+  if (!trimmed) return withEnd;
+  return withEnd ? `${trimmed} · ${withEnd}` : trimmed;
+}
+
+/** Chave do dia no fuso do evento ("2026-10-10"), para agrupar sessões. */
+export function sessionDayKey(startsAt: string | Date | null | undefined): string {
+  return zonedParts(startsAt)?.dayKey ?? "";
+}
+
+/** Cabeçalho do grupo de sessões do dia: "Sábado, 10 de outubro". */
+export function formatSessionDay(startsAt: string | Date | null | undefined): string {
+  const start = zonedParts(startsAt);
+  if (!start) return "";
+  return `${capitalize(start.weekdayLong)}, ${start.day} de ${start.monthLong}`;
+}
+
+/** Chip da home: "sáb 10/10 · 19h00". */
+export function formatSessionChip(startsAt: string | Date | null | undefined): string {
+  const start = zonedParts(startsAt);
+  if (!start) return "";
+  return `${start.weekdayShort} ${start.dayPadded}/${start.monthPadded} · ${start.time}`;
+}
+
 /** Para assuntos de e-mail: "sáb 10/10 às 19h00". */
 export function formatSessionSubject(startsAt: string | Date | null | undefined): string {
   const start = zonedParts(startsAt);

@@ -8,6 +8,7 @@ import {
   type TypeAvailability,
 } from "@/lib/domain/availability";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
+import { type EventSessionsSummary, parseEventSessionsSummary } from "@/lib/domain/sessions";
 
 function toCount(value: unknown): number {
   const number = Number(value);
@@ -47,9 +48,63 @@ function parseTypes(value: unknown): TypeAvailability[] {
         maxUnits: toOptionalCount(item.max_units),
         remainingUnits: toOptionalCount(item.remaining_units),
         hasSales: item.has_sales === true,
+        priceCents: toOptionalPrice(item.price_cents),
+        onSale: item.on_sale === undefined ? null : item.on_sale === true,
       },
     ];
   });
+}
+
+function toOptionalPrice(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.trunc(number) : null;
+}
+
+function parseAvailability(data: unknown): EventAvailabilityWithTypes | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const result = data as Record<string, unknown>;
+  const sold = toCount(result.sold);
+  return {
+    ...computeAvailability({
+      capacity: toCount(result.capacity),
+      sold,
+      occupied: sold + toCount(result.held),
+    }),
+    categories: parseCategories(result.categories),
+    types: parseTypes(result.types),
+    selling: typeof result.selling === "boolean" ? result.selling : null,
+  };
+}
+
+/**
+ * Disponibilidade de uma sessão: lotação, cotas e cada tipo com o preço, o
+ * "à venda" e o limite DESTA sessão. Em falha devolve `null` (a RPC do checkout
+ * continua barrando).
+ */
+export async function loadSessionAvailability(
+  admin: SupabaseAdmin,
+  sessionId: string,
+): Promise<EventAvailabilityWithTypes | null> {
+  const { data, error } = await admin.rpc("session_availability", {
+    p_session_id: sessionId,
+  });
+  const parsed = error ? null : parseAvailability(data);
+  if (!parsed) console.error("[disponibilidade] Falha ao consultar a lotação da sessão.");
+  return parsed;
+}
+
+/** Sessões do evento com a situação de venda, numa chamada só. `null` em falha. */
+export async function loadEventSessions(
+  admin: SupabaseAdmin,
+  eventId: string,
+): Promise<EventSessionsSummary | null> {
+  const { data, error } = await admin.rpc("event_sessions_summary", {
+    p_event_id: eventId,
+  });
+  const parsed = error ? null : parseEventSessionsSummary(data);
+  if (!parsed) console.error("[disponibilidade] Falha ao consultar as sessões do evento.");
+  return parsed;
 }
 
 /**
@@ -65,21 +120,7 @@ export async function loadEventAvailability(
     p_event_id: event.id,
   });
 
-  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
-    console.error("[disponibilidade] Falha ao consultar a lotação do evento.");
-    return null;
-  }
-
-  const result = data as Record<string, unknown>;
-  const sold = toCount(result.sold);
-  return {
-    ...computeAvailability({
-      capacity: toCount(result.capacity),
-      sold,
-      occupied: sold + toCount(result.held),
-    }),
-    categories: parseCategories(result.categories),
-    types: parseTypes(result.types),
-    selling: typeof result.selling === "boolean" ? result.selling : null,
-  };
+  const parsed = error ? null : parseAvailability(data);
+  if (!parsed) console.error("[disponibilidade] Falha ao consultar a lotação do evento.");
+  return parsed;
 }
