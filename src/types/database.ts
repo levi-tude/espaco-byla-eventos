@@ -900,6 +900,88 @@ export type Database = {
         };
         Returns: undefined;
       };
+      session_ops_summary: {
+        Args: { p_session_id: string };
+        Returns: Json;
+      };
+      queue_schedule_change_notice: {
+        Args: { p_session_id: string; p_staff_user_id: string };
+        Returns: Json;
+      };
+      cancel_event_session: {
+        Args: {
+          p_confirmation: string;
+          p_notify: boolean;
+          p_reason: string;
+          p_session_id: string;
+          p_staff_user_id: string;
+        };
+        Returns: Json;
+      };
+      queue_cancellation_refund_notice: {
+        Args: { p_order_id: string };
+        Returns: Json;
+      };
+      claim_session_notice_deliveries: {
+        Args: { p_limit: number; p_notice_id?: string | null; p_order_id?: string | null };
+        Returns: {
+          buyer_email: string;
+          buyer_name: string;
+          delivery_id: string;
+          event_name: string;
+          event_venue: string | null;
+          kind: string;
+          notice_id: string;
+          order_id: string;
+          previous_ends_at: string | null;
+          previous_starts_at: string | null;
+          public_token: string;
+          reason: string | null;
+          refund_amount_cents: number | null;
+          session_ends_at: string | null;
+          session_name: string | null;
+          session_starts_at: string;
+          tickets: Json | null;
+          total_cents: number;
+        }[];
+      };
+      mark_session_notice_sent: {
+        Args: { p_delivery_id: string };
+        Returns: boolean;
+      };
+      release_session_notice_delivery: {
+        Args: { p_delivery_id: string; p_error_code: string; p_quota?: boolean };
+        Returns: string;
+      };
+      pause_session_notice_emails: {
+        Args: { p_until: string };
+        Returns: string;
+      };
+      retry_failed_session_notices: {
+        Args: { p_notice_id: string; p_staff_user_id: string };
+        Returns: number;
+      };
+      start_session_refund_batch: {
+        Args: {
+          p_confirm_total_cents: number;
+          p_reason: string;
+          p_session_id: string;
+          p_staff_user_id: string;
+        };
+        Returns: Json;
+      };
+      claim_session_refund_item: {
+        Args: { p_batch_id: string; p_staff_user_id: string };
+        Returns: Json;
+      };
+      finish_session_refund_item: {
+        Args: { p_code?: string | null; p_item_id: string; p_status: string };
+        Returns: Json;
+      };
+      retry_session_refund_failures: {
+        Args: { p_batch_id: string; p_staff_user_id: string };
+        Returns: number;
+      };
     };
     Enums: {
       order_status:
