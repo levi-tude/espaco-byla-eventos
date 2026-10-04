@@ -23,6 +23,7 @@ describe("POST /api/cron/abandoned-reminders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("REMINDER_CRON_SECRET", secret);
+    mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 0, sent: 0, failed: 0, pausedUntil: null });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
