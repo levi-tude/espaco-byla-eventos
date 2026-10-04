@@ -184,7 +184,7 @@ try {
   await checkout(evA, sA.id, inteiraA, 1, "pendente@example.com");
   await pay(a1.order_id);
   await pay(a2.order_id);
-  const ca = await courtesy(evA, sA.id);
+  await courtesy(evA, sA.id);
 
   await rejects("sem mudança de horário: botão recusado", () => queueSchedule(sA.id), /AVISO_SEM_ALTERACAO/);
   check("painel sem alteração pendente", (await summary(sA.id)).schedule_change === null);

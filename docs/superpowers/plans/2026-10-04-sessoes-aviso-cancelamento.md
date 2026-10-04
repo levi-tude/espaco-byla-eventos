@@ -18,7 +18,7 @@ Extra opcional: o job de 15 min do lembrete (que continua **desligado**) também
 ## Tarefas
 
 1. **Migration** `20261012100000_session_notices_cancel.sql` (aditiva):
-   - tabelas `session_audit_log`, `session_notices`, `session_notice_deliveries`, `email_quota_pause`, `session_refund_batches`, `session_refund_batch_items` — RLS ligada, sem política (só `service_role`); auditoria sem `update/delete`;
+   - tabelas `session_audit_log`, `session_notices`, `session_notice_deliveries`, `email_quota_pause`, `session_refund_batches`, `session_refund_batch_items` — RLS ligada; equipe logada só lê (política `select` com `is_staff()`), `email_quota_pause` sem política; escrita só pelas funções (`service_role`); auditoria sem `update/delete` nem para o servidor;
    - funções (SECURITY DEFINER, `search_path = ''`, `revoke` de `public/anon/authenticated`, `grant` só a `service_role`): `session_ops_summary`, `queue_schedule_change_notice`, `cancel_event_session`, `queue_cancellation_refund_notice`, `claim_session_notice_deliveries`, `mark_session_notice_sent`, `release_session_notice_delivery`, `pause_session_notice_emails`, `retry_failed_session_notices`, `session_notice_progress`, `start_session_refund_batch`, `claim_session_refund_item`, `finish_session_refund_item`, `retry_session_refund_failures`.
 2. **Teste da migration** `scripts/db-tests/session-notices-cancel.mjs` (Postgres embutido temporário): idempotência do aviso, cancelamento (pendentes cancelados, pagos intactos, confirmação/motivo no servidor, 2ª vez sem efeito), check-in recusa sessão cancelada, lote (um aberto por sessão, total conferido no banco, itens pulados, sem duplicar, retomada após queda, "Tentar de novo"), fila de e-mail (pausa de cota, sem duplicar), permissões/RLS.
 3. **Domínio puro + testes:** `src/lib/domain/session-ops.ts` (valor digitado → centavos, CANCELAR, leitura do resumo, rótulos), `src/lib/notices/rules.ts` (80/dia, lotes, próxima renovação).
@@ -36,7 +36,15 @@ Extra opcional: o job de 15 min do lembrete (que continua **desligado**) também
 4. **Ensaio com as credenciais de teste do Mercado Pago** (vendedor `APP_USR-` de teste) num preview: sessão de teste com ~5 pedidos pagos → cancelar → estornar 1 um por um → "Estornar todos" → fechar a aba no meio → "Continuar estornos" → conferir 1 estorno por pagamento e 1 e-mail por pedido.
 5. Publicar o código (merge em `main`). O primeiro "Estornar todos" real deve ser acompanhado (lote pequeno).
 
-Nunca publicar o código antes da migration: o painel chama `session_ops_summary`.
+Nunca publicar o código antes da migration: o painel chama `session_ops_summary` (sem ela, a sessão mostra "Não foi possível carregar avisos e cancelamento" e o resto do painel segue funcionando).
+
+Depois de publicar: o cron diário passa a rodar às 21h (Brasília) em vez de 9h — confira na aba Cron Jobs da Vercel. Nada novo para ligar. O lembrete de carrinho continua **desligado**.
+
+## Como testar a migration localmente
+
+```powershell
+$env:BYLA_PG_TOOLS = "<pasta com o Postgres embutido>"; node scripts/db-tests/session-notices-cancel.mjs
+```
 
 ## Fora deste trabalho (pendente de decisão)
 
