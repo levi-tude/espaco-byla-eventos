@@ -10,6 +10,8 @@ export type RefundEmailData = {
   amountCents: number;
   tickets: { holderName: string; kindLabel: string }[];
   orderUrl: string;
+  /** Estorno de sessão cancelada: assunto e abertura "Sessão cancelada — valor devolvido". */
+  sessionCancelled?: boolean;
 };
 
 export type RefundEmailContent = {
@@ -56,7 +58,15 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
 
-  const subject = `Seu pedido foi estornado — ${data.eventName}`;
+  const cancelled = data.sessionCancelled === true;
+  const title = cancelled ? "Sessão cancelada — valor devolvido" : "Seu pedido foi estornado";
+  const subject = cancelled
+    ? `Sessão cancelada — valor devolvido — ${data.eventName}`
+    : `Seu pedido foi estornado — ${data.eventName}`;
+  const opening = (event: string, session: string) =>
+    cancelled
+      ? `A sessão de ${event}${session} foi cancelada e o seu pedido foi estornado.`
+      : `O pedido para ${event}${session} foi estornado.`;
 
   const paragraph = (content: string) =>
     `<p style="margin:0 0 12px;font-size:15px;line-height:22px;color:#333333;">${content}</p>`;
@@ -80,8 +90,8 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
-                <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">Seu pedido foi estornado</h1>
-                ${paragraph(`Olá, ${escapeHtml(name)}! O pedido para <strong>${escapeHtml(data.eventName)}</strong>${when ? ` (${escapeHtml(when)})` : ""} foi estornado.`)}
+                <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">${escapeHtml(title)}</h1>
+                ${paragraph(`Olá, ${escapeHtml(name)}! ${opening(`<strong>${escapeHtml(data.eventName)}</strong>`, when ? ` (${escapeHtml(when)})` : "")}`)}
                 ${paragraph(`<strong>Valor devolvido:</strong> ${escapeHtml(amount)} (100% do pedido), para o mesmo meio de pagamento usado na compra.`)}
                 ${paragraph(`<strong>Ingressos cancelados (${escapeHtml(count)}):</strong>`)}
                 <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:22px;color:#333333;">${ticketItems}</ul>
@@ -110,7 +120,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
   const text = [
     `Olá, ${name}!`,
     "",
-    `O pedido para ${data.eventName}${when ? ` (${when})` : ""} foi estornado.`,
+    opening(data.eventName, when ? ` (${when})` : ""),
     `Valor devolvido: ${amount} (100% do pedido), para o mesmo meio de pagamento usado na compra.`,
     "",
     `Ingressos cancelados (${count}):`,
