@@ -159,8 +159,6 @@ try {
        p_items => $3::jsonb, p_privacy_policy_version => $4, p_session_id => $5)`,
     [eventId, randomUUID(), JSON.stringify([{ ticket_type_id: typeId, qty }]), POLICY, sessionId])).rows[0];
   const pay = (orderId) => one("select public.mark_order_paid_by_external('mercadopago', $1) as r", [orderId]).then((r) => r.r);
-  const withIds = (rows, list) => list.map((item, i) => ({ ...item, id: rows[i]?.id ?? null }));
-
   // ---------- 1) criar evento com 2 sessões ----------
   const ev = await createEvent();
   const autoSession = (await sessionsOf(ev))[0];
