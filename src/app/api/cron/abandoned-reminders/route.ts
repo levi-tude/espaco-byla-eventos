@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { runSessionNotices } from "@/lib/notices/process";
+import { NOTICE_CRON_LIMIT } from "@/lib/notices/rules";
 import { runAbandonedReminders } from "@/lib/reminders/process";
 import { bearerMatches } from "@/lib/security/bearer";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +21,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const result = await runAbandonedReminders(createAdminClient());
+  const admin = createAdminClient();
+
+  // Avisos de sessão (horário, cancelamento, valor devolvido) têm prioridade sobre o lembrete.
+  let notices = 0;
+  try {
+    const run = await runSessionNotices(admin, { limit: NOTICE_CRON_LIMIT });
+    if (run.status === "ok") notices = run.sent;
+  } catch (error) {
+    console.error("[lembrete] Falha ao continuar os avisos de sessão.", error);
+  }
+
+  const result = await runAbandonedReminders(admin);
   if (result.status === "not_configured") {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
@@ -28,5 +41,5 @@ export async function POST(request: Request) {
   }
 
   const { claimed, sent, failed } = result;
-  return NextResponse.json({ ok: true, claimed, sent, failed });
+  return NextResponse.json({ ok: true, claimed, sent, failed, notices });
 }
