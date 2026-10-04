@@ -172,6 +172,50 @@ export type Database = {
           },
         ];
       };
+      session_schedule_changes: {
+        Row: {
+          changed_by: string | null;
+          created_at: string;
+          id: string;
+          new_ends_at: string | null;
+          new_starts_at: string;
+          paid_orders: number;
+          previous_ends_at: string | null;
+          previous_starts_at: string;
+          session_id: string;
+        };
+        Insert: {
+          changed_by?: string | null;
+          created_at?: string;
+          id?: string;
+          new_ends_at?: string | null;
+          new_starts_at: string;
+          paid_orders: number;
+          previous_ends_at?: string | null;
+          previous_starts_at: string;
+          session_id: string;
+        };
+        Update: {
+          changed_by?: string | null;
+          created_at?: string;
+          id?: string;
+          new_ends_at?: string | null;
+          new_starts_at?: string;
+          paid_orders?: number;
+          previous_ends_at?: string | null;
+          previous_starts_at?: string;
+          session_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_schedule_changes_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "event_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       session_ticket_types: {
         Row: {
           created_at: string;
@@ -732,6 +776,23 @@ export type Database = {
       };
       session_is_selling: {
         Args: { p_session_id: string };
+        Returns: boolean;
+      };
+      save_event_with_sessions: {
+        Args: {
+          p_cover_image_url: string | null;
+          p_description: string | null;
+          p_event_id: string;
+          p_name: string;
+          p_sessions: Json;
+          p_staff_user_id: string;
+          p_ticket_types: Json;
+          p_venue: string;
+        };
+        Returns: undefined;
+      };
+      set_session_sales_open: {
+        Args: { p_open: boolean; p_session_id: string; p_staff_user_id: string };
         Returns: boolean;
       };
       order_pix_allowed: {
