@@ -6,7 +6,7 @@ import { CoverImage } from "@/components/ui/CoverImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { eventDateFormatter } from "@/lib/datetime";
+import { eventDateFormatter, formatSessionShort } from "@/lib/datetime";
 import { createServerClient } from "@/lib/supabase/server";
 
 const dateFormatter = eventDateFormatter({
@@ -23,15 +23,34 @@ type EventRow = {
   starts_at: string;
   sales_open: boolean;
   cover_image_url: string | null;
+  /** Início das sessões ativas, em ordem. */
+  sessionStarts: string[];
 };
+
+/** Evento passa para "Passados" um dia depois do início da última sessão. */
+function lastStart(event: EventRow) {
+  return new Date(event.sessionStarts.at(-1) ?? event.starts_at).getTime();
+}
 
 function splitByDate(events: EventRow[]) {
   const cutoff = Date.now() - PAST_AFTER_MS;
-  const isPast = (event: EventRow) => new Date(event.starts_at).getTime() < cutoff;
+  const isPast = (event: EventRow) => lastStart(event) < cutoff;
   return {
     upcoming: events.filter((event) => !isPast(event)),
     past: events.filter(isPast).reverse(),
   };
+}
+
+/** Sessão única: a data. Várias: "3 sessões · próxima: sáb, 10/10 · 19h00". */
+function whenLine(event: EventRow) {
+  if (event.sessionStarts.length <= 1) {
+    return dateFormatter.format(new Date(event.sessionStarts[0] ?? event.starts_at));
+  }
+  const now = Date.now();
+  const next = event.sessionStarts.find((start) => new Date(start).getTime() > now);
+  return next
+    ? `${event.sessionStarts.length} sessões · próxima: ${formatSessionShort(next)}`
+    : `${event.sessionStarts.length} sessões · última: ${formatSessionShort(event.sessionStarts.at(-1))}`;
 }
 
 function EventList({ title, events }: { title: string; events: EventRow[] }) {
@@ -52,9 +71,7 @@ function EventList({ title, events }: { title: string; events: EventRow[] }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold text-foreground">{event.name}</p>
-                <p className="mt-0.5 text-sm text-byla-muted">
-                  {dateFormatter.format(new Date(event.starts_at))}
-                </p>
+                <p className="mt-0.5 text-sm text-byla-muted">{whenLine(event)}</p>
                 <StatusBadge className="mt-2" tone={event.sales_open ? "success" : "neutral"}>
                   {event.sales_open ? "Venda aberta" : "Venda fechada"}
                 </StatusBadge>
@@ -73,12 +90,21 @@ function EventList({ title, events }: { title: string; events: EventRow[] }) {
 
 export default async function EquipePage() {
   const supabase = await createServerClient();
-  const { data: events, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("events")
-    .select("id, name, starts_at, sales_open, cover_image_url")
+    .select(
+      "id, name, starts_at, sales_open, cover_image_url, event_sessions(starts_at, status, archived_at)",
+    )
     .order("starts_at", { ascending: true });
 
-  const { upcoming, past } = splitByDate(events ?? []);
+  const events: EventRow[] = (rows ?? []).map(({ event_sessions: sessions, ...event }) => ({
+    ...event,
+    sessionStarts: (sessions ?? [])
+      .filter((session) => session.status === "ativa" && session.archived_at === null)
+      .map((session) => session.starts_at)
+      .sort((a, b) => Date.parse(a) - Date.parse(b)),
+  }));
+  const { upcoming, past } = splitByDate(events);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
@@ -102,7 +128,7 @@ export default async function EquipePage() {
         </Notice>
       ) : null}
 
-      {!error && events?.length === 0 ? (
+      {!error && events.length === 0 ? (
         <EmptyState
           className="mt-8"
           description="Crie o primeiro evento para começar."

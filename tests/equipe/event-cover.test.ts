@@ -13,6 +13,9 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({
     rpc: mocks.rpc,
+    auth: {
+      getUser: async () => ({ data: { user: { id: "00000000-0000-4000-8000-0000000000ff" } }, error: null }),
+    },
     from: () => {
       const chain = {
         select: () => chain,
@@ -54,13 +57,21 @@ const ownCover = `${base}/covers/11111111-1111-4111-8111-111111111111.webp`;
 const newOwnCover = `${base}/covers/22222222-2222-4222-8222-222222222222.webp`;
 const input = {
   name: "Show",
-  startsAt: "2026-12-01T20:00",
   venue: "Espaço Byla",
   description: "",
-  capacity: 100,
-  inteiraQuota: null,
-  meiaQuota: null,
   ticketTypes: [{ preset: "inteira" as const, priceCents: 5000, maxUnits: null }],
+  sessions: [
+    {
+      id: null,
+      name: "",
+      startsAt: "2026-12-01T20:00",
+      endsAt: "",
+      capacity: 100,
+      inteiraQuota: null,
+      meiaQuota: null,
+      prices: [{ typeIndex: 0, priceCents: 5000, maxUnits: null, onSale: true }],
+    },
+  ],
 };
 
 beforeEach(() => {

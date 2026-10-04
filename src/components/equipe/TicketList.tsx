@@ -15,7 +15,7 @@ import {
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Field } from "@/components/ui/Field";
+import { controlClasses, Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Tone } from "@/components/ui/tone";
@@ -47,6 +47,8 @@ export type TicketListItem = {
   recentlyPaid: boolean;
   checkedInAt: string | null;
   publicToken: string;
+  /** Sessão do ingresso, mostrada na aba "Todas" de evento com várias sessões. */
+  sessionLabel?: string | null;
 };
 
 type SectionProps = {
@@ -119,22 +121,41 @@ function groupOrders(tickets: TicketListItem[]): Map<string, OrderRefundInfo> {
   return orders;
 }
 
+export type CourtesySession = { id: string; label: string; remaining: number };
+
 export function CourtesyForm({
   eventId,
   remaining,
+  sessions = [],
+  defaultSessionId,
   id,
   className,
-}: SectionProps & { eventId: string; remaining: number }) {
+}: SectionProps & {
+  eventId: string;
+  remaining: number;
+  /** Sessões ativas; com mais de uma, a equipe escolhe a sessão da cortesia. */
+  sessions?: CourtesySession[];
+  defaultSessionId?: string | null;
+}) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [lastTicketUrl, setLastTicketUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const soldOut = remaining === 0;
+  const askSession = sessions.length > 1;
+  const [chosenSessionId, setChosenSessionId] = useState(defaultSessionId ?? "");
+  const chosen = sessions.find((session) => session.id === chosenSessionId) ?? null;
+  const sessionId = askSession ? (chosen?.id ?? null) : (sessions[0]?.id ?? null);
+  const available = askSession ? (chosen?.remaining ?? null) : remaining;
+  const soldOut = available === 0;
 
   function submitCourtesy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     const form = event.currentTarget;
     const formData = new FormData(form);
+    if (askSession && !sessionId) {
+      setMessage({ ok: false, text: "Escolha a sessão da cortesia." });
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -142,6 +163,7 @@ export function CourtesyForm({
           eventId,
           name: String(formData.get("name") ?? ""),
           email: String(formData.get("email") ?? ""),
+          ...(sessionId ? { sessionId } : {}),
         });
         if (!result.ok) {
           setLastTicketUrl(null);
@@ -164,12 +186,35 @@ export function CourtesyForm({
         Emitir cortesia
       </h2>
       <p className="mt-1 text-base text-byla-muted">
-        {remaining} {remaining === 1 ? "vaga disponível" : "vagas disponíveis"}
+        {available === null
+          ? "Escolha a sessão para ver as vagas."
+          : `${available} ${available === 1 ? "vaga disponível" : "vagas disponíveis"}${askSession ? " nesta sessão" : ""}`}
       </p>
       <form
         className="mt-3 grid gap-4 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-5"
         onSubmit={submitCourtesy}
       >
+        {askSession ? (
+          <label className="grid gap-1.5 text-sm font-medium text-foreground">
+            Sessão
+            <select
+              className={cx(controlClasses, "min-h-12")}
+              disabled={isPending}
+              name="sessionId"
+              onChange={(change) => setChosenSessionId(change.target.value)}
+              required
+              value={chosenSessionId}
+            >
+              <option value="">Escolha a sessão</option>
+              {sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.label}
+                  {session.remaining === 0 ? " — sem vagas" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <Field
           autoComplete="off"
           disabled={isPending || soldOut}
@@ -353,6 +398,9 @@ export function TicketList({
                 <p className="break-all text-sm text-byla-muted">{ticket.buyerEmail}</p>
                 <TicketBadges ticket={ticket} className="mt-2" />
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                  {ticket.sessionLabel ? (
+                    <CardDetail className="col-span-2" label="Sessão" value={ticket.sessionLabel} />
+                  ) : null}
                   <CardDetail label="Tipo" value={ticket.typeLabel} />
                   <CardDetail label="Valor" value={currency.format(ticket.priceCents / 100)} />
                   <CardDetail label="Pagamento" value={formatDate(ticket.paidAt)} />
@@ -394,6 +442,9 @@ export function TicketList({
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      {ticket.sessionLabel ? (
+                        <span className="block text-sm font-medium">{ticket.sessionLabel}</span>
+                      ) : null}
                       <span className="block">{ticket.typeLabel}</span>
                       <span className="block text-sm text-byla-muted">
                         {currency.format(ticket.priceCents / 100)}
@@ -442,9 +493,17 @@ function TicketBadges({ ticket, className }: { ticket: TicketListItem; className
   );
 }
 
-function CardDetail({ label, value }: { label: string; value: string }) {
+function CardDetail({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
   return (
-    <div className="min-w-0">
+    <div className={cx("min-w-0", className)}>
       <dt className="text-sm text-byla-muted">{label}</dt>
       <dd className="break-words text-base text-foreground">{value}</dd>
     </div>

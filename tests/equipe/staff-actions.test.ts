@@ -26,25 +26,35 @@ import {
   createEvent,
   issueCourtesy,
   setSalesOpen,
+  setSessionSalesOpen,
   updateEvent,
 } from "@/app/equipe/eventos/actions";
 
 const eventId = "00000000-0000-4000-8000-000000000001";
 const eventInput = {
   name: "Show de teste",
-  startsAt: "2026-12-01T20:00",
   venue: "Espaço Byla",
   description: "",
-  capacity: 100,
-  inteiraQuota: null,
-  meiaQuota: null,
   ticketTypes: [{ preset: "inteira" as const, priceCents: 5000, maxUnits: null }],
+  sessions: [
+    {
+      id: null,
+      name: "",
+      startsAt: "2026-12-01T20:00",
+      endsAt: "",
+      capacity: 100,
+      inteiraQuota: null,
+      meiaQuota: null,
+      prices: [{ typeIndex: 0, priceCents: 5000, maxUnits: null, onSale: true }],
+    },
+  ],
 };
 
 const staffActions = {
   createEvent: () => createEvent(eventInput),
   updateEvent: () => updateEvent(eventId, eventInput),
   setSalesOpen: () => setSalesOpen(eventId, true),
+  setSessionSalesOpen: () => setSessionSalesOpen("00000000-0000-4000-8000-000000000003", false),
   issueCourtesy: () =>
     issueCourtesy({ eventId, name: "Convidado", email: "convidado@example.com" }),
   cancelTicket: () => cancelTicket(eventId, "00000000-0000-4000-8000-000000000002"),
@@ -83,6 +93,75 @@ describe("ações da equipe sem login de equipe", () => {
     mocks.rpc.mockRejectedValue(new Error("connection refused 10.0.0.1:5432"));
     const result = await setSalesOpen(eventId, true);
     expect(result).toEqual({ ok: false, error: "Não foi possível alterar a venda." });
+  });
+});
+
+describe("vendas por sessão e cortesia com sessão", () => {
+  const sessionId = "00000000-0000-4000-8000-000000000003";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } }, error: null });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    mocks.from.mockImplementation(() => {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: async () => ({ data: { slug: "show" }, error: null }),
+      };
+      return chain;
+    });
+    mocks.createAdminClient.mockReturnValue({
+      rpc: mocks.adminRpc,
+      from: () => {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          maybeSingle: async () => ({ data: { event_id: eventId, events: { slug: "show" } }, error: null }),
+        };
+        return chain;
+      },
+    });
+  });
+
+  it.each(["", "abc", `${sessionId}' or 1=1`])("recusa sessão inválida (%s)", async (invalid) => {
+    expect(await setSessionSalesOpen(invalid, false)).toEqual({ ok: false, error: "Sessão inválida." });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("encerra a venda da sessão pela função do banco, com quem pediu", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: false, error: null });
+    expect(await setSessionSalesOpen(sessionId, false)).toEqual({ ok: true, data: undefined });
+    expect(mocks.adminRpc).toHaveBeenCalledWith("set_session_sales_open", {
+      p_session_id: sessionId,
+      p_open: false,
+      p_staff_user_id: staffUserId,
+    });
+  });
+
+  it("sessão cancelada ou removida vira mensagem clara", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: null, error: { message: "SESSAO_INDISPONIVEL: x" } });
+    expect(await setSessionSalesOpen(sessionId, true)).toEqual({
+      ok: false,
+      error: "Esta sessão não está mais disponível. Recarregue a página.",
+    });
+  });
+
+  it("cortesia vai para a sessão escolhida", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: [{ order_id: "o", ticket_id: "t" }], error: null });
+    const result = await issueCourtesy({ eventId, name: "Convidado", email: "convidado@example.com", sessionId });
+    expect(result.ok).toBe(true);
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "issue_courtesy_ticket",
+      expect.objectContaining({ p_event_id: eventId, p_session_id: sessionId }),
+    );
+  });
+
+  it("cortesia com sessão inválida é recusada antes do banco", async () => {
+    expect(
+      await issueCourtesy({ eventId, name: "Convidado", email: "convidado@example.com", sessionId: "x" }),
+    ).toEqual({ ok: false, error: "Escolha a sessão da cortesia." });
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
 });
 

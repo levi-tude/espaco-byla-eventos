@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
+import { parseLimit, type DraftType, type PriceDraft } from "@/components/equipe/session-drafts";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { controlClasses } from "@/components/ui/Field";
@@ -13,30 +14,27 @@ import {
   type TicketTypeInput,
   unitContentsLabel,
 } from "@/lib/domain/ticket-types";
-import type { LimitedType } from "@/lib/domain/type-limits";
+
+export { parsePriceCents } from "@/components/equipe/session-drafts";
 
 /** Tipo à venda como a página da equipe carrega do banco. */
 export type EditorTicketType = {
   id: string;
   preset: string | null;
   name: string;
-  priceCents: number;
   peoplePerUnit: number;
-  maxUnits: number | null;
   hasSales: boolean;
   unitsSold: number;
   unitsTaken: number;
 };
 
-type PresetRow = { checked: boolean; price: string; maxUnits: string };
+type PresetRow = { checked: boolean };
 
 type CustomRow = {
   key: string;
   id: string | null;
   name: string;
   peoplePerUnit: number;
-  price: string;
-  maxUnits: string;
 };
 
 export type TicketTypesState = {
@@ -45,6 +43,20 @@ export type TicketTypesState = {
 };
 
 type SalesInfo = Pick<EditorTicketType, "hasSales" | "unitsSold" | "unitsTaken">;
+
+/** Chave do tipo no editor (liga o tipo ao preço de cada sessão). */
+export function presetTypeKey(preset: string): string {
+  return `preset:${preset}`;
+}
+
+export function customTypeKey(rowKey: string): string {
+  return `custom:${rowKey}`;
+}
+
+/** Chave de um tipo salvo, como a página carrega do banco. */
+export function savedTypeKey(type: Pick<EditorTicketType, "id" | "preset">): string {
+  return type.preset ? presetTypeKey(type.preset) : customTypeKey(type.id);
+}
 
 const PRESET_DETAILS: Record<TicketPreset, string> = {
   inteira: "1 pessoa",
@@ -62,44 +74,17 @@ function newRowKey() {
   return `novo-${rowSequence}`;
 }
 
-function priceText(cents: number) {
-  return (cents / 100).toFixed(2).replace(".", ",");
-}
-
-/** "45", "45,5", "45,50" ou "45.50" → centavos; `null` se inválido. */
-export function parsePriceCents(value: string): number | null {
-  const clean = value.trim().replace(/\s/g, "");
-  if (!/^\d{1,6}([.,]\d{1,2})?$/.test(clean)) return null;
-  const cents = Math.round(Number(clean.replace(",", ".")) * 100);
-  return cents >= 1 && cents <= TICKET_TYPE_LIMITS.maxPriceCents ? cents : null;
-}
-
-function parseLimit(value: string): number | null | undefined {
-  const clean = value.trim();
-  if (!clean) return null;
-  if (!/^\d{1,6}$/.test(clean)) return undefined;
-  const units = Number(clean);
-  return units >= 1 && units <= TICKET_TYPE_LIMITS.maxUnits ? units : undefined;
-}
-
-/** Evento novo: Inteira e Meia-entrada marcadas, sem preço (a equipe sempre informa). */
+/** Evento novo: Inteira e Meia-entrada marcadas. */
 export function initialTicketTypesState(types?: EditorTicketType[]): TicketTypesState {
   const presets = Object.fromEntries(
-    TICKET_PRESETS.map(({ preset }) => {
-      const current = types?.find((type) => type.preset === preset);
-      const row: PresetRow = current
-        ? {
-            checked: true,
-            price: priceText(current.priceCents),
-            maxUnits: current.maxUnits === null ? "" : String(current.maxUnits),
-          }
-        : {
-            checked: !types && (preset === "inteira" || preset === "meia"),
-            price: "",
-            maxUnits: "",
-          };
-      return [preset, row];
-    }),
+    TICKET_PRESETS.map(({ preset }) => [
+      preset,
+      {
+        checked: types
+          ? types.some((type) => type.preset === preset)
+          : preset === "inteira" || preset === "meia",
+      },
+    ]),
   ) as Record<TicketPreset, PresetRow>;
 
   const customs = (types ?? [])
@@ -109,72 +94,53 @@ export function initialTicketTypesState(types?: EditorTicketType[]): TicketTypes
       id: type.id,
       name: type.name,
       peoplePerUnit: type.peoplePerUnit,
-      price: priceText(type.priceCents),
-      maxUnits: type.maxUnits === null ? "" : String(type.maxUnits),
     }));
 
   return { presets, customs };
 }
 
-/** Limites como estão na tela, para o resumo ao vivo; limite ainda inválido conta como vazio. */
-export function limitedTypesFromState(state: TicketTypesState): LimitedType[] {
-  const types: LimitedType[] = TICKET_PRESETS.filter(
+/** Tipos marcados, na ordem enviada ao servidor (a posição é o `typeIndex` dos preços). */
+export function draftTypesFromState(state: TicketTypesState): DraftType[] {
+  const types: DraftType[] = TICKET_PRESETS.filter(
     ({ preset }) => state.presets[preset].checked,
   ).map(({ preset, name, kind, peoplePerUnit }) => ({
+    key: presetTypeKey(preset),
     name,
     kind,
     peoplePerUnit,
-    maxUnits: parseLimit(state.presets[preset].maxUnits) ?? null,
   }));
   for (const row of state.customs) {
     types.push({
+      key: customTypeKey(row.key),
       name: row.name.trim() || "tipo novo",
       kind: "inteira",
       peoplePerUnit: row.peoplePerUnit,
-      maxUnits: parseLimit(row.maxUnits) ?? null,
     });
   }
   return types;
 }
 
-/** Converte o formulário para a ação; o servidor e o banco validam de novo. */
+/**
+ * Converte os tipos para a ação. Preço e limite ficam nas sessões; os daqui são
+ * só marcadores (o servidor usa os das sessões). O servidor e o banco validam de novo.
+ */
 export function ticketTypesFromState(
   state: TicketTypesState,
 ): { ok: true; types: TicketTypeInput[] } | { ok: false; error: string } {
-  const types: TicketTypeInput[] = [];
-
-  for (const { preset, name } of TICKET_PRESETS) {
-    const row = state.presets[preset];
-    if (!row.checked) continue;
-    const priceCents = parsePriceCents(row.price);
-    if (priceCents === null) {
-      return { ok: false, error: `Informe o preço de “${name}” (ex.: 45,00).` };
-    }
-    const maxUnits = parseLimit(row.maxUnits);
-    if (maxUnits === undefined) {
-      return { ok: false, error: `Informe um limite válido para “${name}” ou deixe em branco.` };
-    }
-    types.push({ preset, priceCents, maxUnits });
-  }
+  const types: TicketTypeInput[] = TICKET_PRESETS.filter(
+    ({ preset }) => state.presets[preset].checked,
+  ).map(({ preset }) => ({ preset, priceCents: 0, maxUnits: null }));
 
   for (const row of state.customs) {
     const name = row.name.trim();
     if (!name) return { ok: false, error: "Informe o nome de cada tipo novo." };
-    const priceCents = parsePriceCents(row.price);
-    if (priceCents === null) {
-      return { ok: false, error: `Informe o preço de “${name}” (ex.: 45,00).` };
-    }
-    const maxUnits = parseLimit(row.maxUnits);
-    if (maxUnits === undefined) {
-      return { ok: false, error: `Informe um limite válido para “${name}” ou deixe em branco.` };
-    }
     types.push({
       preset: null,
       id: row.id,
       name,
       peoplePerUnit: row.peoplePerUnit,
-      priceCents,
-      maxUnits,
+      priceCents: 0,
+      maxUnits: null,
     });
   }
 
@@ -184,9 +150,9 @@ export function ticketTypesFromState(
   return { ok: true, types };
 }
 
-function SalesHint({ sales, maxUnits }: { sales?: SalesInfo; maxUnits: string }) {
+function SalesHint({ sales, maxUnits }: { sales?: SalesInfo; maxUnits?: string }) {
   if (!sales) return null;
-  const limit = maxUnits.trim();
+  const limit = maxUnits?.trim();
   return (
     <p className="text-sm text-byla-muted">
       Vendidos: {sales.unitsSold}
@@ -198,7 +164,7 @@ function SalesHint({ sales, maxUnits }: { sales?: SalesInfo; maxUnits: string })
   );
 }
 
-function LimitField({
+export function LimitField({
   label,
   peoplePerUnit,
   value,
@@ -230,6 +196,39 @@ function LimitField({
   );
 }
 
+export function PriceField({
+  label,
+  value,
+  onChange,
+  required = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <label className={fieldLabelClass}>
+      Preço (R$)
+      <input
+        aria-label={`Preço ${label}`}
+        className={inputClass}
+        inputMode="decimal"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="0,00"
+        required={required}
+        value={value}
+      />
+    </label>
+  );
+}
+
+/** Preço e limite de cada tipo na sessão única (a tela junta tipo e preço numa linha). */
+export type SingleSessionPrices = {
+  get: (key: string) => PriceDraft;
+  set: (key: string, patch: Partial<PriceDraft>) => void;
+};
+
 const SALES_WARNING =
   "já tem vendas. Ele sai da venda, mas os ingressos vendidos continuam válidos e o histórico fica guardado. Continuar?";
 
@@ -237,12 +236,15 @@ export function TicketTypesEditor({
   value,
   onChange,
   sales,
+  prices,
   disabled = false,
 }: {
   value: TicketTypesState;
   onChange: (next: TicketTypesState) => void;
-  /** Vendas por tipo: chave `preset:<tipo pronto>` ou `id:<id do tipo>`. */
+  /** Vendas por tipo, pela chave do tipo (`preset:<tipo pronto>` ou `custom:<id>`). */
   sales: Record<string, SalesInfo>;
+  /** Sessão única: preço e limite na linha do tipo. Ausente = preços em cada sessão. */
+  prices?: SingleSessionPrices;
   disabled?: boolean;
 }) {
   function setPreset(preset: TicketPreset, patch: Partial<PresetRow>) {
@@ -253,7 +255,7 @@ export function TicketTypesEditor({
   }
 
   function togglePreset(preset: TicketPreset, name: string, checked: boolean) {
-    if (!checked && sales[`preset:${preset}`]?.hasSales) {
+    if (!checked && sales[presetTypeKey(preset)]?.hasSales) {
       if (!window.confirm(`“${name}” ${SALES_WARNING}`)) return;
     }
     setPreset(preset, { checked });
@@ -269,15 +271,12 @@ export function TicketTypesEditor({
   function addCustom() {
     onChange({
       ...value,
-      customs: [
-        ...value.customs,
-        { key: newRowKey(), id: null, name: "", peoplePerUnit: 1, price: "", maxUnits: "" },
-      ],
+      customs: [...value.customs, { key: newRowKey(), id: null, name: "", peoplePerUnit: 1 }],
     });
   }
 
   function removeCustom(row: CustomRow) {
-    if (row.id && sales[`id:${row.id}`]?.hasSales) {
+    if (row.id && sales[customTypeKey(row.id)]?.hasSales) {
       if (!window.confirm(`“${row.name.trim() || "Este tipo"}” ${SALES_WARNING}`)) return;
     }
     onChange({ ...value, customs: value.customs.filter((item) => item.key !== row.key) });
@@ -299,15 +298,16 @@ export function TicketTypesEditor({
     <fieldset className="grid gap-4" disabled={disabled}>
       <legend className="text-base font-semibold">Tipos de ingresso</legend>
       <p className="mt-1 text-sm text-byla-muted">
-        Marque os tipos que serão vendidos e informe o preço. O limite é opcional e
-        conta ingressos: cada limite e a soma deles precisam caber no total (e na
-        quantidade de inteiras ou meias, se houver). Em branco, o tipo divide o que
-        sobrar. Cortesias são emitidas pela equipe na lista de ingressos.
+        {prices
+          ? "Marque os tipos que serão vendidos e informe o preço. O limite é opcional e conta ingressos: cada limite e a soma deles precisam caber no total (e na quantidade de inteiras ou meias, se houver). Em branco, o tipo divide o que sobrar. Cortesias são emitidas pela equipe na lista de ingressos."
+          : "Marque os tipos que o evento vende. O preço, o limite e se o tipo está à venda ficam em cada sessão, logo abaixo. Cortesias são emitidas pela equipe na lista de ingressos."}
       </p>
 
       <div className="grid gap-3">
         {TICKET_PRESETS.map(({ preset, name, peoplePerUnit }) => {
           const row = value.presets[preset];
+          const key = presetTypeKey(preset);
+          const price = prices?.get(key);
           return (
             <div
               className={cx(
@@ -330,26 +330,19 @@ export function TicketTypesEditor({
                   </span>
                 </span>
               </label>
-              <SalesHint maxUnits={row.maxUnits} sales={sales[`preset:${preset}`]} />
-              {row.checked ? (
+              <SalesHint maxUnits={price?.maxUnits} sales={sales[key]} />
+              {row.checked && prices && price ? (
                 <div className="grid gap-3 @md:grid-cols-2">
-                  <label className={fieldLabelClass}>
-                    Preço (R$)
-                    <input
-                      aria-label={`Preço ${name}`}
-                      className={inputClass}
-                      inputMode="decimal"
-                      onChange={(event) => setPreset(preset, { price: event.target.value })}
-                      placeholder="0,00"
-                      required
-                      value={row.price}
-                    />
-                  </label>
+                  <PriceField
+                    label={name}
+                    onChange={(next) => prices.set(key, { price: next })}
+                    value={price.price}
+                  />
                   <LimitField
                     label={name}
-                    onChange={(maxUnits) => setPreset(preset, { maxUnits })}
+                    onChange={(maxUnits) => prices.set(key, { maxUnits })}
                     peoplePerUnit={peoplePerUnit}
-                    value={row.maxUnits}
+                    value={price.maxUnits}
                   />
                 </div>
               ) : null}
@@ -362,8 +355,10 @@ export function TicketTypesEditor({
         <div className="grid gap-3">
           <p className="text-base font-semibold">Tipos criados pela equipe</p>
           {value.customs.map((row, index) => {
-            const rowSales = row.id ? sales[`id:${row.id}`] : undefined;
+            const rowSales = row.id ? sales[customTypeKey(row.id)] : undefined;
             const label = row.name.trim() || "tipo novo";
+            const key = customTypeKey(row.key);
+            const price = prices?.get(key);
             return (
               <div
                 className="grid gap-3 rounded-xl border border-byla-link/50 p-3 sm:p-4"
@@ -406,27 +401,22 @@ export function TicketTypesEditor({
                   Cada compra gera {unitContentsLabel(row.peoplePerUnit, "inteira")}.
                   {rowSales?.hasSales ? " Já tem vendas: o número de pessoas não muda." : ""}
                 </p>
-                <SalesHint maxUnits={row.maxUnits} sales={rowSales} />
-                <div className="grid gap-3 @md:grid-cols-2">
-                  <label className={fieldLabelClass}>
-                    Preço (R$)
-                    <input
-                      aria-label={`Preço ${label}`}
-                      className={inputClass}
-                      inputMode="decimal"
-                      onChange={(event) => setCustom(row.key, { price: event.target.value })}
-                      placeholder="0,00"
-                      required
-                      value={row.price}
+                <SalesHint maxUnits={price?.maxUnits} sales={rowSales} />
+                {prices && price ? (
+                  <div className="grid gap-3 @md:grid-cols-2">
+                    <PriceField
+                      label={label}
+                      onChange={(next) => prices.set(key, { price: next })}
+                      value={price.price}
                     />
-                  </label>
-                  <LimitField
-                    label={label}
-                    onChange={(maxUnits) => setCustom(row.key, { maxUnits })}
-                    peoplePerUnit={row.peoplePerUnit}
-                    value={row.maxUnits}
-                  />
-                </div>
+                    <LimitField
+                      label={label}
+                      onChange={(maxUnits) => prices.set(key, { maxUnits })}
+                      peoplePerUnit={row.peoplePerUnit}
+                      value={price.maxUnits}
+                    />
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     aria-label={`Subir ${label}`}

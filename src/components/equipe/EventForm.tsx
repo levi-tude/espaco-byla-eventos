@@ -10,43 +10,46 @@ import {
 } from "@/app/equipe/eventos/actions";
 import { CoverField } from "@/components/equipe/CoverField";
 import {
+  type EditorSession,
+  initialSessionDrafts,
+  priceDraftFor,
+  scheduleChangesWithSales,
+  type PriceDraft,
+  type SessionDraft,
+  sessionsToInput,
+} from "@/components/equipe/session-drafts";
+import {
+  AddSessionButton,
+  draftChecks,
+  LimitSummary,
+  ScheduleWarning,
+  SessionQuantityFields,
+  SessionsEditor,
+  SessionTimeFields,
+} from "@/components/equipe/SessionsEditor";
+import {
+  draftTypesFromState,
   type EditorTicketType,
   initialTicketTypesState,
-  limitedTypesFromState,
+  savedTypeKey,
   ticketTypesFromState,
   TicketTypesEditor,
 } from "@/components/equipe/TicketTypesEditor";
 import { Button } from "@/components/ui/Button";
 import { Field, TextAreaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { toEventInputValue } from "@/lib/datetime";
-import { parseQuotaInput, quotaSummary, quotasError } from "@/lib/domain/quotas";
-import { typeLimitsError, typeLimitsSummary } from "@/lib/domain/type-limits";
 
 type EventFormProps = {
   event?: {
     id: string;
     name: string;
-    startsAt: string;
     venue: string;
     description: string;
-    capacity: number;
-    inteiraQuota: number | null;
-    meiaQuota: number | null;
     ticketTypes: EditorTicketType[];
+    sessions: EditorSession[];
     coverImageUrl: string | null;
   };
 };
-
-type Counts = { capacity: string; inteiraQuota: string; meiaQuota: string };
-
-function initialCounts(event: EventFormProps["event"]): Counts {
-  return {
-    capacity: event ? String(event.capacity) : "",
-    inteiraQuota: event?.inteiraQuota == null ? "" : String(event.inteiraQuota),
-    meiaQuota: event?.meiaQuota == null ? "" : String(event.meiaQuota),
-  };
-}
 
 export function EventForm({ event }: EventFormProps) {
   const router = useRouter();
@@ -56,95 +59,108 @@ export function EventForm({ event }: EventFormProps) {
   const [ticketTypes, setTicketTypes] = useState(() =>
     initialTicketTypesState(event?.ticketTypes),
   );
-  // Depois de salvar (ou se outra pessoa da equipe mudar os tipos), o editor
-  // recomeça do banco: tipo novo já salvo precisa do id para não ser recriado.
-  // Vendas ficam de fora da chave para a atualização automática não apagar edições.
-  const savedTypesKey = JSON.stringify(
-    (event?.ticketTypes ?? []).map(({ id, preset, name, priceCents, peoplePerUnit, maxUnits }) => [
+  const [drafts, setDrafts] = useState<SessionDraft[]>(() =>
+    initialSessionDrafts(event?.sessions),
+  );
+  // Depois de salvar (ou se outra pessoa da equipe mudar o evento), o editor
+  // recomeça do banco: tipo e sessão novos já salvos precisam do id para não
+  // serem recriados. Vendas ficam de fora da chave para a atualização
+  // automática não apagar edições.
+  const savedKey = JSON.stringify([
+    (event?.ticketTypes ?? []).map(({ id, preset, name, peoplePerUnit }) => [
       id,
       preset,
       name,
-      priceCents,
       peoplePerUnit,
-      maxUnits,
     ]),
-  );
-  const [loadedTypesKey, setLoadedTypesKey] = useState(savedTypesKey);
-  if (loadedTypesKey !== savedTypesKey) {
-    setLoadedTypesKey(savedTypesKey);
+    (event?.sessions ?? []).map(
+      ({ id, name, startsAt, endsAt, capacity, inteiraQuota, meiaQuota, prices }) => [
+        id,
+        name,
+        startsAt,
+        endsAt,
+        capacity,
+        inteiraQuota,
+        meiaQuota,
+        prices,
+      ],
+    ),
+  ]);
+  const [loadedKey, setLoadedKey] = useState(savedKey);
+  if (loadedKey !== savedKey) {
+    setLoadedKey(savedKey);
     setTicketTypes(initialTicketTypesState(event?.ticketTypes));
+    setDrafts(initialSessionDrafts(event?.sessions));
   }
-  const savedCounts = initialCounts(event);
-  const [counts, setCounts] = useState(savedCounts);
-  const savedCountsKey = JSON.stringify(savedCounts);
-  const [loadedCountsKey, setLoadedCountsKey] = useState(savedCountsKey);
-  if (loadedCountsKey !== savedCountsKey) {
-    setLoadedCountsKey(savedCountsKey);
-    setCounts(savedCounts);
-  }
-  const capacityValue = Number(counts.capacity);
-  const inteiraQuota = parseQuotaInput(counts.inteiraQuota);
-  const meiaQuota = parseQuotaInput(counts.meiaQuota);
-  const quotaProblem =
-    inteiraQuota === undefined || meiaQuota === undefined
-      ? "Use números inteiros nas quantidades de inteiras e meias, ou deixe em branco."
-      : Number.isInteger(capacityValue) && capacityValue > 0
-        ? quotasError(capacityValue, { inteiraQuota, meiaQuota })
-        : null;
-  const summary =
-    inteiraQuota === undefined || meiaQuota === undefined
-      ? null
-      : quotaSummary(capacityValue, { inteiraQuota, meiaQuota });
 
-  const limitTypes = limitedTypesFromState(ticketTypes);
-  const limitProblem =
-    !quotaProblem &&
-    inteiraQuota !== undefined &&
-    meiaQuota !== undefined &&
-    Number.isInteger(capacityValue) &&
-    capacityValue > 0
-      ? typeLimitsError(capacityValue, { inteiraQuota, meiaQuota }, limitTypes)
-      : null;
-  const limitSummary = typeLimitsSummary(capacityValue, limitTypes);
+  const types = draftTypesFromState(ticketTypes);
+  const single = drafts.length === 1;
+  const only = drafts[0];
+  const singleChecks = single ? draftChecks(only, types, true) : null;
 
-  function setCount(field: keyof Counts, value: string) {
-    setCounts((current) => ({ ...current, [field]: value }));
-  }
   const sales = Object.fromEntries(
-    (event?.ticketTypes ?? []).map((type) => [
-      type.preset ? `preset:${type.preset}` : `id:${type.id}`,
-      type,
-    ]),
+    (event?.ticketTypes ?? []).map((type) => [savedTypeKey(type), type]),
   );
+
+  function updateOnly(patch: Partial<SessionDraft>) {
+    setDrafts((current) =>
+      current.map((draft, index) => (index === 0 ? { ...draft, ...patch } : draft)),
+    );
+  }
+
+  const singlePrices = {
+    get: (key: string) => priceDraftFor(only, key),
+    set: (key: string, patch: Partial<PriceDraft>) =>
+      setDrafts((current) =>
+        current.map((draft, index) =>
+          index === 0
+            ? {
+                ...draft,
+                prices: { ...draft.prices, [key]: { ...priceDraftFor(draft, key), ...patch } },
+              }
+            : draft,
+        ),
+      ),
+  };
 
   function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setMessage(null);
 
-    const types = ticketTypesFromState(ticketTypes);
-    if (!types.ok) {
-      setMessage({ ok: false, text: types.error });
+    const typesInput = ticketTypesFromState(ticketTypes);
+    if (!typesInput.ok) {
+      setMessage({ ok: false, text: typesInput.error });
       return;
     }
-    if (quotaProblem || inteiraQuota === undefined || meiaQuota === undefined) {
-      setMessage(quotaProblem ? { ok: false, text: quotaProblem } : null);
+    for (const [index, draft] of drafts.entries()) {
+      const checks = draftChecks(draft, types, single);
+      const problem = checks.quotaProblem ?? checks.limitProblem;
+      if (problem) {
+        setMessage({ ok: false, text: single ? problem : `Sessão ${index + 1}: ${problem}` });
+        return;
+      }
+    }
+    const sessions = sessionsToInput(drafts, types);
+    if (!sessions.ok) {
+      setMessage({ ok: false, text: sessions.error });
       return;
     }
-    if (limitProblem) {
-      setMessage({ ok: false, text: limitProblem });
-      return;
+    const changed = scheduleChangesWithSales(drafts);
+    if (changed.length) {
+      const paid = changed.reduce((sum, item) => sum + item.paidOrders, 0);
+      const ok = window.confirm(
+        `Você mudou o horário de ${changed.length === 1 ? "uma sessão" : `${changed.length} sessões`} com ${paid === 1 ? "1 pedido pago" : `${paid} pedidos pagos`}. Os ingressos continuam valendo para o novo horário. Avise os compradores depois de salvar. Continuar?`,
+      );
+      if (!ok) return;
     }
 
     const data = new FormData(formEvent.currentTarget);
     const input: EventInput = {
       name: String(data.get("name") ?? ""),
-      startsAt: String(data.get("startsAt") ?? ""),
       venue: String(data.get("venue") ?? ""),
       description: String(data.get("description") ?? ""),
-      capacity: capacityValue,
-      inteiraQuota,
-      meiaQuota,
-      ticketTypes: types.types,
+      ticketTypes: typesInput.types,
+      sessions: sessions.sessions,
       coverImageUrl: String(data.get("coverImageUrl") ?? ""),
     };
 
@@ -179,89 +195,36 @@ export function EventForm({ event }: EventFormProps) {
           required
           wrapperClassName="@lg:col-span-2"
         />
+        {single ? <SessionTimeFields draft={only} onChange={updateOnly} /> : null}
         <Field
-          defaultValue={toEventInputValue(event?.startsAt)}
-          label="Data e hora"
-          name="startsAt"
+          defaultValue={event?.venue}
+          label="Local"
+          name="venue"
           required
-          type="datetime-local"
+          wrapperClassName="@lg:col-span-2"
         />
-        <Field defaultValue={event?.venue} label="Local" name="venue" required />
       </div>
 
-      <fieldset className="grid gap-4 rounded-xl border border-byla-border p-4">
-        <legend className="px-1 text-base font-semibold">Quantidade de ingressos</legend>
-        <div className="grid gap-4 @lg:grid-cols-3">
-          <Field
-            inputMode="numeric"
-            label="Total de ingressos"
-            min="1"
-            name="capacity"
-            onChange={(change) => setCount("capacity", change.target.value)}
-            required
-            step="1"
-            type="number"
-            value={counts.capacity}
-          />
-          <Field
-            inputMode="numeric"
-            label="Quantidade de inteiras"
-            name="inteiraQuota"
-            onChange={(change) => setCount("inteiraQuota", change.target.value)}
-            placeholder="Sem quantidade separada"
-            value={counts.inteiraQuota}
-          />
-          <Field
-            inputMode="numeric"
-            label="Quantidade de meias"
-            name="meiaQuota"
-            onChange={(change) => setCount("meiaQuota", change.target.value)}
-            placeholder="Sem quantidade separada"
-            value={counts.meiaQuota}
-          />
-        </div>
-        <p className="text-sm text-byla-muted">
-          Cada pessoa de Casadinha, Pacote família ou tipo novo conta como inteira. Cortesias
-          contam só no total. Deixe em branco para não separar.
-        </p>
-        {summary ? (
-          <p aria-live="polite" className="rounded-lg bg-byla-overlay px-3 py-2 text-base">
-            <span className="font-semibold text-foreground">{summary.line}</span>
-            <span
-              className={
-                quotaProblem
-                  ? "block text-sm font-medium text-byla-danger"
-                  : "block text-sm text-byla-muted"
-              }
-            >
-              {quotaProblem ?? summary.detail}
-            </span>
-          </p>
-        ) : quotaProblem ? (
-          <p aria-live="polite" className="text-sm font-medium text-byla-danger">
-            {quotaProblem}
-          </p>
-        ) : null}
-      </fieldset>
+      {single && singleChecks ? (
+        <>
+          <ScheduleWarning draft={only} />
+          <SessionQuantityFields checks={singleChecks} draft={only} onChange={updateOnly} />
+          <AddSessionButton drafts={drafts} onChange={setDrafts} />
+        </>
+      ) : null}
 
       <TicketTypesEditor
         disabled={isPending}
         onChange={setTicketTypes}
+        prices={single ? singlePrices : undefined}
         sales={sales}
         value={ticketTypes}
       />
-      {limitProblem || limitSummary ? (
-        <p
-          aria-live="polite"
-          className={
-            limitProblem
-              ? "-mt-2 text-sm font-medium text-byla-danger"
-              : "-mt-2 text-sm text-byla-muted"
-          }
-        >
-          {limitProblem ?? limitSummary}
-        </p>
-      ) : null}
+      {single && singleChecks ? <LimitSummary checks={singleChecks} className="-mt-2" /> : null}
+
+      {single ? null : (
+        <SessionsEditor disabled={isPending} drafts={drafts} onChange={setDrafts} types={types} />
+      )}
 
       <TextAreaField defaultValue={event?.description} label="Descrição" name="description" />
 
@@ -287,4 +250,3 @@ export function EventForm({ event }: EventFormProps) {
     </form>
   );
 }
-

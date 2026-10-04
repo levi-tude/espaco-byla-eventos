@@ -1,4 +1,5 @@
 import { ExternalLink, ScanLine } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/equipe/AutoRefresh";
@@ -7,15 +8,31 @@ import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { SalesToggle } from "@/components/equipe/SalesToggle";
+import type { EditorSession } from "@/components/equipe/session-drafts";
+import { SessionSalesToggle } from "@/components/equipe/SessionSalesToggle";
 import { CourtesyForm, TicketList } from "@/components/equipe/TicketList";
-import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
+import { type EditorTicketType, savedTypeKey } from "@/components/equipe/TicketTypesEditor";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
+import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Tone } from "@/components/ui/tone";
-import { eventDateFormatter } from "@/lib/datetime";
-import { salesState } from "@/lib/domain/availability";
-import { loadEventAvailability } from "@/lib/domain/event-availability";
+import {
+  eventDateFormatter,
+  formatSessionLabel,
+  formatSessionShort,
+  formatSessionTime,
+} from "@/lib/datetime";
+import { type EventAvailabilityWithTypes, salesState } from "@/lib/domain/availability";
+import { loadSessionAvailability } from "@/lib/domain/event-availability";
+import {
+  orderStatsFor,
+  selectPanelSession,
+  sessionOrderStats,
+  sumAvailability,
+} from "@/lib/domain/session-panel";
+import { sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { isRecentlyPaid } from "@/lib/domain/status";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
@@ -39,48 +56,62 @@ const currency = new Intl.NumberFormat("pt-BR", {
 /** Ao pular por um atalho, a barra fixa de atalhos não pode cobrir o título da seção. */
 const sectionClass = "scroll-mt-20";
 
+const tabClass =
+  "inline-flex min-h-11 items-center whitespace-nowrap rounded-lg border px-3 text-base font-medium no-underline transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
+
 type Stat = { label: string; value: string | number; hint?: string | null };
+
+function nowMs() {
+  return Date.now();
+}
+
+function sessionLabelOf(session: { name: string | null; starts_at: string; ends_at: string | null }) {
+  return formatSessionLabel(session.name, session.starts_at, session.ends_at);
+}
 
 export default async function EventoEquipePage({
   params,
+  searchParams,
 }: PageProps<"/equipe/eventos/[id]">) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const supabase = await createServerClient();
   const [
     { data: isStaff },
     { data: event },
     { data: ticketTypes },
-    { count: sold },
+    { data: sessionRows },
     { data: tickets },
     { data: decisionOrders },
     { data: refunds },
+    { data: orderRows },
   ] = await Promise.all([
     supabase.rpc("is_staff"),
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("ticket_types")
-      .select("id, preset, name, kind, price_cents, people_per_unit, max_units")
+      .select("id, preset, name, kind, people_per_unit")
       .eq("event_id", id)
       .neq("kind", "cortesia")
       .is("archived_at", null)
       .order("sort_order")
       .order("id"),
     supabase
-      .from("tickets")
-      .select("id", { count: "exact", head: true })
+      .from("event_sessions")
+      .select("id, name, starts_at, ends_at, capacity, inteira_quota, meia_quota, sales_open, status")
       .eq("event_id", id)
-      .in("status", ["pago", "check_in"]),
+      .is("archived_at", null)
+      .order("starts_at"),
     supabase
       .from("tickets")
       .select(
-        "id, order_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
+        "id, order_id, session_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
       )
       .eq("event_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("orders")
       .select(
-        "id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, payment_provider, tickets(id, kind, buyer_name, status, order_items(name))",
+        "id, session_id, buyer_name, buyer_email, total_cents, paid_at, decision_reason, payment_provider, tickets(id, kind, buyer_name, status, order_items(name))",
       )
       .eq("event_id", id)
       .eq("status", "aguardando_decisao")
@@ -88,65 +119,131 @@ export default async function EventoEquipePage({
     supabase
       .from("order_refunds")
       .select(
-        "id, order_id, status, amount_cents, reason, requested_by_name, created_at, completed_at, error_code, orders!inner(event_id, buyer_name)",
+        "id, order_id, status, amount_cents, reason, requested_by_name, created_at, completed_at, error_code, orders!inner(event_id, buyer_name, session_id)",
       )
       .eq("orders.event_id", id)
       .order("created_at", { ascending: false }),
+    supabase.from("orders").select("session_id, status, expires_at").eq("event_id", id),
   ]);
 
   if (!isStaff || !event) notFound();
 
-  const gallery = await loadEventGallery(supabase, event.id);
+  const sessions = sessionRows ?? [];
+  const activeSessions = sessions.filter((session) => session.status === "ativa");
+  const sessionIds = sessions.map((session) => session.id);
+  const multi = sessions.length > 1;
+  const selected = selectPanelSession(sessions, query.sessao);
+  const labels = new Map(sessions.map((session) => [session.id, sessionLabelOf(session)]));
 
-  const availability = await loadEventAvailability(createAdminClient(), event);
-  const typeAvailability = new Map(
-    (availability?.types ?? []).map((type) => [type.ticketTypeId, type]),
+  const admin = createAdminClient();
+  const [gallery, { data: sessionPrices }, { data: scheduleChanges }, availabilities] =
+    await Promise.all([
+      loadEventGallery(supabase, event.id),
+      sessionIds.length
+        ? supabase
+            .from("session_ticket_types")
+            .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
+            .in("session_id", sessionIds)
+        : Promise.resolve({ data: [] }),
+      selected
+        ? supabase
+            .from("session_schedule_changes")
+            .select("previous_starts_at, new_starts_at, paid_orders, created_at")
+            .eq("session_id", selected.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+        : Promise.resolve({ data: [] }),
+      Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
+    ]);
+  const availabilityBySession = new Map<string, EventAvailabilityWithTypes | null>(
+    sessions.map((session, index) => [session.id, availabilities[index]]),
   );
-  const editorTypes: EditorTicketType[] = (ticketTypes ?? []).map((type) => {
-    const current = typeAvailability.get(type.id);
+  const availability = selected
+    ? (availabilityBySession.get(selected.id) ?? null)
+    : sumAvailability(availabilities);
+
+  const types = ticketTypes ?? [];
+  const typeKeyById = new Map(types.map((type) => [type.id, savedTypeKey(type)]));
+  const allSessionsAvailability = sumAvailability(availabilities);
+  const typeTotals = new Map(
+    (allSessionsAvailability?.types ?? []).map((type) => [type.ticketTypeId, type]),
+  );
+  const editorTypes: EditorTicketType[] = types.map((type) => {
+    const current = typeTotals.get(type.id);
     return {
       id: type.id,
       preset: type.preset,
       name: type.name,
-      priceCents: type.price_cents,
       peoplePerUnit: type.people_per_unit,
-      maxUnits: type.max_units,
       hasSales: current?.hasSales ?? true,
       unitsSold: current?.unitsSold ?? 0,
       unitsTaken: current?.unitsTaken ?? 0,
     };
   });
-  const soldCount = availability?.sold ?? sold ?? 0;
-  const remaining =
-    availability?.remaining ?? Math.max(event.capacity - soldCount, 0);
-  const state = salesState(event.sales_open, availability);
-  const sales = teamSales[state];
 
-  const listItems = (tickets ?? []).map((ticket) => {
-    const order = Array.isArray(ticket.orders) ? ticket.orders[0] : ticket.orders;
+  const orderStats = sessionOrderStats(orderRows ?? []);
+  const editorSessions: EditorSession[] = activeSessions.map((session) => {
+    const stats = orderStatsFor(orderStats, session.id);
+    const sessionAvailability = availabilityBySession.get(session.id) ?? null;
+    const occupied = sessionAvailability
+      ? sessionAvailability.sold + sessionAvailability.held
+      : 0;
     return {
-      id: ticket.id,
-      orderId: ticket.order_id,
-      orderTotalCents: order.total_cents,
-      paymentProvider: order.payment_provider,
-      buyerName: ticket.buyer_name,
-      buyerEmail: order.buyer_email,
-      kind: ticket.kind,
-      typeLabel: ticketTypeLabel(itemName(ticket.order_items), ticket.kind),
-      status: ticket.status,
-      orderStatus: order.status,
-      decisionReason: order.decision_reason,
-      priceCents: ticket.price_cents,
-      paidAt: order.paid_at,
-      recentlyPaid:
-        ticket.kind !== "cortesia" &&
-        order.status === "pago" &&
-        (ticket.status === "pago" || ticket.status === "check_in") &&
-        isRecentlyPaid(order.paid_at),
-      checkedInAt: ticket.checked_in_at,
-      publicToken: order.public_token,
+      id: session.id,
+      name: session.name,
+      startsAt: session.starts_at,
+      endsAt: session.ends_at,
+      capacity: session.capacity,
+      inteiraQuota: session.inteira_quota,
+      meiaQuota: session.meia_quota,
+      prices: Object.fromEntries(
+        (sessionPrices ?? []).flatMap((row) => {
+          const key = row.session_id === session.id ? typeKeyById.get(row.ticket_type_id) : null;
+          return key
+            ? [[key, { priceCents: row.price_cents, maxUnits: row.max_units, onSale: row.on_sale }]]
+            : [];
+        }),
+      ),
+      sold: sessionAvailability?.sold ?? 0,
+      occupied,
+      hasOrders: stats.hasOrders,
+      // Sem a contagem do banco, a sessão fica protegida (não pode ser removida).
+      liveOrders: stats.liveOrders || occupied > 0 || !sessionAvailability,
+      paidOrders: stats.paidOrders,
     };
   });
+
+  const inScope = (sessionId: string | null | undefined) =>
+    !multi || !selected || sessionId === selected.id;
+
+  const listItems = (tickets ?? [])
+    .filter((ticket) => inScope(ticket.session_id))
+    .map((ticket) => {
+      const order = Array.isArray(ticket.orders) ? ticket.orders[0] : ticket.orders;
+      return {
+        id: ticket.id,
+        orderId: ticket.order_id,
+        orderTotalCents: order.total_cents,
+        paymentProvider: order.payment_provider,
+        buyerName: ticket.buyer_name,
+        buyerEmail: order.buyer_email,
+        kind: ticket.kind,
+        typeLabel: ticketTypeLabel(itemName(ticket.order_items), ticket.kind),
+        status: ticket.status,
+        orderStatus: order.status,
+        decisionReason: order.decision_reason,
+        priceCents: ticket.price_cents,
+        paidAt: order.paid_at,
+        recentlyPaid:
+          ticket.kind !== "cortesia" &&
+          order.status === "pago" &&
+          (ticket.status === "pago" || ticket.status === "check_in") &&
+          isRecentlyPaid(order.paid_at),
+        checkedInAt: ticket.checked_in_at,
+        publicToken: order.public_token,
+        sessionLabel: multi && !selected ? (labels.get(ticket.session_id) ?? null) : null,
+      };
+    });
   const validTickets = listItems.filter(
     ({ status }) => status === "pago" || status === "check_in",
   );
@@ -160,6 +257,17 @@ export default async function EventoEquipePage({
       )
       .entries(),
   ];
+
+  const capacity = selected
+    ? selected.capacity
+    : sessions.reduce((total, session) => total + session.capacity, 0) || event.capacity;
+  const soldCount = availability?.sold ?? validTickets.length;
+  const remaining = availability?.remaining ?? Math.max(capacity - soldCount, 0);
+  const state = salesState(
+    event.sales_open && (selected ? selected.sales_open : true),
+    availability,
+  );
+  const sales = teamSales[state];
 
   const categoryStats: Stat[] = availability
     ? (["inteira", "meia"] as const).map((kind) => {
@@ -193,7 +301,7 @@ export default async function EventoEquipePage({
       hint: "compras aguardando pagamento",
     },
     { label: "Restantes", value: remaining },
-    { label: "Lotação", value: event.capacity },
+    { label: "Lotação", value: capacity },
     ...categoryStats,
     {
       label: "Cortesias",
@@ -202,7 +310,44 @@ export default async function EventoEquipePage({
     { label: "Total vendido", value: currency.format(revenueCents / 100) },
   ];
 
-  const pendingDecisions = decisionOrders ?? [];
+  const selectedAvailability = selected ? (availabilityBySession.get(selected.id) ?? null) : null;
+  const selectedPrices = selected
+    ? types.map((type) => {
+        const row = (sessionPrices ?? []).find(
+          (price) => price.session_id === selected.id && price.ticket_type_id === type.id,
+        );
+        const typeAvailability = selectedAvailability?.types.find(
+          (item) => item.ticketTypeId === type.id,
+        );
+        return {
+          id: type.id,
+          name: type.name,
+          onSale: row?.on_sale ?? false,
+          priceCents: row?.price_cents ?? null,
+          maxUnits: row?.max_units ?? null,
+          unitsSold: typeAvailability?.unitsSold ?? 0,
+        };
+      })
+    : [];
+  const now = nowMs();
+  const closesAt = selected ? sessionSalesClosesAt(selected.starts_at) : null;
+  const closesPassed = closesAt ? closesAt.getTime() <= now : false;
+  const lastChange = scheduleChanges?.[0] ?? null;
+  const showScheduleChange = selected && lastChange && Date.parse(selected.starts_at) > now;
+
+  const pendingDecisions = (decisionOrders ?? []).filter((order) => inScope(order.session_id));
+  const nextSession =
+    activeSessions.find((session) => Date.parse(session.starts_at) > now) ?? null;
+  const checkInHref = `/equipe/eventos/${event.id}/check-in${
+    multi && selected ? `?sessao=${selected.id}` : ""
+  }`;
+
+  const courtesySessions = activeSessions.map((session) => ({
+    id: session.id,
+    label: labels.get(session.id) ?? "",
+    remaining: availabilityBySession.get(session.id)?.remaining ?? session.capacity,
+  }));
+
   const shortcuts = [
     { id: "vendas", label: "Vendas" },
     ...(pendingDecisions.length ? [{ id: "decisao", label: "Decisões" }] : []),
@@ -224,7 +369,11 @@ export default async function EventoEquipePage({
           <StatusBadge tone={sales.tone}>{sales.label}</StatusBadge>
         </div>
         <p className="mt-2 text-base text-byla-muted">
-          {dateFormatter.format(new Date(event.starts_at))}
+          {multi
+            ? `${sessions.length} sessões${
+                nextSession ? ` · próxima: ${formatSessionShort(nextSession.starts_at)}` : ""
+              }`
+            : dateFormatter.format(new Date(sessions[0]?.starts_at ?? event.starts_at))}
           {event.venue ? ` · ${event.venue}` : ""}
         </p>
         {state === "held" ? (
@@ -234,9 +383,9 @@ export default async function EventoEquipePage({
         ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <ButtonLink className="col-span-2" href={`/equipe/eventos/${event.id}/check-in`}>
+          <ButtonLink className="col-span-2" href={checkInHref}>
             <ScanLine aria-hidden className="h-5 w-5" />
-            Abrir check-in
+            {multi && selected ? "Check-in desta sessão" : "Abrir check-in"}
           </ButtonLink>
           <ButtonLink href={`/eventos/${event.slug}`} target="_blank" variant="secondary">
             Ver página
@@ -246,6 +395,50 @@ export default async function EventoEquipePage({
           <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
         </div>
       </header>
+
+      {multi ? (
+        <nav aria-label="Sessões do evento" className="mt-6">
+          <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
+            <li className="shrink-0">
+              <Link
+                aria-current={!selected ? "page" : undefined}
+                className={cx(
+                  tabClass,
+                  !selected
+                    ? "border-byla-action bg-byla-action text-white"
+                    : "border-byla-border text-foreground hover:bg-byla-overlay",
+                )}
+                href={`/equipe/eventos/${event.id}`}
+                scroll={false}
+              >
+                Todas
+              </Link>
+            </li>
+            {sessions.map((session) => {
+              const current = selected?.id === session.id;
+              return (
+                <li className="shrink-0" key={session.id}>
+                  <Link
+                    aria-current={current ? "page" : undefined}
+                    className={cx(
+                      tabClass,
+                      current
+                        ? "border-byla-action bg-byla-action text-white"
+                        : "border-byla-border text-foreground hover:bg-byla-overlay",
+                      session.status === "cancelada" && !current && "line-through",
+                    )}
+                    href={`/equipe/eventos/${event.id}?sessao=${session.id}`}
+                    scroll={false}
+                  >
+                    {labels.get(session.id)}
+                    {session.status === "cancelada" ? " (cancelada)" : ""}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      ) : null}
 
       <nav
         aria-label="Seções do painel"
@@ -269,8 +462,34 @@ export default async function EventoEquipePage({
         <div className="grid min-w-0 gap-10">
           <section aria-labelledby="vendas-titulo" className={sectionClass} id="vendas">
             <h2 className="text-xl font-semibold text-foreground" id="vendas-titulo">
-              Vendas
+              {multi ? (selected ? `Vendas · ${labels.get(selected.id)}` : "Vendas · todas as sessões") : "Vendas"}
             </h2>
+            {selected && closesAt ? (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <p className="text-base text-byla-muted">
+                  {selected.status === "cancelada"
+                    ? "Sessão cancelada."
+                    : !selected.sales_open
+                      ? "Vendas desta sessão encerradas pela equipe."
+                      : closesPassed
+                        ? `Vendas encerradas às ${formatSessionTime(closesAt)}.`
+                        : `A venda encerra sozinha às ${formatSessionTime(closesAt)}.`}
+                </p>
+                {selected.status === "ativa" && !closesPassed && (multi || !selected.sales_open) ? (
+                  <SessionSalesToggle salesOpen={selected.sales_open} sessionId={selected.id} />
+                ) : null}
+              </div>
+            ) : null}
+            {showScheduleChange && lastChange ? (
+              <Notice className="mt-3" title="Horário alterado" tone="warning">
+                De {formatSessionShort(lastChange.previous_starts_at)} para{" "}
+                {formatSessionShort(lastChange.new_starts_at)}.{" "}
+                {lastChange.paid_orders === 1
+                  ? "1 pedido pago foi feito antes da mudança."
+                  : `${lastChange.paid_orders} pedidos pagos foram feitos antes da mudança.`}{" "}
+                Avise os compradores. O envio automático do aviso por e-mail chega em breve.
+              </Notice>
+            ) : null}
             <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {stats.map((stat) => (
                 <div
@@ -293,28 +512,63 @@ export default async function EventoEquipePage({
                 {byType.map(([label, count]) => `${label}: ${count}`).join(" · ")}
               </p>
             ) : null}
+            {multi && selected && selectedPrices.length ? (
+              <div className="mt-4 rounded-xl border border-byla-border bg-byla-surface p-4">
+                <h3 className="text-base font-semibold">Preços desta sessão</h3>
+                <ul className="mt-2 grid gap-1.5">
+                  {selectedPrices.map((price) => (
+                    <li
+                      className="flex flex-wrap items-baseline justify-between gap-x-3 text-base"
+                      key={price.id}
+                    >
+                      <span className="font-medium">{price.name}</span>
+                      <span className="text-byla-muted">
+                        {price.onSale && price.priceCents !== null
+                          ? currency.format(price.priceCents / 100)
+                          : "Fora da venda"}
+                        {` · vendidos ${price.unitsSold}`}
+                        {price.maxUnits !== null ? ` de ${price.maxUnits}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           <DecisionQueue
-            capacity={event.capacity}
+            capacity={capacity}
             className={sectionClass}
             id="decisao"
             occupied={availability ? availability.sold + availability.held : null}
-            orders={pendingDecisions.map((order) => ({
-              orderId: order.id,
-              buyerName: order.buyer_name,
-              buyerEmail: order.buyer_email,
-              totalCents: order.total_cents,
-              paidAt: order.paid_at,
-              decisionReason: order.decision_reason,
-              ticketCount: order.tickets.length,
-              paymentProvider: order.payment_provider,
-              hasCheckIn: order.tickets.some(({ status }) => status === "check_in"),
-              ticketLabels: order.tickets.map(
-                (ticket) =>
-                  `${ticketTypeLabel(itemName(ticket.order_items), ticket.kind)} — ${ticket.buyer_name}`,
-              ),
-            }))}
+            orders={pendingDecisions.map((order) => {
+              const orderAvailability = availabilityBySession.get(order.session_id) ?? null;
+              const orderSession = sessions.find((session) => session.id === order.session_id);
+              return {
+                orderId: order.id,
+                buyerName: order.buyer_name,
+                buyerEmail: order.buyer_email,
+                totalCents: order.total_cents,
+                paidAt: order.paid_at,
+                decisionReason: order.decision_reason,
+                ticketCount: order.tickets.length,
+                paymentProvider: order.payment_provider,
+                hasCheckIn: order.tickets.some(({ status }) => status === "check_in"),
+                ticketLabels: order.tickets.map(
+                  (ticket) =>
+                    `${ticketTypeLabel(itemName(ticket.order_items), ticket.kind)} — ${ticket.buyer_name}`,
+                ),
+                ...(multi
+                  ? {
+                      sessionLabel: labels.get(order.session_id) ?? null,
+                      capacity: orderSession?.capacity ?? capacity,
+                      occupied: orderAvailability
+                        ? orderAvailability.sold + orderAvailability.held
+                        : null,
+                    }
+                  : {}),
+              };
+            })}
           />
 
           <TicketList className={sectionClass} eventId={event.id} id="participantes" tickets={listItems} />
@@ -323,27 +577,34 @@ export default async function EventoEquipePage({
         <div className="grid min-w-0 gap-10">
           <CourtesyForm
             className={sectionClass}
+            defaultSessionId={selected?.status === "ativa" ? selected.id : null}
             eventId={event.id}
             id="cortesia"
             remaining={remaining}
+            sessions={courtesySessions}
           />
 
           <RefundHistory
-            refunds={(refunds ?? []).map((refund) => {
-              const order = Array.isArray(refund.orders) ? refund.orders[0] : refund.orders;
-              return {
-                id: refund.id,
-                orderId: refund.order_id,
-                buyerName: order?.buyer_name ?? "—",
-                amountCents: refund.amount_cents,
-                status: refund.status,
-                reason: refund.reason,
-                requestedByName: refund.requested_by_name,
-                createdAt: refund.created_at,
-                completedAt: refund.completed_at,
-                errorCode: refund.error_code,
-              };
-            })}
+            refunds={(refunds ?? [])
+              .filter((refund) => {
+                const order = Array.isArray(refund.orders) ? refund.orders[0] : refund.orders;
+                return inScope(order?.session_id);
+              })
+              .map((refund) => {
+                const order = Array.isArray(refund.orders) ? refund.orders[0] : refund.orders;
+                return {
+                  id: refund.id,
+                  orderId: refund.order_id,
+                  buyerName: order?.buyer_name ?? "—",
+                  amountCents: refund.amount_cents,
+                  status: refund.status,
+                  reason: refund.reason,
+                  requestedByName: refund.requested_by_name,
+                  createdAt: refund.created_at,
+                  completedAt: refund.completed_at,
+                  errorCode: refund.error_code,
+                };
+              })}
           />
 
           <section aria-labelledby="editar-titulo" className={sectionClass} id="editar">
@@ -355,13 +616,10 @@ export default async function EventoEquipePage({
                 event={{
                   id: event.id,
                   name: event.name,
-                  startsAt: event.starts_at,
                   venue: event.venue,
                   description: event.description,
-                  capacity: event.capacity,
-                  inteiraQuota: event.inteira_quota,
-                  meiaQuota: event.meia_quota,
                   ticketTypes: editorTypes,
+                  sessions: editorSessions,
                   coverImageUrl: event.cover_image_url,
                 }}
               />

@@ -24,6 +24,11 @@ export type DecisionQueueItem = {
   hasCheckIn: boolean;
   /** Ingressos que deixam de valer num estorno (ex.: "Inteira — Maria Souza"). */
   ticketLabels: string[];
+  /** Sessão do pedido, em evento com várias sessões. */
+  sessionLabel?: string | null;
+  /** Lotação e ocupação da sessão do pedido (sem elas, valem as do painel). */
+  capacity?: number;
+  occupied?: number | null;
 };
 
 type Props = {
@@ -62,10 +67,13 @@ export function DecisionQueue({ capacity, occupied, orders, id, className }: Pro
   if (orders.length === 0 && !message) return null;
 
   function accept(order: DecisionQueueItem) {
+    const orderCapacity = order.capacity ?? capacity;
+    const orderOccupied = order.occupied === undefined ? occupied : order.occupied;
+    const scope = order.sessionLabel ? "da sessão" : "do evento";
     const capacityLine =
-      occupied === null
-        ? "A lotação do evento pode ser ultrapassada."
-        : `A lotação passará de ${occupied} para ${occupied + order.ticketCount} (limite do evento: ${capacity}).`;
+      orderOccupied === null
+        ? `A lotação ${scope} pode ser ultrapassada.`
+        : `A lotação passará de ${orderOccupied} para ${orderOccupied + order.ticketCount} (limite ${scope}: ${orderCapacity}).`;
     if (
       !window.confirm(
         `Aceitar mesmo assim o pedido de ${order.buyerName}?\n\n${ticketsText(order.ticketCount)} passam a valer e o comprador recebe os QR Codes por e-mail.\n${capacityLine}`,
@@ -122,6 +130,9 @@ export function DecisionQueue({ capacity, occupied, orders, id, className }: Pro
             <div className="min-w-0">
               <p className="break-words font-semibold">{order.buyerName}</p>
               <p className="break-all text-sm text-byla-muted">{order.buyerEmail}</p>
+              {order.sessionLabel ? (
+                <p className="mt-1 text-sm font-medium">Sessão: {order.sessionLabel}</p>
+              ) : null}
               <p className="mt-1 text-sm text-byla-muted">
                 {order.paidAt ? `Pago em ${dateFormatter.format(new Date(order.paidAt))} · ` : ""}
                 {ticketsText(order.ticketCount)} · {currency.format(order.totalCents / 100)}

@@ -3,6 +3,7 @@
 import { CircleCheck, CircleX, LoaderCircle, ScanLine } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/Button";
 import { controlClasses } from "@/components/ui/Field";
@@ -46,6 +47,7 @@ const resultIcons: Record<Result["tone"], typeof ScanLine> = {
 };
 
 export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessionId: string }) {
+  const router = useRouter();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
@@ -91,6 +93,7 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
             sessionLine: data.sessionLine ?? "",
           });
           setManualCode("");
+          router.refresh();
         } else {
           setResult({ tone: "error", message: data.message });
         }
@@ -104,7 +107,7 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
         pauseForNext();
       }
     },
-    [eventId, sessionId, pauseForNext],
+    [eventId, sessionId, pauseForNext, router],
   );
 
   useEffect(() => {

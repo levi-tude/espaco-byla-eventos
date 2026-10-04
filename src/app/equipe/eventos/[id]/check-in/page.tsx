@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { AutoRefresh } from "@/components/equipe/AutoRefresh";
 import { CheckInScanner } from "@/components/equipe/CheckInScanner";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
@@ -47,8 +48,19 @@ export default async function CheckInPage({
   const current =
     sessions.find((session) => session.id === requested) ?? suggestCheckInSession(sessions);
 
+  const { data: validTickets } = current
+    ? await supabase
+        .from("tickets")
+        .select("status")
+        .eq("session_id", current.id)
+        .in("status", ["pago", "check_in"])
+    : { data: [] };
+  const expected = validTickets?.length ?? 0;
+  const entered = (validTickets ?? []).filter(({ status }) => status === "check_in").length;
+
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6 sm:py-8">
+      <AutoRefresh />
       <BackLink href={`/equipe/eventos/${event.id}`}>Voltar ao evento</BackLink>
       <div className="mb-4 mt-2 flex flex-wrap items-baseline gap-x-3">
         <h1 className="font-display text-4xl tracking-wide text-foreground">Check-in</h1>
@@ -72,7 +84,14 @@ export default async function CheckInPage({
               ))}
             </nav>
           ) : null}
-          <p className="mb-3 text-2xl font-bold text-foreground">{sessionLabel(current)}</p>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p className="text-2xl font-bold text-foreground">{sessionLabel(current)}</p>
+            <p aria-live="polite" className="text-lg text-byla-muted">
+              Entraram{" "}
+              <span className="font-semibold tabular-nums text-foreground">{entered}</span> de{" "}
+              <span className="tabular-nums">{expected}</span>
+            </p>
+          </div>
           <CheckInScanner eventId={event.id} key={current.id} sessionId={current.id} />
         </>
       ) : (
