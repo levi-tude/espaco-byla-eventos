@@ -41,7 +41,7 @@ export default async function CheckInPage({
     name: row.name,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
-    status: row.status,
+    status: row.status === "ativa" ? "ativa" : "cancelada",
   }));
   const requested = typeof query.sessao === "string" ? query.sessao : null;
   const current =
