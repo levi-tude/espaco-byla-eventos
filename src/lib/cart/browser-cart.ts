@@ -15,6 +15,8 @@ export type BrowserCart = {
   phone: string;
   /** Pedido criado a partir deste carrinho que pode ainda estar aguardando pagamento. */
   pendingOrderToken?: string;
+  /** Sessão da seleção; carrinho de antes das sessões não tem. */
+  sessionId?: string;
   /** Carrinho antigo tinha item que não está mais à venda e ficou de fora. */
   droppedItems?: boolean;
   updatedAt: number;
@@ -96,6 +98,9 @@ export function parseCart(
     phone: cleanText(record.phone, FIELD_LIMITS.phone),
     ...(isPublicTokenFormat(record.pendingOrderToken)
       ? { pendingOrderToken: record.pendingOrderToken }
+      : {}),
+    ...(typeof record.sessionId === "string" && isUuid(record.sessionId)
+      ? { sessionId: record.sessionId }
       : {}),
     ...(droppedItems ? { droppedItems } : {}),
     updatedAt,

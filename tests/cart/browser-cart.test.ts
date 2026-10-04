@@ -118,6 +118,18 @@ describe("carrinho no navegador", () => {
     expect(parsed).not.toHaveProperty("pendingOrderToken");
   });
 
+  it("guarda a sessão da seleção; id adulterado é ignorado", () => {
+    const storage = memoryStorage();
+    const sessionId = "30000000-0000-4000-8000-000000000001";
+    writeCart(storage, "show", { ...cart, sessionId }, NOW);
+    expect(readCart(storage, "show", NOW)?.sessionId).toBe(sessionId);
+    const parsed = parseCart(
+      JSON.stringify({ v: 2, ...cart, sessionId: "../x", updatedAt: NOW }),
+      NOW,
+    );
+    expect(parsed).not.toHaveProperty("sessionId");
+  });
+
   it("com pedido pendente, o carrinho não é apagado mesmo sem seleção", () => {
     const storage = memoryStorage();
     writeCart(

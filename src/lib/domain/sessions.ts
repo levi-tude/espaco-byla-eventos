@@ -122,6 +122,38 @@ export function sessionIsBuyable(session: SessionSaleSummary): boolean {
   return session.status === "ativa" && session.selling && !session.soldOut && session.remaining > 0;
 }
 
+/**
+ * Sessão marcada para o comprador: a pedida em `?sessao=` (se ele pode vê-la);
+ * senão a única do evento ou a única vendendo. `null` = ele escolhe.
+ */
+export function pickBuyerSession<T extends SessionSaleSummary>(
+  visible: readonly T[],
+  requested: unknown,
+): T | null {
+  if (typeof requested === "string") {
+    const found = visible.find((session) => session.id === requested);
+    if (found) return found;
+  }
+  if (visible.length === 1) return visible[0];
+  const buyable = visible.filter(sessionIsBuyable);
+  return buyable.length === 1 ? buyable[0] : null;
+}
+
+/** Sessões que aparecem como chips na home: futuras, vendendo ou esgotadas. */
+export function homeChipSessions<T extends SessionSaleSummary>(
+  sessions: readonly T[],
+  now = Date.now(),
+): T[] {
+  return sessions
+    .filter(
+      (session) =>
+        session.status === "ativa" &&
+        Date.parse(session.startsAt) > now &&
+        (session.selling || session.soldOut),
+    )
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+}
+
 export function sessionSalesClosesAt(startsAt: string): Date {
   return new Date(Date.parse(startsAt) + SESSION_SALES_CLOSE_MINUTES * 60_000);
 }
