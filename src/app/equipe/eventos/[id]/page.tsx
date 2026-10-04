@@ -9,6 +9,7 @@ import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { SalesToggle } from "@/components/equipe/SalesToggle";
 import { type EditorSession, savedTypeKey } from "@/components/equipe/session-drafts";
+import { SessionOpsPanel } from "@/components/equipe/SessionOpsPanel";
 import { SessionSalesToggle } from "@/components/equipe/SessionSalesToggle";
 import { CourtesyForm, TicketList } from "@/components/equipe/TicketList";
 import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
@@ -32,6 +33,7 @@ import {
   sessionOrderStats,
   sumAvailability,
 } from "@/lib/domain/session-panel";
+import { parseSessionOpsSummary } from "@/lib/domain/session-ops";
 import { sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { isRecentlyPaid } from "@/lib/domain/status";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
@@ -136,7 +138,7 @@ export default async function EventoEquipePage({
   const labels = new Map(sessions.map((session) => [session.id, sessionLabelOf(session)]));
 
   const admin = createAdminClient();
-  const [gallery, { data: sessionPrices }, { data: scheduleChanges }, availabilities] =
+  const [gallery, { data: sessionPrices }, { data: opsData, error: opsError }, availabilities] =
     await Promise.all([
       loadEventGallery(supabase, event.id),
       sessionIds.length
@@ -146,13 +148,8 @@ export default async function EventoEquipePage({
             .in("session_id", sessionIds)
         : Promise.resolve({ data: [] }),
       selected
-        ? supabase
-            .from("session_schedule_changes")
-            .select("previous_starts_at, new_starts_at, paid_orders, created_at")
-            .eq("session_id", selected.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-        : Promise.resolve({ data: [] }),
+        ? admin.rpc("session_ops_summary", { p_session_id: selected.id })
+        : Promise.resolve({ data: null, error: null }),
       Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
     ]);
   const availabilityBySession = new Map<string, EventAvailabilityWithTypes | null>(
@@ -332,8 +329,8 @@ export default async function EventoEquipePage({
   const now = nowMs();
   const closesAt = selected ? sessionSalesClosesAt(selected.starts_at) : null;
   const closesPassed = closesAt ? closesAt.getTime() <= now : false;
-  const lastChange = scheduleChanges?.[0] ?? null;
-  const showScheduleChange = selected && lastChange && Date.parse(selected.starts_at) > now;
+  if (opsError) console.error("[painel] Falha ao carregar o resumo da sessão.", { error: opsError.message });
+  const opsSummary = selected ? parseSessionOpsSummary(opsData) : null;
 
   const pendingDecisions = (decisionOrders ?? []).filter((order) => inScope(order.session_id));
   const nextSession =
@@ -480,14 +477,15 @@ export default async function EventoEquipePage({
                 ) : null}
               </div>
             ) : null}
-            {showScheduleChange && lastChange ? (
-              <Notice className="mt-3" title="Horário alterado" tone="warning">
-                De {formatSessionShort(lastChange.previous_starts_at)} para{" "}
-                {formatSessionShort(lastChange.new_starts_at)}.{" "}
-                {lastChange.paid_orders === 1
-                  ? "1 pedido pago foi feito antes da mudança."
-                  : `${lastChange.paid_orders} pedidos pagos foram feitos antes da mudança.`}{" "}
-                Avise os compradores. O envio automático do aviso por e-mail chega em breve.
+            {selected && opsSummary ? (
+              <SessionOpsPanel
+                sessionLabel={labels.get(selected.id) ?? ""}
+                started={Date.parse(selected.starts_at) <= now}
+                summary={opsSummary}
+              />
+            ) : selected && opsError ? (
+              <Notice className="mt-3" tone="danger">
+                Não foi possível carregar avisos e cancelamento desta sessão. Atualize a página.
               </Notice>
             ) : null}
             <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
