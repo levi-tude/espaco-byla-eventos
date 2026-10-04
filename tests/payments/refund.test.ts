@@ -3,17 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   alertTeam: vi.fn(),
   sendRefundEmail: vi.fn(),
+  runSessionNotices: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeam: mocks.alertTeam }));
 vi.mock("@/lib/email/send-refund", () => ({ sendRefundEmail: mocks.sendRefundEmail }));
+vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNotices }));
 
 import { ActionError } from "@/lib/action-result";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
 import type { PaymentProvider } from "@/lib/payments/provider";
 import {
   notifyBuyerRefunded,
+  RefundActionError,
   refundPaidOrder,
   syncOrderRefunded,
 } from "@/lib/payments/refund";
@@ -203,6 +206,23 @@ describe("refundPaidOrder", () => {
     expect(provider.refundOrder).not.toHaveBeenCalled();
   });
 
+  it("erros esperados levam o código: bloqueio do banco × recusa do provedor", async () => {
+    const blocked = refundPaidOrder(
+      makeAdmin({ begin_order_refund: new Error("ESTORNO_CHECK_IN: entrou") }).admin,
+      makeProvider(),
+      input,
+    );
+    await expect(blocked).rejects.toMatchObject({ kind: "blocked", code: "ESTORNO_CHECK_IN" });
+
+    const rejected = refundPaidOrder(
+      makeAdmin({ begin_order_refund: [begun], fail_order_refund: "failed" }).admin,
+      makeProvider({ refundOrder: vi.fn().mockResolvedValue({ status: "rejected", code: "insufficient_money" }) }),
+      input,
+    );
+    await expect(rejected).rejects.toBeInstanceOf(RefundActionError);
+    await expect(rejected).rejects.toMatchObject({ kind: "rejected", code: "insufficient_money" });
+  });
+
   it("erro inesperado do banco não vira mensagem para a tela", async () => {
     const { admin } = makeAdmin({ begin_order_refund: new Error("connection refused") });
     const result = refundPaidOrder(admin, makeProvider(), input);
@@ -344,5 +364,43 @@ describe("notifyBuyerRefunded", () => {
       orderId,
       expect.any(String),
     );
+  });
+
+  const cancelledTables = {
+    ...emailTables,
+    event_sessions: { ...emailTables.event_sessions, status: "cancelada" },
+  };
+
+  it("sessão cancelada: põe o 'valor devolvido' na fila e tenta enviar já, sem e-mail direto", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 1, sent: 1, failed: 0, pausedUntil: null });
+    const { admin, rpc } = makeAdmin(
+      { queue_cancellation_refund_notice: { notice_id: "notice-1", queued: true } },
+      cancelledTables,
+    );
+
+    await expect(notifyBuyerRefunded(admin, orderId)).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith("queue_cancellation_refund_notice", { p_order_id: orderId });
+    expect(mocks.runSessionNotices).toHaveBeenCalledWith(admin, { limit: 1, noticeId: "notice-1", orderId });
+    expect(mocks.sendRefundEmail).not.toHaveBeenCalled();
+    expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("sessão cancelada e fila indisponível: envia direto com a variante de sessão cancelada", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.sendRefundEmail.mockResolvedValue("sent");
+    const { admin } = makeAdmin({ queue_cancellation_refund_notice: new Error("fora") }, cancelledTables);
+
+    await expect(notifyBuyerRefunded(admin, orderId)).resolves.toBe(true);
+    expect(mocks.runSessionNotices).not.toHaveBeenCalled();
+    expect(mocks.sendRefundEmail).toHaveBeenCalledWith(expect.objectContaining({ sessionCancelled: true }));
+  });
+
+  it("sessão ativa: e-mail de estorno de sempre", async () => {
+    mocks.sendRefundEmail.mockResolvedValue("sent");
+    const { admin, rpc } = makeAdmin({}, emailTables);
+    await expect(notifyBuyerRefunded(admin, orderId)).resolves.toBe(true);
+    expect(rpc).not.toHaveBeenCalledWith("queue_cancellation_refund_notice", expect.anything());
+    expect(mocks.sendRefundEmail).toHaveBeenCalledWith(expect.objectContaining({ sessionCancelled: false }));
   });
 });

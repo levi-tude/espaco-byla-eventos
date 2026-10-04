@@ -5,6 +5,7 @@ import { alertTeam } from "@/lib/alerts/team-alert";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
 import { refundBlockMessage, refundRejectionMessage } from "@/lib/domain/refund";
 import { sendRefundEmail } from "@/lib/email/send-refund";
+import { runSessionNotices } from "@/lib/notices/process";
 import type { PaymentProvider } from "@/lib/payments/provider";
 import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 
@@ -31,9 +32,24 @@ const BEGIN_ERRORS: Record<string, string> = {
   ESTORNO_MOTIVO: "Escreva o motivo do estorno (de 5 a 500 caracteres).",
 };
 
+/**
+ * Erro esperado do estorno, com o motivo em código para quem precisa decidir o que
+ * fazer em seguida (o "Estornar todos" separa "pular" de "falhou").
+ * `blocked`: o banco recusou começar (prefixo ESTORNO_*); `rejected`: o provedor recusou.
+ */
+export class RefundActionError extends ActionError {
+  constructor(
+    message: string,
+    readonly kind: "blocked" | "rejected",
+    readonly code: string,
+  ) {
+    super(message);
+  }
+}
+
 function beginError(message: string): Error {
   const prefix = message.match(/^(ESTORNO_[A-Z_]+):/)?.[1];
-  if (prefix && BEGIN_ERRORS[prefix]) return new ActionError(BEGIN_ERRORS[prefix]);
+  if (prefix && BEGIN_ERRORS[prefix]) return new RefundActionError(BEGIN_ERRORS[prefix], "blocked", prefix);
   return new Error(`begin_order_refund falhou: ${message}`);
 }
 
@@ -131,7 +147,7 @@ async function rejectRefund(
     orderId,
     `Motivo informado: ${refundRejectionMessage(code)} (código: ${code}). O pedido voltou ao estado anterior e os ingressos continuam como estavam.`,
   );
-  throw new ActionError(refundRejectionMessage(code));
+  throw new RefundActionError(refundRejectionMessage(code), "rejected", code);
 }
 
 /** Pedidos pagos antes da fase 2 não guardaram a order do provedor: busca e grava. */
@@ -250,7 +266,7 @@ export async function notifyBuyerRefunded(
       admin.from("events").select("name, starts_at").eq("id", order.event_id).maybeSingle(),
       admin
         .from("event_sessions")
-        .select("name, starts_at")
+        .select("name, starts_at, status")
         .eq("id", order.session_id)
         .maybeSingle(),
       admin
@@ -269,6 +285,13 @@ export async function notifyBuyerRefunded(
     if (!eventResult.data) return notSent("evento não encontrado");
     if (!refundResult.data) return notSent("estorno concluído não encontrado");
 
+    const sessionCancelled = sessionResult.data?.status === "cancelada";
+    if (sessionCancelled) {
+      const queued = await queueCancelledSessionRefundEmail(admin, orderId);
+      if (queued === "queued") return true;
+      if (queued === "not_configured") return notSent("envio de e-mail não configurado");
+    }
+
     const result = await sendRefundEmail({
       buyerEmail: order.buyer_email,
       buyerName: order.buyer_name,
@@ -281,6 +304,7 @@ export async function notifyBuyerRefunded(
         holderName: ticket.buyer_name,
         kindLabel: ticketTypeLabel(orderItemName(ticket.order_items), ticket.kind),
       })),
+      sessionCancelled,
     });
     if (result !== "sent") {
       return notSent(
@@ -294,4 +318,27 @@ export async function notifyBuyerRefunded(
     console.error("[estorno] Falha ao preparar o aviso de estorno.", error);
     return notSent("erro ao preparar o e-mail");
   }
+}
+
+/**
+ * Sessão cancelada: o "valor devolvido" entra na fila de avisos da sessão (uma vez
+ * por pedido, respeitando o limite diário) e é tentado na hora. Se não sair agora,
+ * o agendador ou o botão "Continuar envio" mandam depois. `failed` = a fila não
+ * aceitou; quem chamou envia direto.
+ */
+async function queueCancelledSessionRefundEmail(
+  admin: SupabaseAdmin,
+  orderId: string,
+): Promise<"queued" | "not_configured" | "failed"> {
+  const { data, error } = await admin.rpc("queue_cancellation_refund_notice", { p_order_id: orderId });
+  const noticeId =
+    data && typeof data === "object" && !Array.isArray(data) && typeof data.notice_id === "string"
+      ? data.notice_id
+      : null;
+  if (error || !noticeId) {
+    console.error("[estorno] Não foi possível pôr o aviso de valor devolvido na fila.", { orderId });
+    return "failed";
+  }
+  const run = await runSessionNotices(admin, { limit: 1, noticeId, orderId });
+  return run.status === "not_configured" ? "not_configured" : "queued";
 }
