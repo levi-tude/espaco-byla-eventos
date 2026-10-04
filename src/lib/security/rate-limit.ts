@@ -21,6 +21,9 @@ export const RATE_LIMITS = {
   selectionChangePerOrder: { bucket: "selection:order", limit: 5, windowSeconds: 1800 },
   selectionChangePerIp: { bucket: "selection:ip", limit: 20, windowSeconds: 600 },
   reminderOptoutPerIp: { bucket: "reminder-optout:ip", limit: 30, windowSeconds: 600 },
+  sessionNoticesPerStaff: { bucket: "session-notices:staff", limit: 60, windowSeconds: 600 },
+  sessionCancelPerStaff: { bucket: "session-cancel:staff", limit: 10, windowSeconds: 600 },
+  refundBatchPerBatch: { bucket: "refund-batch:batch", limit: 60, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =

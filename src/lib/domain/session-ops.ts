@@ -243,6 +243,28 @@ export function parseSessionOpsSummary(value: unknown): SessionOpsSummary | null
   };
 }
 
+export type NoticeProgress = {
+  total: number;
+  sent: number;
+  pending: number;
+  failed: number;
+  skipped: number;
+  pausedUntil: string | null;
+};
+
+/** Lê o progresso devolvido por `session_notice_progress`. */
+export function parseNoticeProgress(value: unknown): NoticeProgress | null {
+  if (!isObj(value)) return null;
+  return {
+    total: num(value.total),
+    sent: num(value.sent),
+    pending: num(value.pending),
+    failed: num(value.failed),
+    skipped: num(value.skipped),
+    pausedUntil: str(value.paused_until),
+  };
+}
+
 const SKIP_LABELS: Record<string, string> = {
   com_entrada: "Pulado — já entrou",
   prazo_180_dias: "Pulado — mais de 180 dias",

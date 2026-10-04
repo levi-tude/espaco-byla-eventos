@@ -904,6 +904,10 @@ export type Database = {
         Args: { p_session_id: string };
         Returns: Json;
       };
+      session_notice_progress: {
+        Args: { p_notice_id: string };
+        Returns: Json;
+      };
       queue_schedule_change_notice: {
         Args: { p_session_id: string; p_staff_user_id: string };
         Returns: Json;
