@@ -2,7 +2,13 @@
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
-import { parseLimit, type DraftType, type PriceDraft } from "@/components/equipe/session-drafts";
+import {
+  customTypeKey,
+  parseLimit,
+  presetTypeKey,
+  type DraftType,
+  type PriceDraft,
+} from "@/components/equipe/session-drafts";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { controlClasses } from "@/components/ui/Field";
@@ -15,7 +21,12 @@ import {
   unitContentsLabel,
 } from "@/lib/domain/ticket-types";
 
-export { parsePriceCents } from "@/components/equipe/session-drafts";
+export {
+  customTypeKey,
+  parsePriceCents,
+  presetTypeKey,
+  savedTypeKey,
+} from "@/components/equipe/session-drafts";
 
 /** Tipo à venda como a página da equipe carrega do banco. */
 export type EditorTicketType = {
@@ -43,20 +54,6 @@ export type TicketTypesState = {
 };
 
 type SalesInfo = Pick<EditorTicketType, "hasSales" | "unitsSold" | "unitsTaken">;
-
-/** Chave do tipo no editor (liga o tipo ao preço de cada sessão). */
-export function presetTypeKey(preset: string): string {
-  return `preset:${preset}`;
-}
-
-export function customTypeKey(rowKey: string): string {
-  return `custom:${rowKey}`;
-}
-
-/** Chave de um tipo salvo, como a página carrega do banco. */
-export function savedTypeKey(type: Pick<EditorTicketType, "id" | "preset">): string {
-  return type.preset ? presetTypeKey(type.preset) : customTypeKey(type.id);
-}
 
 const PRESET_DETAILS: Record<TicketPreset, string> = {
   inteira: "1 pessoa",

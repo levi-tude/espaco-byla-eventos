@@ -33,6 +33,20 @@ export type EditorSession = {
   paidOrders: number;
 };
 
+/** Chave do tipo no editor (liga o tipo ao preço de cada sessão). */
+export function presetTypeKey(preset: string): string {
+  return `preset:${preset}`;
+}
+
+export function customTypeKey(rowKey: string): string {
+  return `custom:${rowKey}`;
+}
+
+/** Chave de um tipo salvo, como a página carrega do banco. */
+export function savedTypeKey(type: { id: string; preset: string | null }): string {
+  return type.preset ? presetTypeKey(type.preset) : customTypeKey(type.id);
+}
+
 export type SessionDraft = {
   key: string;
   id: string | null;
