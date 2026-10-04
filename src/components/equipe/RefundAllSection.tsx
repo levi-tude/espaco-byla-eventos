@@ -138,10 +138,10 @@ export function RefundAllSection({ summary, sessionLabel }: Props) {
             ? `${summary.refund.orders === 1 ? "1 pedido pode" : `${summary.refund.orders} pedidos podem`} ser estornados · ${currency.format(summary.refund.cents / 100)}.`
             : "Nenhum pedido pago para estornar nesta sessão."}
           {summary.refund.skippedCheckIn > 0
-            ? ` ${summary.refund.skippedCheckIn} com entrada registrada ficam de fora.`
+            ? ` ${summary.refund.skippedCheckIn} com entrada registrada ${summary.refund.skippedCheckIn === 1 ? "fica" : "ficam"} de fora.`
             : ""}
           {summary.refund.skippedDeadline > 0
-            ? ` ${summary.refund.skippedDeadline} com mais de 180 dias ficam de fora (estorno pelo painel do banco).`
+            ? ` ${summary.refund.skippedDeadline} com mais de 180 dias ${summary.refund.skippedDeadline === 1 ? "fica" : "ficam"} de fora (estorno pelo painel do banco).`
             : ""}
         </p>
       </div>
@@ -205,7 +205,7 @@ function BatchReport({
       <p className="text-sm text-byla-muted">
         Pedido por {batch.requestedByName ?? "equipe"} em {formatSessionShort(batch.createdAt)} · {done} de{" "}
         {batch.items.length} estornados
-        {failed > 0 ? ` · ${failed} falharam` : ""}
+        {failed > 0 ? ` · ${failed} ${failed === 1 ? "falhou" : "falharam"}` : ""}
         {waiting > 0 ? ` · ${waiting} na fila` : ""}
       </p>
       {waiting > 0 || failed > 0 ? (

@@ -148,7 +148,7 @@ function CancelSessionDialog({
             {impact.checkedInOrders > 0 ? (
               <li className="text-byla-warning">
                 {plural(impact.checkedInOrders, "pedido já tem entrada registrada", "pedidos já têm entrada registrada")}{" "}
-                (não poderão ser estornados pelo site)
+                ({impact.checkedInOrders === 1 ? "não poderá ser estornado" : "não poderão ser estornados"} pelo site)
               </li>
             ) : null}
             <li>A portaria passa a recusar os ingressos desta sessão.</li>

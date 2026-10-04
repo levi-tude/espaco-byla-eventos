@@ -354,7 +354,7 @@ function SessionCard({
         ) : null}
         {locked ? (
           <p className="flex min-h-11 items-center text-sm text-byla-muted">
-            Esta sessão tem vendas e não pode ser removida. “Cancelar sessão” chega em breve.
+            Esta sessão tem vendas e não pode ser removida. Para cancelar, escolha a sessão no topo do painel e use “Cancelar sessão”.
           </p>
         ) : (
           <button
