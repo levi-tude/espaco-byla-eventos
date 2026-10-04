@@ -51,7 +51,7 @@ describe("limites dos tipos em ingressos", () => {
 
   it("recusa limite acima do total (caso do dono: 50 com total 10)", () => {
     expect(typeLimitsError(10, noQuotas, [type({ maxUnits: 50 })])).toBe(
-      "O limite de “Inteira” (50) passa do total do evento (10). Diminua o limite ou aumente o total.",
+      "O limite de “Inteira” (50) passa do total da sessão (10). Diminua o limite ou aumente o total.",
     );
   });
 
@@ -59,7 +59,7 @@ describe("limites dos tipos em ingressos", () => {
     expect(
       typeLimitsError(5, noQuotas, [type({ name: "Casadinha", peoplePerUnit: 2, maxUnits: 3 })]),
     ).toBe(
-      "O limite de “Casadinha” (3 × 2 pessoas = 6 ingressos) passa do total do evento (5). Diminua o limite ou aumente o total.",
+      "O limite de “Casadinha” (3 × 2 pessoas = 6 ingressos) passa do total da sessão (5). Diminua o limite ou aumente o total.",
     );
   });
 

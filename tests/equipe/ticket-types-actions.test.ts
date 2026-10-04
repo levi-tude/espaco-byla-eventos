@@ -222,7 +222,7 @@ describe("editar evento com sessões", () => {
   it.each([
     [
       session({ capacity: 10, inteiraQuota: null, meiaQuota: null, prices: [{ typeIndex: 0, priceCents: 5000, maxUnits: 50, onSale: true }, { typeIndex: 1, priceCents: 9000, maxUnits: null, onSale: true }, { typeIndex: 2, priceCents: 30000, maxUnits: null, onSale: true }] }),
-      "O limite de “Inteira” (50) passa do total do evento (10). Diminua o limite ou aumente o total.",
+      "O limite de “Inteira” (50) passa do total da sessão (10). Diminua o limite ou aumente o total.",
     ],
     [
       session({ prices: [{ typeIndex: 0, priceCents: 5000, maxUnits: null, onSale: true }, { typeIndex: 1, priceCents: 9000, maxUnits: 31, onSale: true }, { typeIndex: 2, priceCents: 30000, maxUnits: null, onSale: true }] }),
@@ -242,7 +242,7 @@ describe("editar evento com sessões", () => {
     });
     expect(result).toEqual({
       ok: false,
-      error: "Sessão 2 (ter, 01/12 · 22h00): O limite de “Casadinha” (3 × 2 pessoas = 6 ingressos) passa do total do evento (5). Diminua o limite ou aumente o total.",
+      error: "Sessão 2 (ter, 01/12 · 22h00): O limite de “Casadinha” (3 × 2 pessoas = 6 ingressos) passa do total da sessão (5). Diminua o limite ou aumente o total.",
     });
   });
 

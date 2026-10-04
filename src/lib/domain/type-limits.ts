@@ -59,7 +59,7 @@ export function typeLimitsError(
     const people = limitPeople(type);
     if (people === null) continue;
     if (people > capacity) {
-      return `O limite de “${type.name}” (${limitText(type, people)}) passa do total do evento (${capacity}). Diminua o limite ou aumente o total.`;
+      return `O limite de “${type.name}” (${limitText(type, people)}) passa do total da sessão (${capacity}). Diminua o limite ou aumente o total.`;
     }
     const quota = type.kind === "inteira" ? quotas.inteiraQuota : quotas.meiaQuota;
     if (quota !== null && people > quota) {
