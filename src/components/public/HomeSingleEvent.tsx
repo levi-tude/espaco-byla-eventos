@@ -1,8 +1,10 @@
 import { CalendarDays, MapPin } from "lucide-react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { SessionChips } from "@/components/public/SessionChips";
 import { ButtonLink } from "@/components/ui/Button";
 import { CoverImage } from "@/components/ui/CoverImage";
+import type { SessionSaleSummary } from "@/lib/domain/sessions";
 
 type EventCard = {
   slug: string;
@@ -10,9 +12,14 @@ type EventCard = {
   startsLabel: string;
   venue: string;
   coverImageUrl: string | null;
+  /** Mais de uma sessão: aparecem em chips no lugar da linha de data. */
+  sessions?: readonly SessionSaleSummary[];
+  priceLabel?: string | null;
 };
 
 export function HomeSingleEvent({ event }: { event: EventCard }) {
+  const sessions = event.sessions ?? [];
+  const multi = sessions.length > 1;
   return (
     <main className="relative flex min-h-full flex-1 flex-col overflow-hidden bg-byla-bg">
       <div
@@ -45,15 +52,29 @@ export function HomeSingleEvent({ event }: { event: EventCard }) {
               {event.name}
             </h1>
             <ul className="mt-4 space-y-2 text-base text-byla-muted sm:text-lg">
-              <li className="flex items-start gap-2">
-                <CalendarDays aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-accent-text" />
-                {event.startsLabel}
-              </li>
+              {multi ? null : (
+                <li className="flex items-start gap-2">
+                  <CalendarDays aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-accent-text" />
+                  {event.startsLabel}
+                </li>
+              )}
               <li className="flex items-start gap-2">
                 <MapPin aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-accent-text" />
                 {event.venue}
               </li>
             </ul>
+            {multi ? (
+              <SessionChips
+                className="mt-4"
+                eventName={event.name}
+                large
+                sessions={sessions}
+                slug={event.slug}
+              />
+            ) : null}
+            {event.priceLabel ? (
+              <p className="mt-4 text-lg font-semibold text-foreground">{event.priceLabel}</p>
+            ) : null}
             <ButtonLink
               className="mt-6 w-full sm:w-auto"
               href={`/eventos/${event.slug}`}

@@ -110,6 +110,30 @@ describe("proteção do checkout e do pagamento", () => {
     );
   });
 
+  it("envia a sessão escolhida ao banco", async () => {
+    const sessionId = "30000000-0000-4000-8000-000000000001";
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+    mocks.from.mockImplementation(() => selectResult({ id: "evento" }));
+
+    await startCheckout({ ...checkoutInput, sessionId });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_checkout_order",
+      expect.objectContaining({ p_session_id: sessionId }),
+    );
+  });
+
+  it("sessão adulterada não chega ao banco", async () => {
+    const result = await startCheckout({ ...checkoutInput, sessionId: "../outra" });
+    expect(result).toHaveProperty("error");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("robô não cria pedido", async () => {
     mocks.isBot.mockReturnValue(true);
     expect(await startCheckout(checkoutInput)).toEqual({ error: BOT_BLOCKED_MESSAGE });

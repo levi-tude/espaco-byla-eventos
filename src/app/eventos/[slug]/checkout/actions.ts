@@ -9,8 +9,9 @@ import {
   toCheckoutAvailability,
   typeRefusalMessage,
 } from "@/lib/domain/availability";
-import { loadEventAvailability } from "@/lib/domain/event-availability";
+import { loadEventAvailability, loadSessionAvailability } from "@/lib/domain/event-availability";
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
+import { SALES_CLOSED_MESSAGE } from "@/lib/domain/sessions";
 import { isUuid, TICKET_TYPE_LIMITS } from "@/lib/domain/ticket-types";
 import { createPublicToken } from "@/lib/domain/tickets";
 import {
@@ -29,6 +30,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CheckoutInput = {
   slug: string;
+  /** Sessão escolhida; sem ela, o banco usa a sessão única (e recusa se houver mais). */
+  sessionId?: string | null;
   items: { ticketTypeId: string; qty: number }[];
   buyer: { name: string; email: string; phone?: string };
   acceptedPrivacy: boolean;
@@ -41,8 +44,22 @@ export type CheckoutResult =
   | { error: string; availability?: CheckoutAvailability };
 
 const LIMIT_MESSAGE = `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} pessoas por compra.`;
+const SESSION_CHOICE_MESSAGE = "Escolha a sessão na página do evento e tente de novo.";
 const UNAVAILABLE_MESSAGE =
   "Um dos tipos de ingresso escolhidos não está mais à venda. Atualize a página e escolha de novo.";
+
+async function activeSessionCount(
+  admin: ReturnType<typeof createAdminClient>,
+  eventId: string,
+): Promise<number> {
+  const { count } = await admin
+    .from("event_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("status", "ativa")
+    .is("archived_at", null);
+  return count ?? 0;
+}
 
 export async function startCheckout(input: CheckoutInput): Promise<CheckoutResult> {
   const buyer = {
@@ -52,6 +69,10 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   };
   if (!Array.isArray(input.items) || input.items.length > TICKET_TYPE_LIMITS.maxTypes) {
     return { error: "Selecione quantidades válidas de ingressos." };
+  }
+  const sessionId = input.sessionId ?? null;
+  if (sessionId !== null && (typeof sessionId !== "string" || !isUuid(sessionId))) {
+    return { error: SESSION_CHOICE_MESSAGE };
   }
   const quantities = new Map<string, number>();
   for (const item of input.items) {
@@ -117,11 +138,12 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
       p_public_token: publicToken,
       p_items: items,
       p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+      ...(sessionId ? { p_session_id: sessionId } : {}),
     })
     .single();
 
   if (orderError || !order) {
-    return checkoutRefusal(admin, event.id, orderError?.message ?? "");
+    return checkoutRefusal(admin, event.id, sessionId, orderError?.message ?? "");
   }
 
   return { publicToken };
@@ -131,12 +153,15 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
 async function checkoutRefusal(
   admin: ReturnType<typeof createAdminClient>,
   eventId: string,
+  sessionId: string | null,
   message: string,
 ): Promise<CheckoutResult> {
   const typeSoldOut = message.match(/ESGOTADO_TIPO:([0-9a-f-]{36}):(\d+)/i);
   const categorySoldOut = message.match(/ESGOTADO_CATEGORIA:(inteira|meia):(\d+)/);
   if (message.includes("ESGOTADO_EVENTO") || typeSoldOut || categorySoldOut) {
-    const availability = await loadEventAvailability(admin, { id: eventId });
+    const availability = sessionId
+      ? await loadSessionAvailability(admin, sessionId)
+      : await loadEventAvailability(admin, { id: eventId });
     let error = capacityRefusalMessage(availability);
     if (categorySoldOut) {
       error = categoryRefusalMessage(
@@ -159,14 +184,21 @@ async function checkoutRefusal(
   if (message.includes("LIMITE_PESSOAS")) return { error: LIMIT_MESSAGE };
   if (message.includes("TIPO_INDISPONIVEL")) return { error: UNAVAILABLE_MESSAGE };
   // SESSAO_ENCERRADA: venda fechada pela equipe ou 5 min depois do início.
+  const multi = sessionId !== null && (await activeSessionCount(admin, eventId)) > 1;
   if (
     message.includes("SESSAO_ENCERRADA") ||
     message.includes("vendas deste evento estão fechadas")
   ) {
-    return { error: "As vendas deste evento estão fechadas." };
+    return { error: multi ? SALES_CLOSED_MESSAGE : "As vendas deste evento estão fechadas." };
   }
   if (message.includes("SESSAO_INDISPONIVEL")) {
-    return { error: "Este evento não está disponível para compra no momento." };
+    return {
+      error: multi
+        ? "Esta sessão não está mais disponível. Escolha outra sessão."
+        : sessionId === null && message.includes("Escolha a sessão")
+          ? SESSION_CHOICE_MESSAGE
+          : "Este evento não está disponível para compra no momento.",
+    };
   }
   return { error: "Não foi possível criar o pedido." };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Minus, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
@@ -50,11 +50,22 @@ export type CheckoutTicketType = {
   remainingUnits: number | null;
 };
 
+/** Sessão da compra, sempre à vista do comprador. */
+export type CheckoutSession = {
+  id: string;
+  /** "Nome · sáb, 10/10 · 19h00 – 21h30". */
+  label: string;
+  /** Evento com mais de uma sessão: mostra "Trocar sessão". */
+  canChange: boolean;
+};
+
 type Quantities = Record<string, number>;
 type Buyer = Pick<BrowserCart, "name" | "email" | "phone">;
 
 type CheckoutFormProps = {
   slug: string;
+  /** `null` só quando não foi possível consultar as sessões (o banco usa a sessão única). */
+  session: CheckoutSession | null;
   ticketTypes: CheckoutTicketType[];
   /** Lugares livres agora (descontando reservas); `null` se não foi possível consultar. */
   remaining: number | null;
@@ -98,6 +109,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
 function CheckoutFormFields({
   slug,
+  session,
   ticketTypes,
   remaining: initialRemaining,
   categoryRemaining: initialCategoryRemaining,
@@ -125,9 +137,17 @@ function CheckoutFormFields({
       inteira: ticketTypes.find((type) => type.preset === "inteira")?.id,
       meia: ticketTypes.find((type) => type.preset === "meia")?.id,
     };
-    const cart = restoreCart
+    const savedCart = restoreCart
       ? readCart(browserStorage(), slug, Date.now(), legacyKinds)
       : null;
+    // Carrinho de outra sessão: aproveita só os dados do comprador.
+    const otherSession = Boolean(
+      savedCart?.sessionId && session && savedCart.sessionId !== session.id,
+    );
+    const cart =
+      savedCart && otherSession
+        ? { ...savedCart, quantities: {}, pendingOrderToken: undefined, droppedItems: undefined }
+        : savedCart;
     const cartToken = cart?.pendingOrderToken ?? null;
     // Um pedido mais novo feito neste navegador vale mais que o link de retomada.
     const preferCart = Boolean(cart && cartToken && cartToken !== resume?.publicToken);
@@ -165,6 +185,12 @@ function CheckoutFormFields({
         (fromCart && (Boolean(cart.droppedItems) || droppedFromRequest)),
       pendingToken,
       pendingUntil: pendingToken && resume?.awaitingUntil ? resume.awaitingUntil : null,
+      // Seleção guardada antes das sessões: os preços agora são os da sessão escolhida.
+      pricesUpdated:
+        fromCart &&
+        Boolean(session?.canChange) &&
+        !cart.sessionId &&
+        Object.values(quantities).some((qty) => qty > 0),
     };
   });
   const [quantities, setQuantities] = useState<Quantities>(initial.quantities);
@@ -206,8 +232,9 @@ function CheckoutFormFields({
       quantities,
       ...buyer,
       ...(pendingToken ? { pendingOrderToken: pendingToken } : {}),
+      ...(session ? { sessionId: session.id } : {}),
     });
-  }, [restoreCart, slug, quantities, buyer, pendingToken]);
+  }, [restoreCart, slug, quantities, buyer, pendingToken, session]);
 
   // Voltar da tela de pagamento não cria outro pedido: o anterior é oferecido primeiro.
   useEffect(() => {
@@ -282,6 +309,7 @@ function CheckoutFormFields({
       try {
         const result = await startCheckout({
           slug,
+          ...(session ? { sessionId: session.id } : {}),
           items: ticketTypes
             .filter((type) => qtyOf(quantities, type.id) > 0)
             .map((type) => ({ ticketTypeId: type.id, qty: qtyOf(quantities, type.id) })),
@@ -312,6 +340,7 @@ function CheckoutFormFields({
           quantities,
           ...buyer,
           pendingOrderToken: result.publicToken,
+          ...(session ? { sessionId: session.id } : {}),
         });
         setPendingToken(result.publicToken);
         router.push(`/pedidos/${result.publicToken}`);
@@ -339,6 +368,34 @@ function CheckoutFormFields({
       onSubmit={submit}
     >
       <div className="grid min-w-0 gap-8">
+        {session ? (
+          <section
+            aria-label="Sessão escolhida"
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-byla-link/50 bg-byla-surface p-4"
+          >
+            <div className="min-w-0">
+              <p className="text-sm text-byla-muted">Você está comprando para</p>
+              <p className="break-words text-lg font-semibold text-foreground">
+                <CalendarDays
+                  aria-hidden
+                  className="mr-1.5 inline h-5 w-5 align-[-0.2em] text-byla-accent-text"
+                />
+                {session.label}
+              </p>
+            </div>
+            {session.canChange && !awaitingPayment ? (
+              <Link
+                className="inline-flex min-h-11 items-center rounded-lg px-1 text-base font-medium text-byla-link underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
+                href={`/eventos/${slug}?sessao=${session.id}#sessoes`}
+              >
+                Trocar sessão
+              </Link>
+            ) : null}
+          </section>
+        ) : null}
+        {initial.pricesUpdated ? (
+          <Notice tone="info">Os preços foram atualizados para esta sessão.</Notice>
+        ) : null}
         {pendingToken && pendingUntil ? (
           <PendingOrderBanner
             expiresAt={pendingUntil}
@@ -512,6 +569,9 @@ function CheckoutFormFields({
         className="hidden rounded-2xl border border-byla-border bg-byla-surface p-5 lg:sticky lg:top-6 lg:grid lg:gap-4"
       >
         <h2 className="text-lg font-semibold text-foreground">Resumo do pedido</h2>
+        {session ? (
+          <p className="-mt-2 text-base font-medium text-foreground">{session.label}</p>
+        ) : null}
         {selected.length ? (
           <ul className="grid gap-2 text-base">
             {selected.map((type) => (
@@ -549,7 +609,12 @@ function CheckoutFormFields({
       </aside>
 
       <StickyActionBar hideFrom="lg">
-        <div className="min-w-0 shrink-0">
+        <div className="min-w-0 shrink">
+          {session?.canChange ? (
+            <p className="max-w-[11rem] truncate text-sm font-medium text-foreground">
+              {session.label}
+            </p>
+          ) : null}
           <p className="text-sm text-byla-muted">{totalLabel}</p>
           <p className="text-xl font-bold tabular-nums text-byla-accent-text">
             {moneyFormatter.format(totalCents / 100)}
