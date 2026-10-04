@@ -288,7 +288,7 @@ export default async function EventoPublicoPage({
           {lowestPriceCents !== null ? (
             <div className="min-w-0 shrink-0">
               {multi && selected ? (
-                <p className="max-w-[10rem] truncate text-sm font-medium text-foreground">
+                <p className="line-clamp-2 max-w-[10rem] text-sm font-medium leading-snug text-foreground">
                   {selectedLabel}
                 </p>
               ) : null}
