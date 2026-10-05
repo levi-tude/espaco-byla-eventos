@@ -32,7 +32,6 @@ import {
   effectiveFeeTerms,
   formatMoney,
   orderFeeBreakdown,
-  priceWithFeeLabel,
   SERVICE_FEE_HELP,
   SERVICE_FEE_LABEL,
   serviceFeeForPrice,
@@ -443,6 +442,7 @@ function CheckoutFormFields({
               );
               const showContents =
                 type.peoplePerUnit > 1 || type.name !== ticketKindLabels[type.kind];
+              const typeFee = serviceFeeForPrice(type.priceCents, feePolicy);
               return (
                 <li className="flex items-center justify-between gap-3 p-4" key={type.id}>
                   <div className="min-w-0">
@@ -450,7 +450,13 @@ function CheckoutFormFields({
                       {type.name}
                     </p>
                     <p className="text-base text-byla-muted">
-                      {priceWithFeeLabel(type.priceCents, feePolicy)}
+                      {formatMoney(type.priceCents)}
+                      {typeFee > 0 ? (
+                        <>
+                          {" "}
+                          <span className="whitespace-nowrap">+ {formatMoney(typeFee)} de taxa</span>
+                        </>
+                      ) : null}
                     </p>
                     {showContents ? (
                       <p className="text-sm text-byla-muted">
