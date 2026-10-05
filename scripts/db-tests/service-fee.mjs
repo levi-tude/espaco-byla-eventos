@@ -92,9 +92,10 @@ try {
   `);
 
   const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
-  check("migration nova é a última, depois do cancelamento de sessão",
-    files.at(-1) === THIS_MIGRATION && files.at(-2) === "20261012100000_session_notices_cancel.sql", files.slice(-3).join(","));
-  for (const file of files.slice(0, -1)) await db.query(readFileSync(join(MIGRATIONS, file), "utf8"));
+  const thisIdx = files.indexOf(THIS_MIGRATION);
+  check("migration da taxa vem logo depois do cancelamento de sessão",
+    thisIdx > 0 && files[thisIdx - 1] === "20261012100000_session_notices_cancel.sql", files.slice(-3).join(","));
+  for (const file of files.slice(0, thisIdx)) await db.query(readFileSync(join(MIGRATIONS, file), "utf8"));
 
   async function asRole(role, sql, params = [], claims = null) {
     await db.query("begin");

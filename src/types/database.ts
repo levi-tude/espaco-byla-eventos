@@ -414,6 +414,8 @@ export type Database = {
           service_fee_rate_bps: number;
           session_id: string;
           status: Database["public"]["Enums"]["order_status"];
+          terms_accepted_at: string | null;
+          terms_version: string | null;
           tickets_subtotal_cents: number;
           total_cents: number;
         };
@@ -447,6 +449,8 @@ export type Database = {
           service_fee_rate_bps?: number;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
+          terms_accepted_at?: string | null;
+          terms_version?: string | null;
           tickets_subtotal_cents?: number;
           total_cents: number;
         };
@@ -480,6 +484,8 @@ export type Database = {
           service_fee_rate_bps?: number;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
+          terms_accepted_at?: string | null;
+          terms_version?: string | null;
           tickets_subtotal_cents?: number;
           total_cents?: number;
         };
@@ -781,6 +787,7 @@ export type Database = {
           p_session_id?: string | null;
           p_expected_fee_rate_bps?: number | null;
           p_expected_fee_min_cents?: number | null;
+          p_terms_version?: string | null;
         };
         Returns: {
           expires_at: string;
