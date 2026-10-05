@@ -29,6 +29,8 @@ export type SessionCancelledEmailData = CommonData & {
   reason: string | null;
   /** Cortesia: não há valor a devolver, então o e-mail não fala de devolução. */
   isCourtesy: boolean;
+  /** Taxa de serviço do pedido; > 0 deixa claro que ela também será devolvida. */
+  serviceFeeCents?: number;
 };
 
 const BRAND_BLUE = "#4080FC";
@@ -141,8 +143,8 @@ export function buildSessionCancelledEmail(data: SessionCancelledEmailData): Ses
   const footer = contactLine(data.replyAvailable);
   const reason = data.reason?.trim() || null;
   const subject = `Sessão cancelada — ${data.eventName}`;
-  const refundLine =
-    "O valor pago, incluindo a taxa de serviço quando cobrada, será devolvido integralmente e você receberá outro e-mail quando a devolução for feita.";
+  const paid = (data.serviceFeeCents ?? 0) > 0 ? "O valor pago, incluindo a taxa de serviço," : "O valor pago";
+  const refundLine = `${paid} será devolvido integralmente e você receberá outro e-mail quando a devolução for feita.`;
 
   const body = [
     paragraph(`Olá, ${escapeHtml(name)}! A sessão de <strong>${escapeHtml(data.eventName)}</strong> (${escapeHtml(when)}) foi cancelada.`),

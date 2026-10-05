@@ -50,8 +50,26 @@ function parseTickets(value: Json | null): { holderName: string; kindLabel: stri
   });
 }
 
+/** Taxa gravada no pedido; sem ela o e-mail só não menciona a taxa. */
+async function orderServiceFeeCents(admin: SupabaseAdmin, orderId: string): Promise<number> {
+  try {
+    const { data, error } = await admin
+      .from("orders")
+      .select("service_fee_cents")
+      .eq("id", orderId)
+      .maybeSingle();
+    return error || !data ? 0 : data.service_fee_cents;
+  } catch {
+    return 0;
+  }
+}
+
 /** Monta o e-mail da entrega; `null` se faltar dado essencial (a entrega volta para a fila). */
-function buildContent(row: DeliveryRow, config: SessionNoticeEmailConfig): SessionNoticeEmailContent | null {
+function buildContent(
+  row: DeliveryRow,
+  config: SessionNoticeEmailConfig,
+  serviceFeeCents: number,
+): SessionNoticeEmailContent | null {
   const orderUrl = `${config.appUrl}/pedidos/${encodeURIComponent(row.public_token)}`;
   const common = {
     buyerName: row.buyer_name,
@@ -77,6 +95,7 @@ function buildContent(row: DeliveryRow, config: SessionNoticeEmailConfig): Sessi
         endsAt: row.session_ends_at,
         reason: row.reason,
         isCourtesy: row.total_cents === 0,
+        serviceFeeCents,
       });
     case "estorno_cancelamento":
       if (row.refund_amount_cents === null) return null;
@@ -86,6 +105,7 @@ function buildContent(row: DeliveryRow, config: SessionNoticeEmailConfig): Sessi
         startsAt: row.session_starts_at,
         sessionName: row.session_name,
         amountCents: row.refund_amount_cents,
+        serviceFeeCents,
         tickets: parseTickets(row.tickets),
         orderUrl,
         sessionCancelled: true,
@@ -157,7 +177,10 @@ export async function runSessionNotices(
       continue;
     }
 
-    const content = buildContent(row, config);
+    const mentionsRefund =
+      row.kind === "estorno_cancelamento" || (row.kind === "cancelamento" && row.total_cents > 0);
+    const serviceFeeCents = mentionsRefund ? await orderServiceFeeCents(admin, row.order_id) : 0;
+    const content = buildContent(row, config, serviceFeeCents);
     if (!content) {
       failed += 1;
       console.error("[aviso-sessao] Aviso sem dados suficientes para montar o e-mail.", {

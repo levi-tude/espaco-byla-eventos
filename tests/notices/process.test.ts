@@ -38,12 +38,22 @@ function row(n: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function adminMock(claim: { data: unknown; error: unknown }) {
+function adminMock(claim: { data: unknown; error: unknown }, fees: Record<string, number> = {}) {
   const rpc = vi.fn(async (name: string) => {
     if (name === "claim_session_notice_deliveries") return claim;
     return { data: true, error: null };
   });
-  return { rpc, admin: { rpc } as never };
+  const from = vi.fn(() => ({
+    select: () => ({
+      eq: (_column: string, orderId: string) => ({
+        maybeSingle: async () =>
+          orderId in fees
+            ? { data: { service_fee_cents: fees[orderId] }, error: null }
+            : { data: null, error: null },
+      }),
+    }),
+  }));
+  return { rpc, from, admin: { rpc, from } as never };
 }
 
 const sent = (quotaUsed: number | null = 10) => ({ status: "sent" as const, quotaUsed });
@@ -111,6 +121,69 @@ describe("runSessionNotices", () => {
     const refund = send.mock.calls[1][0].content;
     expect(refund.subject).toBe("Sessão cancelada — valor devolvido — Show Teste");
     expect(refund.text).toContain("Titular (Meia-entrada)");
+    for (const content of [refund.text, refund.html]) {
+      expect(content).toContain("(100% do pedido)");
+      expect(content).not.toMatch(/taxa/i);
+    }
+  });
+
+  it("'valor devolvido' de pedido com taxa deixa claro que a taxa também voltou", async () => {
+    const withFee = row(1, { kind: "estorno_cancelamento", refund_amount_cents: 5250, tickets: [] });
+    const { from, admin } = adminMock({ data: [withFee], error: null }, { [withFee.order_id]: 250 });
+    const send = vi.fn(async (input: SendSessionNoticeInput) => {
+      void input;
+      return sent();
+    });
+
+    await runSessionNotices(admin, { limit: 10 }, { config, send, pause: vi.fn(), now: () => NOW });
+
+    expect(from).toHaveBeenCalledWith("orders");
+    const refund = send.mock.calls[0][0].content;
+    expect(refund.text).toMatch(/Valor devolvido: R\$\s52,50 \(100% do pedido, incluindo a taxa de serviço\)/);
+    expect(refund.html).toContain("(100% do pedido, incluindo a taxa de serviço)");
+  });
+
+  it("sem conseguir ler a taxa, o 'valor devolvido' sai sem mencioná-la", async () => {
+    const failing = row(1, { kind: "estorno_cancelamento", refund_amount_cents: 5250, tickets: [] });
+    const rpc = vi.fn(async (name: string) =>
+      name === "claim_session_notice_deliveries" ? { data: [failing], error: null } : { data: true, error: null },
+    );
+    const from = vi.fn(() => {
+      throw new Error("falhou");
+    });
+    const send = vi.fn(async (input: SendSessionNoticeInput) => {
+      void input;
+      return sent();
+    });
+
+    await runSessionNotices({ rpc, from } as never, { limit: 10 }, { config, send, pause: vi.fn(), now: () => NOW });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].content.text).toContain("(100% do pedido)");
+  });
+
+  it("aviso de horário e cancelamento de cortesia não consultam a taxa", async () => {
+    const { from, admin } = adminMock({
+      data: [row(1), row(2, { kind: "cancelamento", reason: "Chuva", total_cents: 0 })],
+      error: null,
+    });
+    await runSessionNotices(admin, { limit: 10 }, { config, send: vi.fn(async () => sent()), pause: vi.fn(), now: () => NOW });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("cancelamento de pedido com taxa avisa que a taxa também será devolvida", async () => {
+    const paid = row(1, { kind: "cancelamento", reason: "Chuva", total_cents: 5250 });
+    const { admin } = adminMock({ data: [paid], error: null }, { [paid.order_id]: 250 });
+    const send = vi.fn(async (input: SendSessionNoticeInput) => {
+      void input;
+      return sent();
+    });
+
+    await runSessionNotices(admin, { limit: 10 }, { config, send, pause: vi.fn(), now: () => NOW });
+
+    expect(send.mock.calls[0][0].content.text).toContain(
+      "O valor pago, incluindo a taxa de serviço, será devolvido integralmente",
+    );
   });
 
   it("ao chegar no teto do dia, pausa até a renovação e devolve o resto sem gastar tentativa", async () => {

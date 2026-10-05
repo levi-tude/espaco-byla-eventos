@@ -80,10 +80,16 @@ describe("buildSessionCancelledEmail", () => {
     );
     expect(email.text).toContain("Motivo: Chuva forte, espaço alagado");
     expect(email.text).toContain("Seus ingressos não valem mais para entrada.");
-    expect(email.text).toContain(
-      "O valor pago, incluindo a taxa de serviço quando cobrada, será devolvido integralmente",
-    );
+    expect(email.text).toContain("O valor pago será devolvido integralmente");
+    for (const content of [email.html, email.text]) expect(content).not.toMatch(/taxa/i);
     expect(email.html).toContain("Ver pedido");
+  });
+
+  it("pedido com taxa deixa claro que a taxa também será devolvida", () => {
+    const email = buildSessionCancelledEmail({ ...data, serviceFeeCents: 250 });
+    for (const content of [email.html, email.text]) {
+      expect(content).toContain("O valor pago, incluindo a taxa de serviço, será devolvido integralmente");
+    }
   });
 
   it("cortesia não fala de devolução", () => {
