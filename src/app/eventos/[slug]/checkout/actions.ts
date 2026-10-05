@@ -15,10 +15,8 @@ import { SERVICE_FEE_CHANGED_MESSAGE } from "@/lib/domain/service-fee";
 import { SALES_CLOSED_MESSAGE } from "@/lib/domain/sessions";
 import { isUuid, TICKET_TYPE_LIMITS } from "@/lib/domain/ticket-types";
 import { createPublicToken } from "@/lib/domain/tickets";
-import {
-  PRIVACY_POLICY_VERSION,
-  PRIVACY_REQUIRED_MESSAGE,
-} from "@/lib/legal/privacy";
+import { PRIVACY_POLICY_VERSION } from "@/lib/legal/privacy";
+import { CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE, TERMS_VERSION } from "@/lib/legal/terms";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { BOT_BLOCKED_MESSAGE, isBotRequest } from "@/lib/security/bot";
 import {
@@ -36,6 +34,7 @@ export type CheckoutInput = {
   items: { ticketTypeId: string; qty: number }[];
   buyer: { name: string; email: string; phone?: string };
   acceptedPrivacy: boolean;
+  acceptedTerms: boolean;
   /** Percentual e mínimo efetivos da taxa que a tela mostrou; o banco confere. */
   expectedFee?: { rateBps: number; minCents: number };
 };
@@ -122,8 +121,8 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
   if (units > MAX_PEOPLE_PER_ORDER) {
     return { error: LIMIT_MESSAGE };
   }
-  if (input.acceptedPrivacy !== true) {
-    return { error: PRIVACY_REQUIRED_MESSAGE };
+  if (input.acceptedPrivacy !== true || input.acceptedTerms !== true) {
+    return { error: CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE };
   }
 
   if (await isBotRequest()) return { error: BOT_BLOCKED_MESSAGE };
@@ -160,6 +159,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
       p_public_token: publicToken,
       p_items: items,
       p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+      p_terms_version: TERMS_VERSION,
       ...(sessionId ? { p_session_id: sessionId } : {}),
       ...(expectedFee
         ? {

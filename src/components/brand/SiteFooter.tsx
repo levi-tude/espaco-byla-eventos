@@ -1,6 +1,10 @@
 import Link from "next/link";
 
 import { COMPANY } from "@/lib/legal/privacy";
+import { TERMS_PATH } from "@/lib/legal/terms";
+
+const linkClass =
+  "inline-flex min-h-11 items-center rounded-lg px-2 font-medium underline-offset-2 transition hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
@@ -14,12 +18,15 @@ export function SiteFooter() {
         <span aria-hidden className="hidden sm:inline">
           ·
         </span>
-        <Link
-          className="inline-flex min-h-11 items-center rounded-lg px-2 font-medium underline-offset-2 transition hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
-          href="/privacidade"
-        >
-          Política de Privacidade
-        </Link>
+        <nav aria-label="Informações legais" className="flex items-center gap-1">
+          <Link className={linkClass} href={TERMS_PATH}>
+            Termos de compra
+          </Link>
+          <span aria-hidden>·</span>
+          <Link className={linkClass} href="/privacidade">
+            Política de Privacidade
+          </Link>
+        </nav>
       </div>
     </footer>
   );

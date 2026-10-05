@@ -11,6 +11,3 @@ export const PRIVACY_POLICY_VERSION = "2026-10-03";
 export const PRIVACY_POLICY_UPDATED_LABEL = "3 de outubro de 2026";
 
 export const DATA_RETENTION_YEARS = 5;
-
-export const PRIVACY_REQUIRED_MESSAGE =
-  "Para continuar, aceite a Política de Privacidade.";

@@ -29,10 +29,8 @@ vi.mock("@/lib/payments/confirm-order", () => ({ confirmOrderPaid: vi.fn() }));
 
 import { startCheckout } from "@/app/eventos/[slug]/checkout/actions";
 import { checkOrderPayment, payOrder } from "@/app/pedidos/[publicToken]/actions";
-import {
-  PRIVACY_POLICY_VERSION,
-  PRIVACY_REQUIRED_MESSAGE,
-} from "@/lib/legal/privacy";
+import { PRIVACY_POLICY_VERSION } from "@/lib/legal/privacy";
+import { CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE, TERMS_VERSION } from "@/lib/legal/terms";
 import { BOT_BLOCKED_MESSAGE } from "@/lib/security/bot";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
@@ -41,6 +39,7 @@ const checkoutInput = {
   items: [{ ticketTypeId: "20000000-0000-4000-8000-000000000001", qty: 2 }],
   buyer: { name: "Comprador", email: "comprador@example.com" },
   acceptedPrivacy: true,
+  acceptedTerms: true,
 };
 
 const pendingOrder = {
@@ -78,19 +77,22 @@ describe("proteção do checkout e do pagamento", () => {
   });
 
   it.each([
-    ["recusada", false],
-    ["ausente (chamada direta)", undefined],
-  ])("sem aceitar a Política de Privacidade (%s) não cria pedido", async (_caso, accepted) => {
+    ["privacidade recusada", { acceptedPrivacy: false }],
+    ["privacidade ausente (chamada direta)", { acceptedPrivacy: undefined }],
+    ["termos recusados", { acceptedTerms: false }],
+    ["termos ausentes (tela antiga ou chamada direta)", { acceptedTerms: undefined }],
+    ["termos como texto", { acceptedTerms: "on" }],
+  ])("sem aceitar os Termos de compra e a Política de Privacidade (%s) não cria pedido", async (_caso, override) => {
     const result = await startCheckout({
       ...checkoutInput,
-      acceptedPrivacy: accepted as boolean,
+      ...(override as Partial<typeof checkoutInput>),
     });
-    expect(result).toEqual({ error: PRIVACY_REQUIRED_MESSAGE });
+    expect(result).toEqual({ error: CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("pedido criado registra a versão da Política de Privacidade aceita", async () => {
+  it("pedido criado registra as versões da Política de Privacidade e dos Termos aceitas", async () => {
     mocks.rpc.mockImplementation((fn: string) =>
       fn === "consume_rate_limit"
         ? Promise.resolve({ data: true, error: null })
@@ -105,6 +107,7 @@ describe("proteção do checkout e do pagamento", () => {
       "create_checkout_order",
       expect.objectContaining({
         p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+        p_terms_version: TERMS_VERSION,
         p_items: [{ ticket_type_id: "20000000-0000-4000-8000-000000000001", qty: 2 }],
       }),
     );

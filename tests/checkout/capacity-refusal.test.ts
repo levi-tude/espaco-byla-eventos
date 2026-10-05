@@ -30,6 +30,7 @@ const input = {
   items: [{ ticketTypeId: INTEIRA, qty: 5 }],
   buyer: { name: "Comprador", email: "comprador@example.com" },
   acceptedPrivacy: true,
+  acceptedTerms: true,
 };
 
 function availability(

@@ -41,7 +41,7 @@ import {
   ticketKindLabels,
   unitContentsLabel,
 } from "@/lib/domain/ticket-types";
-import { PRIVACY_REQUIRED_MESSAGE } from "@/lib/legal/privacy";
+import { CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE, TERMS_PATH } from "@/lib/legal/terms";
 import { useMounted } from "@/lib/use-mounted";
 import type { Enums } from "@/types/database";
 
@@ -325,7 +325,8 @@ function CheckoutFormFields({
             .filter((type) => qtyOf(quantities, type.id) > 0)
             .map((type) => ({ ticketTypeId: type.id, qty: qtyOf(quantities, type.id) })),
           buyer,
-          acceptedPrivacy: data.get("privacy") === "on",
+          acceptedPrivacy: data.get("legal") === "on",
+          acceptedTerms: data.get("legal") === "on",
           expectedFee: effectiveFeeTerms(feePolicy),
         });
         if ("error" in result) {
@@ -564,14 +565,23 @@ function CheckoutFormFields({
             value={buyer.phone}
           />
           <Checkbox
-            name="privacy"
+            name="legal"
             onChange={(event) => event.currentTarget.setCustomValidity("")}
             onInvalid={(event) =>
-              event.currentTarget.setCustomValidity(PRIVACY_REQUIRED_MESSAGE)
+              event.currentTarget.setCustomValidity(CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE)
             }
             required
           >
-            Li e aceito a{" "}
+            Li e aceito os{" "}
+            <Link
+              className="font-medium text-byla-link underline underline-offset-2"
+              href={TERMS_PATH}
+              rel="noopener"
+              target="_blank"
+            >
+              Termos de compra
+            </Link>{" "}
+            e a{" "}
             <Link
               className="font-medium text-byla-link underline underline-offset-2"
               href="/privacidade"
