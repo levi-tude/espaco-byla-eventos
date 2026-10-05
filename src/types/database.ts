@@ -274,6 +274,8 @@ export type Database = {
           order_id: string;
           people_per_unit: number;
           quantity: number;
+          service_fee_total_cents: number;
+          service_fee_unit_cents: number;
           ticket_type_id: string;
           unit_price_cents: number;
         };
@@ -286,6 +288,8 @@ export type Database = {
           order_id: string;
           people_per_unit: number;
           quantity: number;
+          service_fee_total_cents?: number;
+          service_fee_unit_cents?: number;
           ticket_type_id: string;
           unit_price_cents: number;
         };
@@ -298,6 +302,8 @@ export type Database = {
           order_id?: string;
           people_per_unit?: number;
           quantity?: number;
+          service_fee_total_cents?: number;
+          service_fee_unit_cents?: number;
           ticket_type_id?: string;
           unit_price_cents?: number;
         };
@@ -403,8 +409,12 @@ export type Database = {
           reminder_claimed_at: string | null;
           reminder_optout_token: string | null;
           reminder_sent_at: string | null;
+          service_fee_cents: number;
+          service_fee_min_cents: number;
+          service_fee_rate_bps: number;
           session_id: string;
           status: Database["public"]["Enums"]["order_status"];
+          tickets_subtotal_cents: number;
           total_cents: number;
         };
         Insert: {
@@ -432,8 +442,12 @@ export type Database = {
           reminder_claimed_at?: string | null;
           reminder_optout_token?: string | null;
           reminder_sent_at?: string | null;
+          service_fee_cents?: number;
+          service_fee_min_cents?: number;
+          service_fee_rate_bps?: number;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
+          tickets_subtotal_cents?: number;
           total_cents: number;
         };
         Update: {
@@ -461,8 +475,12 @@ export type Database = {
           reminder_claimed_at?: string | null;
           reminder_optout_token?: string | null;
           reminder_sent_at?: string | null;
+          service_fee_cents?: number;
+          service_fee_min_cents?: number;
+          service_fee_rate_bps?: number;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
+          tickets_subtotal_cents?: number;
           total_cents?: number;
         };
         Relationships: [
@@ -505,16 +523,22 @@ export type Database = {
         Row: {
           created_at: string;
           display_name: string;
+          is_developer: boolean;
+          role: string;
           user_id: string;
         };
         Insert: {
           created_at?: string;
           display_name: string;
+          is_developer?: boolean;
+          role?: string;
           user_id: string;
         };
         Update: {
           created_at?: string;
           display_name?: string;
+          is_developer?: boolean;
+          role?: string;
           user_id?: string;
         };
         Relationships: [];
@@ -755,12 +779,60 @@ export type Database = {
           p_privacy_policy_version?: string | null;
           p_public_token: string;
           p_session_id?: string | null;
+          p_expected_fee_rate_bps?: number | null;
+          p_expected_fee_min_cents?: number | null;
         };
         Returns: {
           expires_at: string;
           order_id: string;
+          service_fee_cents: number;
           total_cents: number;
         }[];
+      };
+      service_fee_policy: {
+        Args: Record<PropertyKey, never>;
+        Returns: { enabled: boolean; min_cents: number; rate_bps: number }[];
+      };
+      staff_finance_role: {
+        Args: { p_staff_user_id: string };
+        Returns: string | null;
+      };
+      event_finance_summary: {
+        Args: { p_event_id: string; p_staff_user_id: string };
+        Returns: Json;
+      };
+      service_fee_overview: {
+        Args: { p_from: string; p_staff_user_id: string; p_to: string };
+        Returns: Json;
+      };
+      record_service_fee_payout: {
+        Args: {
+          p_event_id: string;
+          p_expected_amount_cents: number;
+          p_note: string | null;
+          p_pix_date: string;
+          p_staff_user_id: string;
+        };
+        Returns: Json;
+      };
+      record_service_fee_adjustment: {
+        Args: {
+          p_amount_cents: number;
+          p_event_id: string;
+          p_reason: string;
+          p_staff_user_id: string;
+        };
+        Returns: Json;
+      };
+      register_order_chargeback: {
+        Args: {
+          p_kind: string;
+          p_order_id: string;
+          p_reason: string;
+          p_source?: string;
+          p_staff_user_id: string;
+        };
+        Returns: Json;
       };
       event_availability: {
         Args: { p_event_id: string };

@@ -1,6 +1,6 @@
 # Taxa de serviço — design
 
-Data: 2026-10-04 · Status: **RASCUNHO para aprovação do dono** (decisões 1–10 já aprovadas; perguntas abertas na seção 17) · Base: produção `origin/main` (`c54b7e8`), migrations até `20261012100000_session_notices_cancel.sql`.
+Data: 2026-10-04 · Status: **APROVADO pelo dono em 2026-10-04** (decisões 1–10 e respostas da seção 17) · Plano: `docs/superpowers/plans/2026-10-04-taxa-servico.md` · Base: produção `origin/main` (`c54b7e8`), migrations até `20261012100000_session_notices_cancel.sql`.
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -51,7 +51,7 @@ Ponto de partida (dono, 2026-10-04): o desenvolvedor do site presta serviço ao 
 | 7 | Quem vê | **Somente Admin.** Secretaria não vê. Garantido no servidor e no banco. |
 | 8 | Quem marca pago | **Somente Admin do Espaço**, nunca a conta do desenvolvedor. Registro imutável; correção = novo lançamento de ajuste. |
 | 9 | Situação | "Aguardando fim do evento" → "A pagar" no dia seguinte ao fim da última sessão (America/Sao_Paulo) → "Pago em dd/mm por Fulano". |
-| 10 | Contestação | Contestação depois do repasse: a taxa daquele pedido é descontada do próximo repasse, visível com o motivo. Mecanismo a confirmar (seção 9). |
+| 10 | Contestação | Contestação depois do repasse: a taxa daquele pedido é descontada do próximo repasse, visível com o motivo. Registro manual pelo Admin nesta entrega (seção 9). |
 
 ---
 
@@ -102,7 +102,7 @@ total        = soma dos preços + taxa_pedido
 
 Pedido exemplo: 2 Inteiras + 1 Meia = R$ 125,00 em ingressos + (2 × R$ 2,50 + R$ 1,25) = **R$ 6,25 de taxa** → **R$ 131,25**.
 
-Ponto de atenção: com o mínimo de R$ 1,00, abaixo de R$ 20,00 a taxa passa de 5% (R$ 10,00 → 10%). Ver pergunta sobre meia-entrada (seção 17).
+Ponto de atenção: com o mínimo de R$ 1,00, abaixo de R$ 20,00 a taxa passa de 5% (R$ 10,00 → 10%). **Decisão do dono (seção 17, item 1 = B):** o mínimo de R$ 1,00 vale para **todos** os itens, inclusive a meia-entrada. O dono foi avisado de que, em ingressos baratos, isso pode deixar a meia com mais da metade do valor total da inteira (possível questionamento pela lei da meia-entrada) e decidiu manter.
 
 ### 4.3 Onde a fórmula vive
 
@@ -275,7 +275,7 @@ As funções que escrevem recebem `p_staff_user_id` e **reconferem o papel dentr
 - Lê `service_fee_settings` uma vez. Desligada → taxa 0, como hoje.
 - Por linha: `taxa_unidade = service_fee_for_price(stt.price_cents, rate, min)`, grava em `order_items`; soma em `orders.service_fee_cents`; grava percentual e mínimo usados; `total_cents = subtotal + taxa`.
 - `tickets.price_cents` continua rateando só o preço (a taxa não entra no ingresso).
-- `p_expected_fee_rate_bps` (opcional): se informado e diferente do vigente → `TAXA_MUDOU`. Código antigo não manda → sem checagem.
+- `p_expected_fee_rate_bps` e `p_expected_fee_min_cents` (opcionais): percentual e mínimo **efetivos** que a tela mostrou (taxa desligada = 0 e 0); se informados e diferentes do vigente → `TAXA_MUDOU`. Código antigo não manda → sem checagem.
 - Devolve também `service_fee_cents` (coluna nova no retorno exige recriar a função; código antigo lê só as colunas que conhece).
 
 ### 7.2 Pagamento
@@ -370,7 +370,7 @@ Aguardando decisão             1 pedido · R$ 52,50 (fora da conta)
 - Pedidos antigos sem taxa entram em "Vendido" e "Total", com taxa 0.
 - Histórico: "Pago em 06/10 por Ana — R$ 18,75 — PIX 06/10 — nota: E1234…"; descontos e ajustes com motivo.
 - Conta do desenvolvedor: vê tudo; botões de escrita não aparecem (e o banco recusa).
-- **[R]** O cartão "Total vendido" das estatísticas atuais passa a aparecer só para Admin (ver pergunta 5).
+- O cartão "Total vendido" das estatísticas atuais passa a aparecer só para Admin (decisão do dono, seção 17 item 5 = A).
 
 ### 10.3 Página "Taxa de serviço" (`/equipe/taxa-servico`, só Admin)
 
@@ -482,7 +482,19 @@ Prazo estimado: 4 a 6 dias de trabalho (banco 1,5; telas do comprador e e-mails 
 
 ---
 
-## 17. Perguntas em aberto para o dono
+## 17. Perguntas para o dono — RESPONDIDAS em 2026-10-04
+
+| # | Tema | Resposta do dono |
+| --- | --- | --- |
+| 1 | Meia-entrada | **B** — mínimo de R$ 1,00 para todos os itens, inclusive meia. Dono avisado do possível risco com a lei da meia-entrada em ingressos baratos. |
+| 2 | Conta do desenvolvedor | **A** — marca `is_developer` em `staff_profiles`, alterada só pelo dono no painel do banco. |
+| 3 | Rótulo ao comprador | **A** — "Taxa de serviço" ("+ R$ 2,50 de taxa" na linha curta). |
+| 4 | Contestação | **A** — registro manual pelo Admin agora; automático só depois, se confirmado. |
+| 5 | "Total vendido" | **A** — passa a ser só do Admin; a secretaria continua vendo o valor de cada pedido onde opera (estorno, decidir). |
+| 6 | Eventos já à venda | **A** — quando ligada, a taxa vale para todas as compras novas de qualquer evento. |
+| 7 | Quem é Admin | **A** — todas as contas começam como `secretaria`; no dia da publicação o dono indica e marca as contas Admin no painel do banco. Até lá, nada de operação essencial muda para a equipe (venda de cortesia, check-in, estorno, decidir pedidos, sessões); só o financeiro/taxa fica restrito a Admin. |
+
+Texto original das perguntas (para histórico):
 
 1. **Meia-entrada:** cobrar 5% sobre o preço da meia é o que já está decidido, mas o mínimo de R$ 1,00 pode fazer a meia ficar com mais da metade do total da inteira em ingressos baratos (ex.: inteira R$ 16 + R$ 1 = R$ 17; meia R$ 8 + R$ 1 = R$ 9).
    - **A (recomendado):** manter 5% na meia, com mínimo de **R$ 0,50 na meia**, e confirmar com quem cuida da parte jurídica.
