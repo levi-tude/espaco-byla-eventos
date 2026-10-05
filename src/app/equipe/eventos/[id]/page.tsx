@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/equipe/AutoRefresh";
 import { DecisionQueue } from "@/components/equipe/DecisionQueue";
+import { EventFinancePanel } from "@/components/equipe/EventFinancePanel";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
@@ -19,6 +20,7 @@ import { cx } from "@/components/ui/cx";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Tone } from "@/components/ui/tone";
+import { getFinanceAccess } from "@/lib/auth/finance-admin";
 import {
   eventDateFormatter,
   formatSessionLabel,
@@ -37,6 +39,8 @@ import { parseSessionOpsSummary } from "@/lib/domain/session-ops";
 import { sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { isRecentlyPaid } from "@/lib/domain/status";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
+import { todayKey } from "@/lib/domain/fee-payout";
+import { loadEventFinance } from "@/lib/finance/load";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -86,6 +90,7 @@ export default async function EventoEquipePage({
     { data: decisionOrders },
     { data: refunds },
     { data: orderRows },
+    finance,
   ] = await Promise.all([
     supabase.rpc("is_staff"),
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
@@ -126,6 +131,7 @@ export default async function EventoEquipePage({
       .eq("orders.event_id", id)
       .order("created_at", { ascending: false }),
     supabase.from("orders").select("session_id, status, expires_at").eq("event_id", id),
+    getFinanceAccess(),
   ]);
 
   if (!isStaff || !event) notFound();
@@ -138,20 +144,36 @@ export default async function EventoEquipePage({
   const labels = new Map(sessions.map((session) => [session.id, sessionLabelOf(session)]));
 
   const admin = createAdminClient();
-  const [gallery, { data: sessionPrices }, { data: opsData, error: opsError }, availabilities] =
-    await Promise.all([
-      loadEventGallery(supabase, event.id),
-      sessionIds.length
-        ? supabase
-            .from("session_ticket_types")
-            .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
-            .in("session_id", sessionIds)
-        : Promise.resolve({ data: [] }),
-      selected
-        ? admin.rpc("session_ops_summary", { p_session_id: selected.id })
-        : Promise.resolve({ data: null, error: null }),
-      Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
-    ]);
+  const [
+    gallery,
+    { data: sessionPrices },
+    { data: opsData, error: opsError },
+    availabilities,
+    financeSummary,
+    { data: financeOrders, error: financeOrdersError },
+  ] = await Promise.all([
+    loadEventGallery(supabase, event.id),
+    sessionIds.length
+      ? supabase
+          .from("session_ticket_types")
+          .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
+          .in("session_id", sessionIds)
+      : Promise.resolve({ data: [] }),
+    selected
+      ? admin.rpc("session_ops_summary", { p_session_id: selected.id })
+      : Promise.resolve({ data: null, error: null }),
+    Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
+    finance ? loadEventFinance(event.id, finance.userId) : Promise.resolve(null),
+    finance && !finance.isDeveloper
+      ? admin
+          .from("orders")
+          .select("id, buyer_name, total_cents, service_fee_cents")
+          .eq("event_id", event.id)
+          .eq("status", "pago")
+          .gt("service_fee_cents", 0)
+          .order("paid_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   const availabilityBySession = new Map<string, EventAvailabilityWithTypes | null>(
     sessions.map((session, index) => [session.id, availabilities[index]]),
   );
@@ -304,7 +326,7 @@ export default async function EventoEquipePage({
       label: "Cortesias",
       value: validTickets.filter(({ kind }) => kind === "cortesia").length,
     },
-    { label: "Total vendido", value: currency.format(revenueCents / 100) },
+    ...(finance ? [{ label: "Total vendido", value: currency.format(revenueCents / 100) }] : []),
   ];
 
   const selectedAvailability = selected ? (availabilityBySession.get(selected.id) ?? null) : null;
@@ -330,6 +352,12 @@ export default async function EventoEquipePage({
   const closesAt = selected ? sessionSalesClosesAt(selected.starts_at) : null;
   const closesPassed = closesAt ? closesAt.getTime() <= now : false;
   if (opsError) console.error("[painel] Falha ao carregar o resumo da sessão.", { error: opsError.message });
+  if (financeOrdersError) {
+    console.error("[financeiro] Falha ao carregar os pedidos para contestação.", {
+      eventId: event.id,
+      error: financeOrdersError.message,
+    });
+  }
   const opsSummary = selected ? parseSessionOpsSummary(opsData) : null;
 
   const pendingDecisions = (decisionOrders ?? []).filter((order) => inScope(order.session_id));
@@ -348,6 +376,7 @@ export default async function EventoEquipePage({
   const shortcuts = [
     { id: "vendas", label: "Vendas" },
     ...(pendingDecisions.length ? [{ id: "decisao", label: "Decisões" }] : []),
+    ...(finance ? [{ id: "financeiro", label: "Financeiro" }] : []),
     { id: "participantes", label: "Participantes" },
     { id: "cortesia", label: "Cortesia" },
     { id: "editar", label: "Editar" },
@@ -568,6 +597,22 @@ export default async function EventoEquipePage({
               };
             })}
           />
+
+          {finance ? (
+            <EventFinancePanel
+              canWrite={!finance.isDeveloper}
+              className={sectionClass}
+              eventId={event.id}
+              id="financeiro"
+              orders={(financeOrders ?? []).map((order) => ({
+                orderId: order.id,
+                buyerName: order.buyer_name,
+                totalCents: order.total_cents,
+              }))}
+              summary={financeSummary}
+              today={todayKey()}
+            />
+          ) : null}
 
           <TicketList className={sectionClass} eventId={event.id} id="participantes" tickets={listItems} />
         </div>

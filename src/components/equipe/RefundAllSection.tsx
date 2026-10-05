@@ -313,7 +313,7 @@ function RefundAllDialog({
               {summary.refund.orders === 1 ? "1 pedido" : `${summary.refund.orders} pedidos`} ·{" "}
               {currency.format(summary.refund.cents / 100)}
             </strong>
-            , um de cada vez. Cada comprador recebe um e-mail. Pedidos já estornados ou com entrada
+            , incluindo a taxa de serviço, um de cada vez. Cada comprador recebe um e-mail. Pedidos já estornados ou com entrada
             registrada são pulados.
           </p>
         </div>

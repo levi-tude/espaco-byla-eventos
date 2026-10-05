@@ -11,7 +11,7 @@ vi.mock("@/lib/security/rate-limit", () => ({
   releaseRateLimit: mocks.releaseRateLimit,
 }));
 
-import { alertTeam, alertTeamSetup } from "@/lib/alerts/team-alert";
+import { alertTeam, alertTeamFeePayout, alertTeamSetup } from "@/lib/alerts/team-alert";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
 
 const orderId = "00000000-0000-4000-8000-000000000010";
@@ -179,6 +179,49 @@ describe("alertTeam", () => {
     expect(body.subject).toContain("chave secreta");
     expect(body.text).toContain("Falta a chave.");
     expect(body.text).not.toContain("Pedido");
+  });
+
+  it("repasse registrado avisa valor, quem marcou, evento e data do PIX, sem compradores", async () => {
+    const payout = {
+      payoutId: "00000000-0000-4000-8000-0000000000aa",
+      amountCents: 1875,
+      staffName: "Ana",
+      eventId: "00000000-0000-4000-8000-000000000001",
+      eventName: "Festa Teste",
+      pixDate: "2026-10-06",
+      note: "E1234",
+    };
+    await alertTeamFeePayout(admin, payout);
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ bucket: "alert:payout", limit: 1 }),
+      payout.payoutId,
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toContain("Repasse da taxa de serviço");
+    expect(body.text.replace(/\u00a0/g, " ")).toContain("Repasse de R$ 18,75 registrado por Ana (Festa Teste, PIX em 06/10/2026).");
+    expect(body.text).toContain("Nota: E1234");
+    expect(body.text).toContain(
+      "https://site.example/equipe/eventos/00000000-0000-4000-8000-000000000001#financeiro",
+    );
+    expect(body.text).not.toContain("comprador@example.com");
+    expect(body.text).not.toContain("Comprador");
+  });
+
+  it("alerta de repasse nunca lança", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockRejectedValue(new Error("rede caiu"));
+    await expect(
+      alertTeamFeePayout(admin, {
+        payoutId: "p",
+        amountCents: 100,
+        staffName: "Ana",
+        eventId: "e",
+        eventName: "Festa",
+        pixDate: "2026-10-06",
+        note: null,
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("sem ALERT_EMAIL só registra no log", async () => {

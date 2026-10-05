@@ -2,6 +2,7 @@ import "server-only";
 
 import { formatSessionShort } from "@/lib/datetime";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
+import { formatMoney } from "@/lib/domain/service-fee";
 import { sessionName } from "@/lib/domain/sessions";
 import {
   releaseRateLimit,
@@ -174,6 +175,55 @@ export async function alertTeam(
       ]);
     },
     { kind, orderId },
+  );
+}
+
+export type FeePayoutAlert = {
+  payoutId: string;
+  amountCents: number;
+  /** Nome de quem marcou como pago (equipe), guardado no repasse. */
+  staffName: string;
+  eventId: string;
+  eventName: string;
+  /** "AAAA-MM-DD" */
+  pixDate: string;
+  note: string | null;
+};
+
+const PAYOUT_ALERT_SUBJECT = "Repasse da taxa de serviço registrado";
+
+/** Um aviso por repasse: a chave é o próprio repasse. */
+const PAYOUT_ALERT_DEDUP: RateLimitRule = {
+  bucket: "alert:payout",
+  limit: 1,
+  windowSeconds: 86_400,
+};
+
+/**
+ * Transparência para o Espaço e o desenvolvedor: cada "Marcar como pago" gera um
+ * e-mail. Sem dados de compradores. Nunca lança: o repasse já está gravado.
+ */
+export async function alertTeamFeePayout(
+  admin: SupabaseAdmin,
+  payout: FeePayoutAlert,
+): Promise<void> {
+  const [year, month, day] = payout.pixDate.split("-");
+  await deliverAlert(
+    admin,
+    PAYOUT_ALERT_DEDUP,
+    payout.payoutId,
+    PAYOUT_ALERT_SUBJECT,
+    async () => {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+      return joinLines([
+        `Repasse de ${formatMoney(payout.amountCents)} registrado por ${payout.staffName} (${payout.eventName}, PIX em ${day}/${month}/${year}).`,
+        payout.note ? `Nota: ${payout.note}` : "",
+        "",
+        "O registro é permanente. Se algo estiver errado, lance um ajuste com o motivo no financeiro do evento.",
+        appUrl ? `Financeiro do evento: ${appUrl}/equipe/eventos/${payout.eventId}#financeiro` : "",
+      ]);
+    },
+    { kind: "repasse_registrado", payoutId: payout.payoutId, eventId: payout.eventId },
   );
 }
 

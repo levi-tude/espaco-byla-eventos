@@ -128,8 +128,8 @@ function RefundDialog({
           </h2>
           <p className="mt-2 text-base">
             Será devolvido{" "}
-            <strong>{currency.format(order.totalCents / 100)} — 100%</strong> para o
-            meio de pagamento usado. O comprador recebe um e-mail.
+            <strong>{currency.format(order.totalCents / 100)}</strong> (100% do pedido, incluindo a
+            taxa de serviço) para o meio de pagamento usado. O comprador recebe um e-mail.
           </p>
         </div>
 

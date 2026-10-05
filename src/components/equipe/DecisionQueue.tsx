@@ -118,7 +118,7 @@ export function DecisionQueue({ capacity, occupied, orders, id, className }: Pro
       <p className="mt-1 text-base text-foreground">
         Estes pedidos foram pagos, mas os ingressos ainda não valem. Escolha
         “Aceitar mesmo assim” para liberar os ingressos ou “Estornar” para
-        devolver 100% do valor.
+        devolver 100% do pedido, incluindo a taxa de serviço.
       </p>
 
       <ul className="mt-4 grid gap-3 empty:hidden">
