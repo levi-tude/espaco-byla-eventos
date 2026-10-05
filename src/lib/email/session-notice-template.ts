@@ -142,7 +142,7 @@ export function buildSessionCancelledEmail(data: SessionCancelledEmailData): Ses
   const reason = data.reason?.trim() || null;
   const subject = `Sessão cancelada — ${data.eventName}`;
   const refundLine =
-    "O valor pago será devolvido integralmente e você receberá outro e-mail quando a devolução for feita.";
+    "O valor pago, incluindo a taxa de serviço quando cobrada, será devolvido integralmente e você receberá outro e-mail quando a devolução for feita.";
 
   const body = [
     paragraph(`Olá, ${escapeHtml(name)}! A sessão de <strong>${escapeHtml(data.eventName)}</strong> (${escapeHtml(when)}) foi cancelada.`),

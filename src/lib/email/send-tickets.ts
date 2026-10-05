@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ticketTypeLabel } from "@/lib/domain/ticket-types";
-import { buildTicketsEmail } from "@/lib/email/tickets-template";
+import { buildTicketsEmail, type TicketsEmailOrderSummary } from "@/lib/email/tickets-template";
 import { ticketQrPng } from "@/lib/tickets/qr";
 import type { Enums } from "@/types/database";
 
@@ -21,6 +21,7 @@ export type SendTicketsEmailInput = {
     typeName?: string | null;
   }[];
   publicToken: string;
+  summary?: TicketsEmailOrderSummary | null;
 };
 
 export type SendTicketsEmailResult = "sent" | "skipped" | "failed";

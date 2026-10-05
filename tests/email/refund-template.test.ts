@@ -29,6 +29,20 @@ describe("buildRefundEmail", () => {
     expect(email.html).toContain('href="https://exemplo.test/pedidos/abc123"');
   });
 
+  it("sem taxa no pedido, não menciona taxa de serviço", () => {
+    const email = buildRefundEmail({ ...base, serviceFeeCents: 0 });
+    expect(email.text).toContain("(100% do pedido), para o mesmo meio");
+    for (const content of [email.html, email.text]) expect(content).not.toMatch(/taxa/i);
+  });
+
+  it("com taxa no pedido, deixa claro que ela também foi devolvida", () => {
+    const email = buildRefundEmail({ ...base, amountCents: 7875, serviceFeeCents: 375 });
+    expect(email.text).toMatch(
+      /Valor devolvido: R\$\s78,75 \(100% do pedido, incluindo a taxa de serviço\)/,
+    );
+    expect(email.html).toContain("(100% do pedido, incluindo a taxa de serviço)");
+  });
+
   it("cita a sessão do pedido", () => {
     expect(buildRefundEmail(base).text).toContain(
       "O pedido para Noite de Forró (Sábado, 10 de outubro de 2026 · 20h00) foi estornado.",

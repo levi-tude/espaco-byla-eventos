@@ -76,6 +76,57 @@ describe("buildTicketsEmail", () => {
     expect(email.html).not.toContain("de 1<");
   });
 
+  const summary = {
+    items: [
+      { name: "Inteira", quantity: 2, lineTotalCents: 10000 },
+      { name: "Meia-entrada", quantity: 1, lineTotalCents: 2500 },
+    ],
+    feeCents: 625,
+    totalCents: 13125,
+  };
+
+  it("mostra o resumo do pedido com itens, taxa de serviço e total pago", () => {
+    const email = buildTicketsEmail({ ...base, summary });
+    expect(email.html).toContain("Resumo do pedido");
+    expect(email.html).toContain("2× Inteira");
+    expect(email.html).toContain("Taxa de serviço");
+    expect(email.html).toMatch(/Total pago<\/td>[\s\S]*R\$\s131,25/);
+    expect(email.text).toContain("Resumo do pedido:");
+    expect(email.text).toMatch(/- 2× Inteira: R\$\s100,00/);
+    expect(email.text).toMatch(/- 1× Meia-entrada: R\$\s25,00/);
+    expect(email.text).toMatch(/- Taxa de serviço: R\$\s6,25/);
+    expect(email.text).toMatch(/Total pago: R\$\s131,25/);
+  });
+
+  it("pedido sem taxa: resumo sem a linha de taxa", () => {
+    const email = buildTicketsEmail({
+      ...base,
+      summary: { ...summary, feeCents: 0, totalCents: 12500 },
+    });
+    expect(email.text).toMatch(/Total pago: R\$\s125,00/);
+    for (const content of [email.html, email.text]) expect(content).not.toMatch(/taxa/i);
+  });
+
+  it.each([
+    ["cortesia (total 0)", { items: [{ name: "Cortesia", quantity: 1, lineTotalCents: 0 }], feeCents: 0, totalCents: 0 }],
+    ["sem dados", null],
+  ])("%s: sem bloco de resumo", (_caso, value) => {
+    const email = buildTicketsEmail({ ...base, summary: value });
+    for (const content of [email.html, email.text]) {
+      expect(content).not.toContain("Resumo do pedido");
+      expect(content).not.toContain("Total pago");
+    }
+  });
+
+  it("escapa o nome dos itens no resumo", () => {
+    const email = buildTicketsEmail({
+      ...base,
+      summary: { ...summary, items: [{ name: "<b>VIP</b>", quantity: 1, lineTotalCents: 13125 }] },
+    });
+    expect(email.html).not.toContain("<b>VIP</b>");
+    expect(email.html).toContain("&lt;b&gt;VIP&lt;/b&gt;");
+  });
+
   it("escapa HTML vindo dos dados do pedido", () => {
     const email = buildTicketsEmail({
       ...base,

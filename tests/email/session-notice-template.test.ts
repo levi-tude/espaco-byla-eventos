@@ -80,7 +80,9 @@ describe("buildSessionCancelledEmail", () => {
     );
     expect(email.text).toContain("Motivo: Chuva forte, espaço alagado");
     expect(email.text).toContain("Seus ingressos não valem mais para entrada.");
-    expect(email.text).toContain("O valor pago será devolvido integralmente");
+    expect(email.text).toContain(
+      "O valor pago, incluindo a taxa de serviço quando cobrada, será devolvido integralmente",
+    );
     expect(email.html).toContain("Ver pedido");
   });
 

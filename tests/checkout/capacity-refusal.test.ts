@@ -211,6 +211,75 @@ describe("checkout recusado por lotação ou limite do tipo", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("repassa ao banco os termos da taxa que a tela mostrou", async () => {
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+
+    await startCheckout({ ...input, expectedFee: { rateBps: 500, minCents: 100 } });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_checkout_order",
+      expect.objectContaining({ p_expected_fee_rate_bps: 500, p_expected_fee_min_cents: 100 }),
+    );
+  });
+
+  it("taxa desligada na tela envia 0 e 0 para o banco conferir", async () => {
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+
+    await startCheckout({ ...input, expectedFee: { rateBps: 0, minCents: 0 } });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "create_checkout_order",
+      expect.objectContaining({ p_expected_fee_rate_bps: 0, p_expected_fee_min_cents: 0 }),
+    );
+  });
+
+  it("sem os termos (tela antiga), não envia a conferência da taxa", async () => {
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+
+    await startCheckout(input);
+    const call = mocks.rpc.mock.calls.find(([fn]) => fn === "create_checkout_order");
+    expect(call?.[1]).not.toHaveProperty("p_expected_fee_rate_bps");
+    expect(call?.[1]).not.toHaveProperty("p_expected_fee_min_cents");
+  });
+
+  it.each([
+    ["percentual acima do limite", { rateBps: 2001, minCents: 100 }],
+    ["percentual negativo", { rateBps: -1, minCents: 100 }],
+    ["percentual fracionado", { rateBps: 2.5, minCents: 100 }],
+    ["mínimo acima do limite", { rateBps: 500, minCents: 1001 }],
+    ["mínimo em texto", { rateBps: 500, minCents: "100" }],
+    ["sem objeto", "500"],
+    ["nulo", null],
+  ])("termos da taxa inválidos (%s) não chegam ao banco", async (_caso, expectedFee) => {
+    const result = await startCheckout({
+      ...input,
+      expectedFee: expectedFee as unknown as { rateBps: number; minCents: number },
+    });
+    expect(result).toEqual({ error: "Selecione quantidades válidas de ingressos." });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("taxa mudou no banco: avisa e pede para recarregar os valores", async () => {
+    mocks.orderError = { message: "TAXA_MUDOU:625" };
+
+    const result = await startCheckout({ ...input, expectedFee: { rateBps: 0, minCents: 0 } });
+    expect(result).toEqual({
+      error: "Os valores foram atualizados. Confira o total antes de continuar.",
+      feeChanged: true,
+    });
+  });
+
   it("envia ao banco só o id do tipo e a quantidade (preço e total são do servidor)", async () => {
     mocks.rpc.mockImplementation((fn: string) =>
       fn === "consume_rate_limit"

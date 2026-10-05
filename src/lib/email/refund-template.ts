@@ -8,6 +8,8 @@ export type RefundEmailData = {
   startsAt: string;
   sessionName?: string | null;
   amountCents: number;
+  /** Taxa de serviço do pedido; > 0 deixa claro que ela também foi devolvida. */
+  serviceFeeCents?: number;
   tickets: { holderName: string; kindLabel: string }[];
   orderUrl: string;
   /** Estorno de sessão cancelada: assunto e abertura "Sessão cancelada — valor devolvido". */
@@ -57,6 +59,10 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
   const amount = currency.format(data.amountCents / 100);
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
+  const share =
+    (data.serviceFeeCents ?? 0) > 0
+      ? "100% do pedido, incluindo a taxa de serviço"
+      : "100% do pedido";
 
   const cancelled = data.sessionCancelled === true;
   const title = cancelled ? "Sessão cancelada — valor devolvido" : "Seu pedido foi estornado";
@@ -92,7 +98,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
               <td style="padding:28px 24px 8px;">
                 <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">${escapeHtml(title)}</h1>
                 ${paragraph(`Olá, ${escapeHtml(name)}! ${opening(`<strong>${escapeHtml(data.eventName)}</strong>`, when ? ` (${escapeHtml(when)})` : "")}`)}
-                ${paragraph(`<strong>Valor devolvido:</strong> ${escapeHtml(amount)} (100% do pedido), para o mesmo meio de pagamento usado na compra.`)}
+                ${paragraph(`<strong>Valor devolvido:</strong> ${escapeHtml(amount)} (${share}), para o mesmo meio de pagamento usado na compra.`)}
                 ${paragraph(`<strong>Ingressos cancelados (${escapeHtml(count)}):</strong>`)}
                 <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:22px;color:#333333;">${ticketItems}</ul>
                 ${paragraph("<strong>Quando o dinheiro aparece:</strong>")}
@@ -121,7 +127,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
     `Olá, ${name}!`,
     "",
     opening(data.eventName, when ? ` (${when})` : ""),
-    `Valor devolvido: ${amount} (100% do pedido), para o mesmo meio de pagamento usado na compra.`,
+    `Valor devolvido: ${amount} (${share}), para o mesmo meio de pagamento usado na compra.`,
     "",
     `Ingressos cancelados (${count}):`,
     ...data.tickets.map((ticket) => `- ${ticket.holderName} (${ticket.kindLabel})`),

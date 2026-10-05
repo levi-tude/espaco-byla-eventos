@@ -252,6 +252,42 @@ describe("sendOrderTicketsEmail", () => {
     );
   });
 
+  it("leva ao e-mail o resumo do pedido com a taxa gravada no banco", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await sendOrderTicketsEmail(
+      fakeAdmin({
+        ...paidOrderRows,
+        orders: { ...paidOrderRows.orders, total_cents: 5250, service_fee_cents: 250 },
+        order_items: [{ name: "Inteira", quantity: 1, line_total_cents: 5000 }],
+      }),
+      orderId,
+    );
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: {
+          items: [{ name: "Inteira", quantity: 1, lineTotalCents: 5000 }],
+          feeCents: 250,
+          totalCents: 5250,
+        },
+      }),
+    );
+  });
+
+  it("cortesia (total 0) vai sem resumo de valores", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await sendOrderTicketsEmail(
+      fakeAdmin({
+        ...paidOrderRows,
+        orders: { ...paidOrderRows.orders, total_cents: 0, service_fee_cents: 0 },
+        order_items: [{ name: "Cortesia", quantity: 1, line_total_cents: 0 }],
+      }),
+      orderId,
+    );
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: null }),
+    );
+  });
+
   it("não envia e avisa a equipe quando a sessão não é encontrada", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(

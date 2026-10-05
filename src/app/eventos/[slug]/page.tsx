@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { EventGallery } from "@/components/public/EventGallery";
+import { FeeNote } from "@/components/public/FeeNote";
 import { SessionPicker } from "@/components/public/SessionPicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
@@ -23,6 +24,7 @@ import {
   loadEventSessions,
   loadSessionAvailability,
 } from "@/lib/domain/event-availability";
+import { formatMoney } from "@/lib/domain/service-fee";
 import {
   buyerVisibleSessions,
   pickBuyerSession,
@@ -31,17 +33,13 @@ import {
 } from "@/lib/domain/sessions";
 import { unitContentsLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
+import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 const dateFormatter = eventDateFormatter({
   dateStyle: "long",
   timeStyle: "short",
-});
-
-const moneyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
 });
 
 /** "Sábado, 10 de outubro e Domingo, 11 de outubro" (ou "de … a …" com mais dias). */
@@ -67,7 +65,7 @@ export default async function EventoPublicoPage({
   if (!event) notFound();
 
   const admin = createAdminClient();
-  const [gallery, { data: ticketTypes }, summary] = await Promise.all([
+  const [gallery, { data: ticketTypes }, summary, feePolicy] = await Promise.all([
     loadEventGallery(supabase, event.id),
     supabase
       .from("ticket_types")
@@ -79,6 +77,7 @@ export default async function EventoPublicoPage({
       .order("sort_order")
       .order("id"),
     loadEventSessions(admin, event.id),
+    loadServiceFeePolicy(admin),
   ]);
 
   const visible = summary ? buyerVisibleSessions(summary.sessions) : [];
@@ -205,7 +204,12 @@ export default async function EventoPublicoPage({
             </h2>
 
             {multi ? (
-              <SessionPicker selectedId={selected?.id ?? null} sessions={visible} slug={event.slug} />
+              <SessionPicker
+                feePolicy={feePolicy}
+                selectedId={selected?.id ?? null}
+                sessions={visible}
+                slug={event.slug}
+              />
             ) : null}
 
             {choosing ? (
@@ -241,9 +245,14 @@ export default async function EventoPublicoPage({
                               : "text-right text-lg font-semibold text-foreground"
                           }
                         >
-                          {soldOutTypes.has(ticketType.id)
-                            ? "Esgotado"
-                            : moneyFormatter.format(ticketType.price_cents / 100)}
+                          {soldOutTypes.has(ticketType.id) ? (
+                            "Esgotado"
+                          ) : (
+                            <>
+                              {formatMoney(ticketType.price_cents)}
+                              <FeeNote priceCents={ticketType.price_cents} policy={feePolicy} />
+                            </>
+                          )}
                         </dd>
                       </div>
                     ))}
@@ -294,8 +303,9 @@ export default async function EventoPublicoPage({
               ) : null}
               <p className="text-sm text-byla-muted">A partir de</p>
               <p className="text-lg font-semibold leading-tight text-foreground">
-                {moneyFormatter.format(lowestPriceCents / 100)}
+                {formatMoney(lowestPriceCents)}
               </p>
+              <FeeNote className="text-xs" priceCents={lowestPriceCents} policy={feePolicy} />
             </div>
           ) : null}
           {choosing ? (

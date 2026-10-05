@@ -9,19 +9,15 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
 import { loadEventSessions } from "@/lib/domain/event-availability";
+import { priceWithFeeLabel } from "@/lib/domain/service-fee";
 import { homeChipSessions, sessionName } from "@/lib/domain/sessions";
+import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 const dateFormatter = eventDateFormatter({
   dateStyle: "long",
   timeStyle: "short",
-});
-
-const moneyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  maximumFractionDigits: 2,
 });
 
 export default async function Home() {
@@ -33,9 +29,10 @@ export default async function Home() {
     .order("starts_at", { ascending: true });
 
   const admin = createAdminClient();
-  const summaries = await Promise.all(
-    (events ?? []).map((event) => loadEventSessions(admin, event.id)),
-  );
+  const [summaries, feePolicy] = await Promise.all([
+    Promise.all((events ?? []).map((event) => loadEventSessions(admin, event.id))),
+    loadServiceFeePolicy(admin),
+  ]);
   // Um card por evento, enquanto houver sessão que ainda não começou (vendendo ou
   // esgotada). Sem o resumo das sessões (falha na consulta), o card fica como antes.
   const list = (events ?? [])
@@ -54,7 +51,7 @@ export default async function Home() {
         priceLabel: !summary
           ? null
           : summary.minPriceCents !== null
-            ? `A partir de ${moneyFormatter.format(summary.minPriceCents / 100)}`
+            ? `A partir de ${priceWithFeeLabel(summary.minPriceCents, feePolicy)}`
             : chips.length && chips.every((session) => session.soldOut)
               ? "Esgotado"
               : null,

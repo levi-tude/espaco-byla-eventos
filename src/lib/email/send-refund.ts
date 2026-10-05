@@ -1,6 +1,7 @@
 import "server-only";
 
 import { buildRefundEmail, type RefundEmailData } from "@/lib/email/refund-template";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type SendRefundEmailInput = Omit<RefundEmailData, "orderUrl"> & {
   buyerEmail: string;
@@ -8,6 +9,20 @@ export type SendRefundEmailInput = Omit<RefundEmailData, "orderUrl"> & {
 };
 
 export type SendRefundEmailResult = "sent" | "skipped" | "failed";
+
+/** Taxa gravada no pedido; sem ela o e-mail só não menciona a taxa. */
+async function orderServiceFeeCents(publicToken: string): Promise<number> {
+  try {
+    const { data, error } = await createAdminClient()
+      .from("orders")
+      .select("service_fee_cents")
+      .eq("public_token", publicToken)
+      .maybeSingle();
+    return error || !data ? 0 : data.service_fee_cents;
+  } catch {
+    return 0;
+  }
+}
 
 export async function sendRefundEmail({
   buyerEmail,
@@ -28,7 +43,9 @@ export async function sendRefundEmail({
   const orderUrl = `${appUrl}/pedidos/${encodeURIComponent(publicToken)}`;
 
   try {
-    const { subject, html, text } = buildRefundEmail({ ...details, orderUrl });
+    const serviceFeeCents =
+      details.serviceFeeCents ?? (await orderServiceFeeCents(publicToken));
+    const { subject, html, text } = buildRefundEmail({ ...details, serviceFeeCents, orderUrl });
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

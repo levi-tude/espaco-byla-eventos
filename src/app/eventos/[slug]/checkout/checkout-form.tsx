@@ -29,6 +29,16 @@ import {
   typeUnitsLeft,
 } from "@/lib/domain/availability";
 import {
+  effectiveFeeTerms,
+  formatMoney,
+  orderFeeBreakdown,
+  priceWithFeeLabel,
+  SERVICE_FEE_HELP,
+  SERVICE_FEE_LABEL,
+  serviceFeeForPrice,
+  type ServiceFeePolicy,
+} from "@/lib/domain/service-fee";
+import {
   ticketKindLabels,
   unitContentsLabel,
 } from "@/lib/domain/ticket-types";
@@ -73,12 +83,9 @@ type CheckoutFormProps = {
   categoryRemaining: CategoryRemaining;
   /** Pedido anterior (`?retomar=`) que preenche a escolha e os dados. */
   resume: CheckoutResume | null;
+  /** Taxa vigente, só para exibir; o banco recalcula e confere os termos enviados. */
+  feePolicy: ServiceFeePolicy;
 };
-
-const moneyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 const EMPTY_BUYER: Buyer = { name: "", email: "", phone: "" };
 
@@ -114,6 +121,7 @@ function CheckoutFormFields({
   remaining: initialRemaining,
   categoryRemaining: initialCategoryRemaining,
   resume,
+  feePolicy,
   restoreCart,
 }: CheckoutFormProps & { restoreCart: boolean }) {
   const ids = ticketTypes.map(({ id }) => id);
@@ -204,10 +212,14 @@ function CheckoutFormFields({
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const awaitingPayment = pendingToken !== null && pendingUntil !== null;
-  const totalCents = ticketTypes.reduce(
-    (sum, type) => sum + type.priceCents * qtyOf(quantities, type.id),
-    0,
+  const { ticketsCents, feeCents, totalCents } = orderFeeBreakdown(
+    ticketTypes.map((type) => ({
+      unitPriceCents: type.priceCents,
+      quantity: qtyOf(quantities, type.id),
+    })),
+    feePolicy,
   );
+  const feeShown = ticketTypes.some((type) => serviceFeeForPrice(type.priceCents, feePolicy) > 0);
   const peopleIn = (current: Quantities, kind?: string) =>
     ticketTypes.reduce(
       (sum, type) =>
@@ -315,9 +327,12 @@ function CheckoutFormFields({
             .map((type) => ({ ticketTypeId: type.id, qty: qtyOf(quantities, type.id) })),
           buyer,
           acceptedPrivacy: data.get("privacy") === "on",
+          expectedFee: effectiveFeeTerms(feePolicy),
         });
         if ("error" in result) {
           setError(result.error);
+          // A seleção fica no estado e no carrinho; só a taxa e os preços são recarregados.
+          if (result.feeChanged) router.refresh();
           const updated = result.availability;
           if (updated) {
             const limits = { ...typeRemaining, ...updated.typeRemaining };
@@ -350,7 +365,7 @@ function CheckoutFormFields({
     });
   }
 
-  const submitDisabled = totalCents === 0 || awaitingPayment || checkingPending;
+  const submitDisabled = ticketsCents === 0 || awaitingPayment || checkingPending;
   const selected = ticketTypes.filter((type) => qtyOf(quantities, type.id) > 0);
   const totalLabel = `Total${
     totalPeople > 0 ? ` · ${totalPeople} ingresso${totalPeople === 1 ? "" : "s"}` : ""
@@ -435,7 +450,7 @@ function CheckoutFormFields({
                       {type.name}
                     </p>
                     <p className="text-base text-byla-muted">
-                      {moneyFormatter.format(type.priceCents / 100)}
+                      {priceWithFeeLabel(type.priceCents, feePolicy)}
                     </p>
                     {showContents ? (
                       <p className="text-sm text-byla-muted">
@@ -483,6 +498,11 @@ function CheckoutFormFields({
               );
             })}
           </ul>
+          {feeShown ? (
+            <p className="text-sm text-byla-muted lg:hidden">
+              {SERVICE_FEE_LABEL}: {SERVICE_FEE_HELP}
+            </p>
+          ) : null}
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
             <p aria-live="polite" className="text-sm text-byla-muted">
               {limitHint}
@@ -580,7 +600,7 @@ function CheckoutFormFields({
                   {qtyOf(quantities, type.id)}× {type.name}
                 </span>
                 <span className="shrink-0 tabular-nums text-byla-muted">
-                  {moneyFormatter.format((type.priceCents * qtyOf(quantities, type.id)) / 100)}
+                  {formatMoney(type.priceCents * qtyOf(quantities, type.id))}
                 </span>
               </li>
             ))}
@@ -588,10 +608,25 @@ function CheckoutFormFields({
         ) : (
           <p className="text-base text-byla-muted">Escolha pelo menos um ingresso.</p>
         )}
+        {feeCents > 0 ? (
+          <div className="grid gap-2 border-t border-byla-border pt-4 text-base">
+            <dl className="grid gap-2">
+              <div className="flex justify-between gap-3">
+                <dt className="text-foreground">Ingressos</dt>
+                <dd className="shrink-0 tabular-nums text-byla-muted">{formatMoney(ticketsCents)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-foreground">{SERVICE_FEE_LABEL}</dt>
+                <dd className="shrink-0 tabular-nums text-byla-muted">{formatMoney(feeCents)}</dd>
+              </div>
+            </dl>
+            <p className="text-sm text-byla-muted">{SERVICE_FEE_HELP}</p>
+          </div>
+        ) : null}
         <div className="flex items-baseline justify-between gap-3 border-t border-byla-border pt-4">
           <span className="font-medium text-foreground">{totalLabel}</span>
           <strong className="text-2xl tabular-nums text-byla-accent-text">
-            {moneyFormatter.format(totalCents / 100)}
+            {formatMoney(totalCents)}
           </strong>
         </div>
         {errorNotice}
@@ -617,8 +652,13 @@ function CheckoutFormFields({
           ) : null}
           <p className="text-sm text-byla-muted">{totalLabel}</p>
           <p className="text-xl font-bold tabular-nums text-byla-accent-text">
-            {moneyFormatter.format(totalCents / 100)}
+            {formatMoney(totalCents)}
           </p>
+          {feeCents > 0 ? (
+            <p className="text-xs text-byla-muted">
+              inclui {formatMoney(feeCents)} de taxa de serviço
+            </p>
+          ) : null}
         </div>
         <Button
           className="flex-1"

@@ -1,19 +1,16 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 
+import { FeeNote } from "@/components/public/FeeNote";
 import { cx } from "@/components/ui/cx";
 import { formatSessionDay, formatSessionTime, sessionDayKey } from "@/lib/datetime";
+import { formatMoney, type ServiceFeePolicy } from "@/lib/domain/service-fee";
 import {
   type SessionSaleSummary,
   sessionAvailabilityBadge,
   sessionIsBuyable,
   sessionName,
 } from "@/lib/domain/sessions";
-
-const moneyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 function groupByDay(sessions: readonly SessionSaleSummary[]) {
   const groups = new Map<string, SessionSaleSummary[]>();
@@ -35,10 +32,12 @@ export function SessionPicker({
   slug,
   sessions,
   selectedId,
+  feePolicy,
 }: {
   slug: string;
   sessions: readonly SessionSaleSummary[];
   selectedId: string | null;
+  feePolicy: ServiceFeePolicy;
 }) {
   return (
     <section aria-labelledby="sessoes-titulo" className="mt-3 grid scroll-mt-6 gap-4" id="sessoes">
@@ -79,12 +78,19 @@ export function SessionPicker({
                   </span>
                   <span className="shrink-0 text-right">
                     {buyable && session.minPriceCents !== null ? (
-                      <span className="block text-sm text-byla-muted">
-                        a partir de{" "}
-                        <span className="font-semibold text-foreground">
-                          {moneyFormatter.format(session.minPriceCents / 100)}
+                      <>
+                        <span className="block text-sm text-byla-muted">
+                          a partir de{" "}
+                          <span className="font-semibold text-foreground">
+                            {formatMoney(session.minPriceCents)}
+                          </span>
                         </span>
-                      </span>
+                        <FeeNote
+                          className="text-xs"
+                          priceCents={session.minPriceCents}
+                          policy={feePolicy}
+                        />
+                      </>
                     ) : null}
                     {selected ? (
                       <Check aria-hidden className="ml-auto mt-1 h-5 w-5 text-byla-link" />

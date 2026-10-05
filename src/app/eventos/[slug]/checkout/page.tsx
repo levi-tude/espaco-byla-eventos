@@ -22,6 +22,7 @@ import {
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
 import { buyerVisibleSessions, SALES_CLOSED_MESSAGE } from "@/lib/domain/sessions";
 import { isUuid } from "@/lib/domain/ticket-types";
+import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Só pedido não pago deste evento preenche o checkout; o token já é a chave do pedido. */
@@ -63,7 +64,7 @@ export default async function CheckoutPage({
 
   if (!event) notFound();
 
-  const [{ data: ticketTypes }, summary, resumeOrder] = await Promise.all([
+  const [{ data: ticketTypes }, summary, resumeOrder, feePolicy] = await Promise.all([
     admin
       .from("ticket_types")
       .select("id, name, kind, preset, price_cents, people_per_unit")
@@ -75,6 +76,7 @@ export default async function CheckoutPage({
       .order("id"),
     loadEventSessions(admin, event.id),
     resumeToken ? loadResumeOrder(admin, event.id, resumeToken) : Promise.resolve(null),
+    loadServiceFeePolicy(admin),
   ]);
 
   // Sessão da compra: a do pedido retomado, a escolhida na página do evento ou,
@@ -179,6 +181,7 @@ export default async function CheckoutPage({
               categoryRemaining={
                 availability ? toCheckoutAvailability(availability).categoryRemaining : NO_CATEGORY_LIMIT
               }
+              feePolicy={feePolicy}
               resume={resume}
               session={checkoutSession}
               slug={slug}

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { OrderPayment } from "@/components/public/OrderPayment";
+import { OrderTotal, PaidOrderSummary } from "@/components/public/OrderSummary";
 import { PaymentConfirmed } from "@/components/public/PaymentConfirmed";
 import { TicketPageNav } from "@/components/public/TicketPageNav";
 import { TicketQr } from "@/components/public/TicketQr";
@@ -143,7 +144,7 @@ export default async function PedidoPage({
   const { data: order, error: orderError } = await admin
     .from("orders")
     .select(
-      "id, event_id, session_id, status, buyer_name, buyer_email, total_cents, expires_at, created_at, payment_provider, cancel_reason",
+      "id, event_id, session_id, status, buyer_name, buyer_email, total_cents, tickets_subtotal_cents, service_fee_cents, expires_at, created_at, payment_provider, cancel_reason",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -241,12 +242,11 @@ export default async function PedidoPage({
               {event.name}
             </h1>
             <p className="mt-2 text-base text-byla-muted">{sessionHeading}</p>
-            <p className="mt-3 flex items-baseline justify-between gap-3 rounded-xl border border-byla-border bg-byla-surface px-4 py-3 text-base text-foreground">
-              Total
-              <strong className="text-xl">
-                {moneyFormatter.format(order.total_cents / 100)}
-              </strong>
-            </p>
+            <OrderTotal
+              feeCents={order.service_fee_cents}
+              ticketsCents={order.tickets_subtotal_cents}
+              totalCents={order.total_cents}
+            />
           </header>
           {expired ? (
             <section className="rounded-2xl border border-byla-border bg-byla-surface p-6 text-center sm:p-8">
@@ -339,9 +339,11 @@ export default async function PedidoPage({
           <p className="text-foreground">
             {done ? "Pedido estornado" : "Estorno solicitado"}
             {when ? ` em ${dateFormatter.format(new Date(when))}` : ""}.{" "}
-            {done
-              ? `O valor de ${amount} foi devolvido para o meio de pagamento usado.`
-              : `O valor de ${amount} está sendo devolvido para o meio de pagamento usado.`}
+            {`O valor de ${amount}${
+              order.service_fee_cents > 0
+                ? " (100% do pedido, incluindo a taxa de serviço)"
+                : ""
+            } ${done ? "foi devolvido" : "está sendo devolvido"} para o meio de pagamento usado.`}
           </p>
           <p>Os ingressos deste pedido não são mais válidos.</p>
         </StatusCard>
@@ -421,16 +423,24 @@ export default async function PedidoPage({
     );
   }
 
-  const { data: tickets, error: ticketsError } = await admin
-    .from("tickets")
-    .select("code, buyer_name, kind, status, checked_in_at, order_items(name)")
-    .eq("order_id", order.id)
-    .in("status", ["pago", "check_in"])
-    .order("created_at");
+  const isCourtesy = order.payment_provider === COURTESY_PROVIDER;
+  const [{ data: tickets, error: ticketsError }, { data: items }] = await Promise.all([
+    admin
+      .from("tickets")
+      .select("code, buyer_name, kind, status, checked_in_at, order_items(name)")
+      .eq("order_id", order.id)
+      .in("status", ["pago", "check_in"])
+      .order("created_at"),
+    isCourtesy || order.total_cents <= 0
+      ? Promise.resolve({ data: null })
+      : admin
+          .from("order_items")
+          .select("name, quantity, line_total_cents")
+          .eq("order_id", order.id)
+          .order("created_at"),
+  ]);
 
   if (ticketsError) throw new Error("Não foi possível carregar os ingressos.");
-
-  const isCourtesy = order.payment_provider === COURTESY_PROVIDER;
 
   return (
     <OrderShell wide>
@@ -488,6 +498,18 @@ export default async function PedidoPage({
         ) : (
           <EmptyState className="mt-8" title="Nenhum ingresso disponível para este pedido." />
         )}
+
+        {items?.length ? (
+          <PaidOrderSummary
+            feeCents={order.service_fee_cents}
+            items={items.map((item) => ({
+              name: item.name,
+              quantity: item.quantity,
+              lineTotalCents: item.line_total_cents,
+            }))}
+            totalCents={order.total_cents}
+          />
+        ) : null}
       </div>
     </OrderShell>
   );

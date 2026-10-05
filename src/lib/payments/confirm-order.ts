@@ -133,7 +133,7 @@ export async function sendOrderTicketsEmail(
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("buyer_email, buyer_name, public_token, event_id, session_id")
+    .select("buyer_email, buyer_name, public_token, event_id, session_id, total_cents, service_fee_cents")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -144,7 +144,7 @@ export async function sendOrderTicketsEmail(
     return emailNotSent("dados do pedido não encontrados");
   }
 
-  const [eventResult, sessionResult, ticketsResult] = await Promise.all([
+  const [eventResult, sessionResult, ticketsResult, itemsResult] = await Promise.all([
     admin
       .from("events")
       .select("name, venue, starts_at")
@@ -160,6 +160,11 @@ export async function sendOrderTicketsEmail(
       .select("code, buyer_name, kind, order_items(name)")
       .eq("order_id", orderId)
       .eq("status", "pago")
+      .order("created_at"),
+    admin
+      .from("order_items")
+      .select("name, quantity, line_total_cents")
+      .eq("order_id", orderId)
       .order("created_at"),
   ]);
 
@@ -185,6 +190,20 @@ export async function sendOrderTicketsEmail(
 
   const event = eventResult.data;
   const session = sessionResult.data;
+  // Sem os itens o e-mail sai mesmo assim, só sem o resumo de valores.
+  const items = itemsResult.error ? null : itemsResult.data;
+  const summary =
+    items?.length && order.total_cents > 0
+      ? {
+          items: items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            lineTotalCents: item.line_total_cents,
+          })),
+          feeCents: order.service_fee_cents,
+          totalCents: order.total_cents,
+        }
+      : null;
 
   const emailResult = await sendTicketsEmail({
     buyerEmail: order.buyer_email,
@@ -202,6 +221,7 @@ export async function sendOrderTicketsEmail(
       typeName: orderItemName(ticket.order_items),
     })),
     publicToken: order.public_token,
+    summary,
   });
 
   if (emailResult !== "sent") {

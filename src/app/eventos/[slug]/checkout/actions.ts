@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/availability";
 import { loadEventAvailability, loadSessionAvailability } from "@/lib/domain/event-availability";
 import { isPublicTokenFormat } from "@/lib/domain/public-token";
+import { SERVICE_FEE_CHANGED_MESSAGE } from "@/lib/domain/service-fee";
 import { SALES_CLOSED_MESSAGE } from "@/lib/domain/sessions";
 import { isUuid, TICKET_TYPE_LIMITS } from "@/lib/domain/ticket-types";
 import { createPublicToken } from "@/lib/domain/tickets";
@@ -35,14 +36,17 @@ export type CheckoutInput = {
   items: { ticketTypeId: string; qty: number }[];
   buyer: { name: string; email: string; phone?: string };
   acceptedPrivacy: boolean;
+  /** Percentual e mínimo efetivos da taxa que a tela mostrou; o banco confere. */
+  expectedFee?: { rateBps: number; minCents: number };
 };
 
 // Em produção o Next esconde a mensagem de erros lançados em Server Actions;
 // por isso os erros esperados voltam como resultado.
 export type CheckoutResult =
   | { publicToken: string }
-  | { error: string; availability?: CheckoutAvailability };
+  | { error: string; availability?: CheckoutAvailability; feeChanged?: true };
 
+const INVALID_QUANTITIES_MESSAGE = "Selecione quantidades válidas de ingressos.";
 const LIMIT_MESSAGE = `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} pessoas por compra.`;
 const SESSION_CHOICE_MESSAGE = "Escolha a sessão na página do evento e tente de novo.";
 const UNAVAILABLE_MESSAGE =
@@ -61,6 +65,22 @@ async function activeSessionCount(
   return count ?? 0;
 }
 
+function isIntegerIn(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+/** `undefined` = tela antiga (sem conferência); `null` = termos adulterados. */
+function parseExpectedFee(
+  raw: unknown,
+): { rateBps: number; minCents: number } | undefined | null {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== "object") return null;
+  const { rateBps, minCents } = raw as Record<string, unknown>;
+  return isIntegerIn(rateBps, 0, 2000) && isIntegerIn(minCents, 0, 1000)
+    ? { rateBps, minCents }
+    : null;
+}
+
 export async function startCheckout(input: CheckoutInput): Promise<CheckoutResult> {
   const buyer = {
     name: input.buyer.name.trim(),
@@ -68,8 +88,10 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     phone: input.buyer.phone?.trim() || null,
   };
   if (!Array.isArray(input.items) || input.items.length > TICKET_TYPE_LIMITS.maxTypes) {
-    return { error: "Selecione quantidades válidas de ingressos." };
+    return { error: INVALID_QUANTITIES_MESSAGE };
   }
+  const expectedFee = parseExpectedFee(input.expectedFee);
+  if (expectedFee === null) return { error: INVALID_QUANTITIES_MESSAGE };
   const sessionId = input.sessionId ?? null;
   if (sessionId !== null && (typeof sessionId !== "string" || !isUuid(sessionId))) {
     return { error: SESSION_CHOICE_MESSAGE };
@@ -84,7 +106,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
       item.qty < 0 ||
       item.qty > MAX_PEOPLE_PER_ORDER
     ) {
-      return { error: "Selecione quantidades válidas de ingressos." };
+      return { error: INVALID_QUANTITIES_MESSAGE };
     }
     quantities.set(item.ticketTypeId, item.qty);
   }
@@ -139,6 +161,12 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
       p_items: items,
       p_privacy_policy_version: PRIVACY_POLICY_VERSION,
       ...(sessionId ? { p_session_id: sessionId } : {}),
+      ...(expectedFee
+        ? {
+            p_expected_fee_rate_bps: expectedFee.rateBps,
+            p_expected_fee_min_cents: expectedFee.minCents,
+          }
+        : {}),
     })
     .single();
 
@@ -156,6 +184,9 @@ async function checkoutRefusal(
   sessionId: string | null,
   message: string,
 ): Promise<CheckoutResult> {
+  if (message.includes("TAXA_MUDOU")) {
+    return { error: SERVICE_FEE_CHANGED_MESSAGE, feeChanged: true };
+  }
   const typeSoldOut = message.match(/ESGOTADO_TIPO:([0-9a-f-]{36}):(\d+)/i);
   const categorySoldOut = message.match(/ESGOTADO_CATEGORIA:(inteira|meia):(\d+)/);
   if (message.includes("ESGOTADO_EVENTO") || typeSoldOut || categorySoldOut) {

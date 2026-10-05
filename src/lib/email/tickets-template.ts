@@ -1,4 +1,11 @@
 import { formatSessionSubject, formatSessionWhen } from "@/lib/datetime";
+import { formatMoney, SERVICE_FEE_LABEL } from "@/lib/domain/service-fee";
+
+export type TicketsEmailOrderSummary = {
+  items: { name: string; quantity: number; lineTotalCents: number }[];
+  feeCents: number;
+  totalCents: number;
+};
 
 export type TicketsEmailTicket = {
   holderName: string;
@@ -21,6 +28,8 @@ export type TicketsEmailData = {
   orderNumber: string;
   tickets: TicketsEmailTicket[];
   ticketUrl: string;
+  /** Valores do pedido; cortesia (total 0) ou ausente: sem bloco "Resumo do pedido". */
+  summary?: TicketsEmailOrderSummary | null;
 };
 
 export type TicketsEmailContent = {
@@ -81,6 +90,41 @@ function ticketBlock(
             </tr>`;
 }
 
+function summaryLines(summary: TicketsEmailOrderSummary) {
+  return [
+    ...summary.items.map((item) => ({
+      label: `${item.quantity}× ${item.name}`,
+      value: formatMoney(item.lineTotalCents),
+    })),
+    ...(summary.feeCents > 0
+      ? [{ label: SERVICE_FEE_LABEL, value: formatMoney(summary.feeCents) }]
+      : []),
+  ];
+}
+
+function summaryBlock(summary: TicketsEmailOrderSummary) {
+  const rows = summaryLines(summary)
+    .map(
+      (line) => `<tr>
+                      <td style="padding:4px 0;font-size:14px;line-height:20px;color:#333333;">${escapeHtml(line.label)}</td>
+                      <td align="right" style="padding:4px 0;font-size:14px;line-height:20px;color:#333333;white-space:nowrap;">${escapeHtml(line.value)}</td>
+                    </tr>`,
+    )
+    .join("");
+  return `<tr>
+              <td style="padding:12px 24px;">
+                <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#111111;">Resumo do pedido</p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  ${rows}
+                  <tr>
+                    <td style="padding:8px 0 0;border-top:1px solid #e4e4e7;font-size:15px;font-weight:bold;color:#111111;">Total pago</td>
+                    <td align="right" style="padding:8px 0 0;border-top:1px solid #e4e4e7;font-size:15px;font-weight:bold;color:#111111;white-space:nowrap;">${escapeHtml(formatMoney(summary.totalCents))}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`;
+}
+
 export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const name = firstName(data.buyerName);
   const when = formatSessionWhen(data.startsAt, data.endsAt);
@@ -109,6 +153,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const tickets = data.tickets
     .map((ticket, index) => ticketBlock(ticket, index, total, data, when))
     .join("");
+  const summary = data.summary && data.summary.totalCents > 0 ? data.summary : null;
 
   const html = `<!doctype html>
 <html lang="pt-BR">
@@ -129,6 +174,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
               </td>
             </tr>
             ${tickets}
+            ${summary ? summaryBlock(summary) : ""}
             <tr>
               <td align="center" style="padding:20px 24px 8px;">
                 <a href="${escapeHtml(data.ticketUrl)}" style="display:inline-block;background:${BRAND_BLUE};color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;padding:14px 28px;border-radius:8px;">Ver meus ingressos</a>
@@ -162,6 +208,14 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
         `Ingresso ${index + 1} de ${total}: ${ticket.holderName} (${ticket.kindLabel}) — código ${ticket.code}`,
     ),
     "",
+    ...(summary
+      ? [
+          "Resumo do pedido:",
+          ...summaryLines(summary).map((line) => `- ${line.label}: ${line.value}`),
+          `Total pago: ${formatMoney(summary.totalCents)}`,
+          "",
+        ]
+      : []),
     `Ver meus ingressos (com QR Code): ${data.ticketUrl}`,
     "",
     "Na entrada, mostre o QR Code de cada ingresso. Cada um vale para uma pessoa e só pode ser usado uma vez.",
