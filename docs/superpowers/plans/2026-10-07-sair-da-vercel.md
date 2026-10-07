@@ -170,7 +170,7 @@ Fontes oficiais (consultadas em 2026-10-07):
 | Banda | 20 créditos por GB |
 | Requisições | 2 créditos por 10 mil |
 | Ao estourar | **TODOS os sites da conta saem do ar** ("Site not available") até o próximo ciclo, e não dá para publicar. Avisos por e-mail em 50/75/90/100% |
-| Next 16.3 + `src/proxy.ts`, Server Actions, route handlers, streaming | Suportados pelo adaptador (v5.16.2). O build local `netlify build --offline` passou (ver a seção 10) |
+| Next 16.3 + `src/proxy.ts`, Server Actions, route handlers, streaming | Oficialmente suportados (adaptador v5.16.2). **No teste local, o `proxy.ts` falhou ao empacotar** (ver a seção 10). Confirmar num Deploy Preview, que é grátis, antes de escolher a Netlify |
 
 ### Estimativa de consumo (4 eventos/mês, ~100 ingressos cada)
 
@@ -185,7 +185,7 @@ Hipóteses: ~2.000 visitas por evento (8.000 por mês), todas as páginas dinâm
 | **Total com 20 deploys** | | **~490–580 → estoura e o site sai do ar** |
 | **Total com 4 deploys** (1 por semana) | 60 + tráfego | **~250–340 → no limite** |
 
-**Conclusão:** a Netlify Free é **arriscada** para vendas. Só os 20 deploys já consomem o mês inteiro, e estourar derruba o site no meio de uma venda. Ela só serve se houver no máximo ~4 deploys de produção por mês e tráfego modesto. A Netlify Personal (US$ 9/mês, 1.000 créditos, recarga automática opcional) resolveria, mas é paga.
+**Conclusão:** a Netlify Free é **arriscada** para vendas, e a compatibilidade do `proxy.ts` ainda precisa ser provada num Deploy Preview. Só os 20 deploys já consomem o mês inteiro, e estourar derruba o site no meio de uma venda. Ela só serve se houver no máximo ~4 deploys de produção por mês e tráfego modesto. A Netlify Personal (US$ 9/mês, 1.000 créditos, recarga automática opcional) resolveria, mas é paga.
 
 ### Cloud Run (comparação rápida)
 
@@ -269,5 +269,6 @@ curl -i -H "Authorization: Bearer $CRON_SECRET" https://<domínio-novo>/api/cron
 
 - `npx tsc --noEmit`, `npm run lint`, `npx vitest run` (todos os testes) e `npm run build`: OK.
 - Build `NEXT_OUTPUT_STANDALONE=true` + `node .next/standalone/server.js`: `/privacidade` responde 200 com a CSP nova; `/api/cron/keep-alive` sem segredo responde 401; `/equipe` redireciona (307) para o login.
-- `netlify build --offline` (netlify-cli 27.11.2, adaptador Next v5.16.2, sem login): ver o resultado no relatório da entrega.
-- `npm audit --omit=dev`: ver o relatório da entrega.
+- `netlify build --offline` (netlify-cli 27.11.2, adaptador Next v5.16.2, sem login, no Windows): o build do Next e a função do servidor (páginas, Server Actions, rotas) **passaram**; o empacotamento do `proxy.ts` como Edge Function **falhou** com `Failed to compile CJS module … Cannot find module './chunks/[turbopack]_runtime.js'`, num caminho Windows corrompido (`file:///Users/…/C:/Users/…`). Pode ser só um problema do Windows (a Netlify compila em Linux), mas há relatos parecidos em Linux com o proxy do Next 16 em Node (opennextjs/opennextjs-netlify#3171). **Não confirmado:** a tentativa de repetir em Linux via Docker não foi possível (o Docker Desktop local não subiu). Se for usar a Netlify, a primeira coisa é um Deploy Preview (0 créditos) para validar.
+- Imagem Docker: não testada localmente (mesmo motivo). O build `standalone` que ela usa foi testado fora do Docker (ver acima).
+- `npm audit --omit=dev`: 0 vulnerabilidades (os 5 alertas "altos" são só de dependências de desenvolvimento e já existiam no `main`).
