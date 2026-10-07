@@ -98,12 +98,11 @@ export function useHumanCheck(action: HumanCheckAction): {
     const value =
       token.current ??
       (await new Promise<string | null>((resolve) => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
         const done = (result: string | null) => {
           clearTimeout(timer);
           resolve(result);
         };
-        timer = setTimeout(() => {
+        const timer = setTimeout(() => {
           waiters.current = waiters.current.filter((waiter) => waiter !== done);
           resolve(null);
         }, TOKEN_WAIT_MS);
