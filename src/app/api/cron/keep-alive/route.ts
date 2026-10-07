@@ -7,7 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const maxDuration = 60;
 
 /**
- * Chamado 1x/dia pelo Vercel Cron, logo depois de o limite diário de e-mails
+ * Chamado 1x/dia (Vercel Cron via vercel.json, ou pg_cron no banco via migration
+ * keep_alive_schedule em outras hospedagens), logo depois de o limite diário de e-mails
  * renovar (00h UTC, 21h em Brasília). O plano gratuito da Supabase pausa o
  * projeto após ~7 dias com pouca atividade no banco; health checks não contam,
  * então fazemos leituras reais em tabelas. Também continua os avisos de sessão
