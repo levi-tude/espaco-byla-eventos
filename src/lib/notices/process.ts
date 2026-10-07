@@ -87,6 +87,7 @@ function buildContent(
         previousStartsAt: row.previous_starts_at,
         newStartsAt: row.session_starts_at,
         newEndsAt: row.session_ends_at,
+        isCourtesy: row.total_cents === 0,
       });
     case "cancelamento":
       return buildSessionCancelledEmail({

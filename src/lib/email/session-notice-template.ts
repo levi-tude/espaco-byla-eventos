@@ -1,5 +1,6 @@
 import { formatSessionShort, formatSessionWhen } from "@/lib/datetime";
 import { sessionName as cleanSessionName } from "@/lib/domain/sessions";
+import { SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE } from "@/lib/legal/terms";
 
 export type SessionNoticeEmailContent = {
   subject: string;
@@ -21,6 +22,8 @@ export type ScheduleChangeEmailData = CommonData & {
   previousStartsAt: string;
   newStartsAt: string;
   newEndsAt?: string | null;
+  /** Cortesia: não há valor a devolver, então o e-mail não fala de reembolso. */
+  isCourtesy?: boolean;
 };
 
 export type SessionCancelledEmailData = CommonData & {
@@ -96,13 +99,18 @@ function layout(input: { title: string; body: string; buttonLabel: string; butto
 </html>`;
 }
 
-/** E-mail de mudança de horário. Texto neutro: não promete reembolso (decisão 14 da spec, adiada). */
+/** E-mail de mudança de horário. Só cita o reembolso previsto nos Termos de compra, sem prometer além. */
 export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): SessionNoticeEmailContent {
   const name = firstName(data.buyerName);
   const newWhen = formatSession(data.newStartsAt, data.newEndsAt, data.sessionName);
   const before = formatSessionShort(data.previousStartsAt);
   const footer = contactLine(data.replyAvailable);
   const subject = `Mudança de horário — ${data.eventName}`;
+  const refundLine = data.isCourtesy
+    ? null
+    : `Se não puder ir no novo horário, você pode pedir o reembolso até ${SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE} horas antes dele, ${
+        data.replyAvailable ? "respondendo este e-mail" : "falando com a equipe do Espaço Byla"
+      }.`;
 
   const body = [
     paragraph(`Olá, ${escapeHtml(name)}! O horário da sua sessão de <strong>${escapeHtml(data.eventName)}</strong> mudou.`),
@@ -113,7 +121,10 @@ export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): Session
     paragraph(`Antes: <s style="color:#888888;">${escapeHtml(before)}</s>`),
     data.venue ? paragraph(`<strong>Local:</strong> ${escapeHtml(data.venue)}`) : "",
     paragraph("<strong>Seus ingressos continuam valendo.</strong> Não precisa fazer nada."),
-  ].join("\n                ");
+    refundLine ? paragraph(escapeHtml(refundLine)) : "",
+  ]
+    .filter(Boolean)
+    .join("\n                ");
 
   const html = layout({ title: "O horário da sua sessão mudou", body, buttonLabel: "Ver meus ingressos", buttonUrl: data.orderUrl, footer });
 
@@ -126,6 +137,7 @@ export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): Session
     ...(data.venue ? [`Local: ${data.venue}`] : []),
     "",
     "Seus ingressos continuam valendo. Não precisa fazer nada.",
+    ...(refundLine ? [refundLine] : []),
     `Ver meus ingressos: ${data.orderUrl}`,
     "",
     footer,

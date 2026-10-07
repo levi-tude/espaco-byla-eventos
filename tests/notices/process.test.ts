@@ -92,7 +92,20 @@ describe("runSessionNotices", () => {
     expect(input.content.subject).toBe("Mudança de horário — Show Teste");
     expect(input.content.text).toContain("Ver meus ingressos: https://eventos.exemplo/pedidos/token-1");
     expect(input.content.text).toContain("responda este e-mail");
+    expect(input.content.text).toContain("pedir o reembolso até 24 horas antes dele");
     expect(rpc).toHaveBeenCalledWith("mark_session_notice_sent", { p_delivery_id: row(1).delivery_id });
+  });
+
+  it("aviso de horário de cortesia não fala de reembolso", async () => {
+    const { admin } = adminMock({ data: [row(1, { total_cents: 0 })], error: null });
+    const send = vi.fn(async (input: SendSessionNoticeInput) => {
+      void input;
+      return sent();
+    });
+
+    await runSessionNotices(admin, { limit: 10 }, { config, send, pause: vi.fn(), now: () => NOW });
+
+    expect(send.mock.calls[0][0].content.text).not.toMatch(/reembols/i);
   });
 
   it("monta cancelamento (cortesia sem devolução) e 'valor devolvido'", async () => {

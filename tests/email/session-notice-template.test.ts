@@ -35,18 +35,31 @@ describe("buildScheduleChangeEmail", () => {
     expect(email.html).toContain("Ver meus ingressos");
   });
 
-  it("não promete reembolso", () => {
+  it("avisa que dá para pedir reembolso até 24 horas antes do novo horário, sem prometer mais", () => {
     const email = buildScheduleChangeEmail(data);
+    const line =
+      "Se não puder ir no novo horário, você pode pedir o reembolso até 24 horas antes dele, respondendo este e-mail.";
     for (const content of [email.html, email.text]) {
-      expect(content).not.toMatch(/reembols|devolu|estorn/i);
+      expect(content).toContain(line);
+      expect(content).not.toMatch(/devolu|estorn|automátic/i);
+      expect(content.match(/reembols/gi)).toHaveLength(1);
     }
+    expect(email.text).not.toContain("100%");
+  });
+
+  it("cortesia não fala de reembolso", () => {
+    const email = buildScheduleChangeEmail({ ...data, isCourtesy: true });
+    for (const content of [email.html, email.text]) expect(content).not.toMatch(/reembols|devolu|estorn/i);
   });
 
   it("convida a responder só quando há e-mail de contato", () => {
     expect(buildScheduleChangeEmail(data).text).toContain("Em caso de dúvidas, responda este e-mail.");
     const noReply = buildScheduleChangeEmail({ ...data, replyAvailable: false });
-    expect(noReply.text).not.toContain("responda este e-mail");
+    expect(noReply.text).not.toMatch(/respond/i);
     expect(noReply.text).toContain("fale com a equipe do Espaço Byla");
+    expect(noReply.text).toContain(
+      "você pode pedir o reembolso até 24 horas antes dele, falando com a equipe do Espaço Byla.",
+    );
   });
 
   it("cita o nome da sessão quando existe", () => {
