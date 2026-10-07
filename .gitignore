@@ -29,3 +29,6 @@ coverage/
 .security/
 .env*
 !.env.example
+
+# Netlify local
+.netlify
