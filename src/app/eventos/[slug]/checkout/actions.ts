@@ -37,6 +37,8 @@ export type CheckoutInput = {
   acceptedTerms: boolean;
   /** Percentual e mínimo efetivos da taxa que a tela mostrou; o banco confere. */
   expectedFee?: { rateBps: number; minCents: number };
+  /** Token da verificação anti-robô gerado no navegador para a ação "checkout". */
+  humanToken?: string | null;
 };
 
 // Em produção o Next esconde a mensagem de erros lançados em Server Actions;
@@ -125,7 +127,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     return { error: CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE };
   }
 
-  if (await isBotRequest()) return { error: BOT_BLOCKED_MESSAGE };
+  if (await isBotRequest(input.humanToken, "checkout")) return { error: BOT_BLOCKED_MESSAGE };
 
   const admin = createAdminClient();
   const withinLimits =
@@ -242,6 +244,7 @@ export type PendingOrderLookup =
 /**
  * Pedido guardado no carrinho do navegador: diz se ainda aguarda pagamento dentro
  * da reserva, para o checkout oferecer "Continuar pagamento" em vez de criar outro.
+ * Só leitura e exige o token secreto do pedido; por isso sem verificação anti-robô.
  */
 export async function findPendingOrder(
   slug: string,
@@ -255,7 +258,6 @@ export async function findPendingOrder(
   ) {
     return { state: "none" };
   }
-  if (await isBotRequest()) return { state: "none" };
 
   const admin = createAdminClient();
   const { data: event } = await admin

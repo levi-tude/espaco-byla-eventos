@@ -15,7 +15,7 @@ const ONE_CLICK_STATUS: Record<Outcome, number> = {
 /**
  * Registra "Não quero receber lembretes". Recebe o botão da página
  * `/lembretes/cancelar` e o descadastro com um clique dos programas de e-mail
- * (`List-Unsubscribe-Post`). Sem BotID: esses programas são robôs legítimos.
+ * (`List-Unsubscribe-Post`). Sem verificação anti-robô: esses programas são robôs legítimos.
  */
 export async function POST(request: Request) {
   const url = new URL(request.url);

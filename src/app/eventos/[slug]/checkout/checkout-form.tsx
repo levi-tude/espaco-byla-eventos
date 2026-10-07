@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
+import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Field } from "@/components/ui/Field";
@@ -210,6 +211,7 @@ function CheckoutFormFields({
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const humanCheck = useHumanCheck("checkout");
   const awaitingPayment = pendingToken !== null && pendingUntil !== null;
   const { ticketsCents, feeCents, totalCents } = orderFeeBreakdown(
     ticketTypes.map((type) => ({
@@ -318,6 +320,7 @@ function CheckoutFormFields({
 
     startTransition(async () => {
       try {
+        const humanToken = await humanCheck.takeToken();
         const result = await startCheckout({
           slug,
           ...(session ? { sessionId: session.id } : {}),
@@ -328,6 +331,7 @@ function CheckoutFormFields({
           acceptedPrivacy: data.get("legal") === "on",
           acceptedTerms: data.get("legal") === "on",
           expectedFee: effectiveFeeTerms(feePolicy),
+          humanToken,
         });
         if ("error" in result) {
           setError(result.error);
@@ -592,6 +596,7 @@ function CheckoutFormFields({
             </Link>
             .
           </Checkbox>
+          {humanCheck.slot}
         </fieldset>
 
         <div className="grid gap-3 lg:hidden">

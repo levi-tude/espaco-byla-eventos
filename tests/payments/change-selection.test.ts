@@ -5,15 +5,11 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   cancelPendingCharges: vi.fn(),
   confirmOrderPaid: vi.fn(),
-  isBot: false,
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
-}));
-vi.mock("botid/server", () => ({
-  checkBotId: async () => ({ isBot: mocks.isBot }),
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }),
@@ -70,7 +66,6 @@ function rpcCalls(name: string) {
 describe("Alterar seleção", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isBot = false;
     mocks.cancelPendingCharges.mockResolvedValue({ kind: "cleared" });
     mocks.rpc.mockImplementation(async (fn: string) =>
       fn === "cancel_pending_order"
@@ -228,11 +223,7 @@ describe("Alterar seleção", () => {
     expect(mocks.cancelPendingCharges).not.toHaveBeenCalled();
   });
 
-  it("robô ou token inválido: recusa antes de tocar no banco", async () => {
-    mocks.isBot = true;
-    await expect(changeOrderSelection(token)).resolves.toMatchObject({ status: "rejected" });
-
-    mocks.isBot = false;
+  it("token inválido: recusa antes de tocar no banco", async () => {
     await expect(changeOrderSelection("x".repeat(101))).resolves.toMatchObject({
       status: "unavailable",
     });

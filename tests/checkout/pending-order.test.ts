@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
-  isBot: false,
   orders: [] as Record<string, unknown>[],
 }));
 
@@ -10,7 +9,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
 }));
-vi.mock("botid/server", () => ({ checkBotId: async () => ({ isBot: mocks.isBot }) }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mocks.from, rpc: vi.fn() }),
 }));
@@ -54,7 +52,6 @@ function pendingOrder(overrides: Record<string, unknown> = {}) {
 describe("pedido pendente guardado no carrinho", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isBot = false;
     mocks.from.mockImplementation((name: string) =>
       table(name === "events" ? events : mocks.orders),
     );
@@ -84,10 +81,9 @@ describe("pedido pendente guardado no carrinho", () => {
     await expect(findPendingOrder("show", "token-1")).resolves.toEqual({ state: "none" });
   });
 
-  it("token inválido ou robô: nem consulta o banco", async () => {
+  it("token ou evento inválido: nem consulta o banco", async () => {
     await expect(findPendingOrder("show", "../token")).resolves.toEqual({ state: "none" });
-    mocks.isBot = true;
-    await expect(findPendingOrder("show", "token-1")).resolves.toEqual({ state: "none" });
+    await expect(findPendingOrder("x".repeat(201), "token-1")).resolves.toEqual({ state: "none" });
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

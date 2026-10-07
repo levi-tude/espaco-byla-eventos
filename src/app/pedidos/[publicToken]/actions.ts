@@ -163,8 +163,9 @@ function sanitizeSubmission(raw: PaymentSubmission, fallbackEmail: string) {
 export async function payOrder(
   publicToken: string,
   submission: PaymentSubmission,
+  humanToken?: string | null,
 ): Promise<PayOrderResult> {
-  if (await isBotRequest()) {
+  if (await isBotRequest(humanToken, "payment")) {
     return { status: "rejected", message: BOT_BLOCKED_MESSAGE };
   }
 
@@ -260,11 +261,13 @@ export async function payOrder(
   }
 }
 
+/**
+ * Consulta repetida pela página do pedido (sem verificação anti-robô, cujo token é
+ * de uso único); exige o token secreto do pedido.
+ */
 export async function checkOrderPayment(
   publicToken: string,
 ): Promise<OrderPaymentStatus> {
-  if (await isBotRequest()) return "pending";
-
   const loaded = await loadOrder(publicToken);
   if (!loaded) return "unavailable";
   const { admin, order } = loaded;
@@ -313,13 +316,11 @@ function settledChangeResult(status: string): ChangeSelectionResult | null {
  * cancela o pedido pendente e libera os lugares. Pagamento aprovado é confirmado
  * em vez de cancelado; pagamento em análise impede a troca. Se um PIX for pago
  * depois do cancelamento, o pedido vai para a fila de decisão da equipe.
+ * Protegido pelo token secreto do pedido e pelos limites de tentativas.
  */
 export async function changeOrderSelection(
   publicToken: string,
 ): Promise<ChangeSelectionResult> {
-  if (await isBotRequest()) {
-    return { status: "rejected", message: BOT_BLOCKED_MESSAGE };
-  }
   if (!isPublicTokenFormat(publicToken)) {
     return { status: "unavailable", message: "Pedido não encontrado." };
   }

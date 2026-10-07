@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  isBot: vi.fn(),
   rpc: vi.fn(),
   from: vi.fn(),
   createPayment: vi.fn(),
@@ -12,9 +11,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
 }));
-vi.mock("botid/server", () => ({
-  checkBotId: async () => ({ isBot: mocks.isBot() }),
-}));
+vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }),
 }));
@@ -69,11 +66,24 @@ const cardSubmission = {
   installments: 1,
 };
 
+/** Verificação anti-robô configurada e o serviço dizendo que não é humano. */
+function botDetected() {
+  vi.stubEnv("TURNSTILE_SECRET_KEY", "segredo-de-teste");
+  vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "chave-publica");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify({ success: false }), { status: 200 })),
+  );
+}
+
 describe("proteção do checkout e do pagamento", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isBot.mockReturnValue(false);
     mocks.findOrderPayment.mockResolvedValue({ kind: "none" });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it.each([
@@ -138,8 +148,10 @@ describe("proteção do checkout e do pagamento", () => {
   });
 
   it("robô não cria pedido", async () => {
-    mocks.isBot.mockReturnValue(true);
-    expect(await startCheckout(checkoutInput)).toEqual({ error: BOT_BLOCKED_MESSAGE });
+    botDetected();
+    expect(await startCheckout({ ...checkoutInput, humanToken: "token" })).toEqual({
+      error: BOT_BLOCKED_MESSAGE,
+    });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
   });
@@ -167,10 +179,16 @@ describe("proteção do checkout e do pagamento", () => {
     expect(mocks.rpc).not.toHaveBeenCalledWith("create_checkout_order", expect.anything());
   });
 
+  it("com a verificação configurada, checkout sem token não cria pedido", async () => {
+    botDetected();
+    expect(await startCheckout(checkoutInput)).toEqual({ error: BOT_BLOCKED_MESSAGE });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("robô não chega a tentar pagamento", async () => {
-    mocks.isBot.mockReturnValue(true);
-    const result = await payOrder("token-publico", cardSubmission);
-    expect(result.status).toBe("rejected");
+    botDetected();
+    const result = await payOrder("token-publico", cardSubmission, "token");
+    expect(result).toEqual({ status: "rejected", message: BOT_BLOCKED_MESSAGE });
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.createPayment).not.toHaveBeenCalled();
   });
@@ -183,10 +201,14 @@ describe("proteção do checkout e do pagamento", () => {
     expect(mocks.createPayment).not.toHaveBeenCalled();
   });
 
-  it("robô consultando pagamento não gera chamada ao Mercado Pago", async () => {
-    mocks.isBot.mockReturnValue(true);
-    expect(await checkOrderPayment("token-publico")).toBe("pending");
-    expect(mocks.from).not.toHaveBeenCalled();
+  it("consulta com token de pedido inexistente não gera chamada ao Mercado Pago", async () => {
+    mocks.from.mockImplementation(() => selectResult(null));
+    expect(await checkOrderPayment("token-publico")).toBe("unavailable");
     expect(mocks.findOrderPayment).not.toHaveBeenCalled();
+  });
+
+  it("consulta com token absurdo nem chega ao banco", async () => {
+    expect(await checkOrderPayment("x".repeat(101))).toBe("unavailable");
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });

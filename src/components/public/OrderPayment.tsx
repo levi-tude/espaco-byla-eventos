@@ -11,6 +11,7 @@ import {
   type PaymentSubmission,
 } from "@/app/pedidos/[publicToken]/actions";
 import { ChangeSelectionButton } from "@/components/public/ChangeSelectionButton";
+import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
@@ -81,6 +82,7 @@ export function OrderPayment({
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [changingSelection, setChangingSelection] = useState(false);
+  const humanCheck = useHumanCheck("payment");
 
   ensureMercadoPago(publicKey);
 
@@ -138,7 +140,7 @@ export function OrderPayment({
       identification: formData.payer?.identification,
     };
 
-    const result = await payOrder(publicToken, submission);
+    const result = await payOrder(publicToken, submission, await humanCheck.takeToken());
 
     if (result.status === "paid") {
       setConfirmed(true);
@@ -268,6 +270,7 @@ export function OrderPayment({
         onError={(error) => console.error("[pagamento] Brick:", error)}
         onSubmit={handleSubmit}
       />
+      {humanCheck.slot}
       {confirmed ? null : (
         <div className="border-t border-byla-border pt-4">
           <p className="text-base text-byla-muted">

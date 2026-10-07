@@ -1,3 +1,5 @@
+import { TURNSTILE_ORIGIN } from "@/lib/security/human-check";
+
 const MERCADO_PAGO_HOSTS = [
   "https://*.mercadopago.com",
   "https://*.mercadopago.com.br",
@@ -6,6 +8,8 @@ const MERCADO_PAGO_HOSTS = [
   "https://*.mercadolivre.com.br",
   "https://*.mlstatic.com",
 ];
+
+const TURNSTILE_HOST = TURNSTILE_ORIGIN;
 
 export type CspOptions = {
   nonce: string;
@@ -31,12 +35,12 @@ export function buildContentSecurityPolicy({
   const mp = MERCADO_PAGO_HOSTS.join(" ");
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${TURNSTILE_HOST}${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     `font-src 'self' data: ${mp}`,
-    `connect-src 'self' ${supabaseUrl ?? ""} ${mp}${isDev ? " ws: wss:" : ""}`,
-    `frame-src 'self' ${mp}`,
+    `connect-src 'self' ${supabaseUrl ?? ""} ${mp} ${TURNSTILE_HOST}${isDev ? " ws: wss:" : ""}`,
+    `frame-src 'self' ${mp} ${TURNSTILE_HOST}`,
     "worker-src 'self' blob:",
     "media-src 'self' blob:",
     "object-src 'none'",

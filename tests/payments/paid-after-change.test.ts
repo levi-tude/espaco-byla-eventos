@@ -13,7 +13,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
 }));
-vi.mock("botid/server", () => ({ checkBotId: async () => ({ isBot: false }) }));
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeam: mocks.alertTeam }));
 vi.mock("@/lib/email/send-tickets", () => ({ sendTicketsEmail: mocks.sendTicketsEmail }));
 

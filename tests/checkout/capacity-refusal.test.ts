@@ -11,7 +11,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
 }));
-vi.mock("botid/server", () => ({ checkBotId: async () => ({ isBot: false }) }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }),
 }));

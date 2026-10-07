@@ -43,6 +43,13 @@ describe("Content-Security-Policy", () => {
     expect(production.get("frame-src")).toContain("https://*.mercadopago.com");
   });
 
+  it("libera a verificação anti-robô (script, iframe e conexão)", () => {
+    const turnstile = "https://challenges.cloudflare.com";
+    expect(production.get("script-src")).toContain(turnstile);
+    expect(production.get("frame-src")).toContain(turnstile);
+    expect(production.get("connect-src")).toContain(turnstile);
+  });
+
   it("em desenvolvimento permite eval e websocket do Next, sem forçar https", () => {
     const dev = directives(
       buildContentSecurityPolicy({
