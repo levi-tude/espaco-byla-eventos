@@ -34,14 +34,51 @@ export function hashRateLimitKey(value: string): string {
   return createHash("sha256").update(`byla-rate-limit:${value}`).digest("hex");
 }
 
-/** Na Vercel, x-real-ip / x-forwarded-for são definidos pela plataforma (não pelo cliente). */
+const UNKNOWN_IP = "desconhecido";
+
+/**
+ * Cabeçalho que a hospedagem preenche com o IP real (o cliente não consegue
+ * sobrescrever). Cada hospedagem usa um: ver docs/superpowers/plans/2026-10-07-sair-da-vercel.md.
+ */
+const TRUSTED_IP_MODES = [
+  "x-real-ip",
+  "x-nf-client-connection-ip",
+  "cf-connecting-ip",
+  "x-forwarded-for-first",
+  "x-forwarded-for-last",
+] as const;
+type TrustedIpMode = (typeof TRUSTED_IP_MODES)[number];
+const DEFAULT_IP_MODE: TrustedIpMode = "x-real-ip";
+let warnedInvalidMode = false;
+
+function parseIpMode(raw: string | undefined): TrustedIpMode {
+  const mode = raw?.trim().toLowerCase();
+  if (!mode) return DEFAULT_IP_MODE;
+  if ((TRUSTED_IP_MODES as readonly string[]).includes(mode)) return mode as TrustedIpMode;
+  if (!warnedInvalidMode) {
+    warnedInvalidMode = true;
+    console.warn(`[seguranca] TRUSTED_IP_HEADER inválido; usando ${DEFAULT_IP_MODE}.`);
+  }
+  return DEFAULT_IP_MODE;
+}
+
+function sanitizeIp(value: string | undefined | null): string {
+  const ip = value?.trim() ?? "";
+  return ip.length > 0 && ip.length <= 45 && /^[0-9a-f:.]+$/i.test(ip) ? ip : UNKNOWN_IP;
+}
+
+/** Lê só o cabeçalho configurado; nunca cai para outro que o cliente possa falsificar. */
+export function resolveClientIp(requestHeaders: Headers, rawMode: string | undefined): string {
+  const mode = parseIpMode(rawMode);
+  if (mode === "x-forwarded-for-first" || mode === "x-forwarded-for-last") {
+    const hops = (requestHeaders.get("x-forwarded-for") ?? "").split(",");
+    return sanitizeIp(mode === "x-forwarded-for-first" ? hops[0] : hops[hops.length - 1]);
+  }
+  return sanitizeIp(requestHeaders.get(mode));
+}
+
 export async function clientIp(): Promise<string> {
-  const requestHeaders = await headers();
-  return (
-    requestHeaders.get("x-real-ip") ??
-    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "desconhecido"
-  );
+  return resolveClientIp(await headers(), process.env.TRUSTED_IP_HEADER);
 }
 
 export type RateLimitOutcome = "allowed" | "limited" | "error";
