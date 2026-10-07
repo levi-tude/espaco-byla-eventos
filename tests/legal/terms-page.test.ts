@@ -36,6 +36,7 @@ describe("página Termos de compra", () => {
       "Compra e pagamento",
       "Taxa de serviço",
       "Ingressos e entrada",
+      "Transferência do ingresso",
       "Meia-entrada",
       "Sessões, troca de horário e cancelamento",
       "Desistência e reembolsos",
@@ -54,10 +55,25 @@ describe("página Termos de compra", () => {
     expect(page).toMatch(/taxa de serviço de 5% do preço/);
     expect(page).toContain("mínimo de R$ 1,00");
     expect(page).toContain("Ingressos de cortesia não têm taxa");
-    expect(page).toContain("até 7 dias corridos depois de comprar");
-    expect(page).toContain("48 horas de antecedência");
-    expect(page).toContain("Pelo menos 40% dos ingressos");
     expect(page).toContain("devolve 100% do valor pago");
+  });
+
+  it("aplica as decisões do dono de 2026-10-07", () => {
+    expect(TERMS_VERSION).toBe("2026-10-07");
+    const page = text(renderToStaticMarkup(TermsPage()));
+    expect(page).toContain(
+      "até 7 dias corridos depois de comprar, desde que o pedido de desistência seja feito com pelo menos 48 horas de antecedência do início da sessão",
+    );
+    expect(page).toContain("100% do valor pago, incluindo a taxa de serviço");
+    expect(page).toContain("Pedidos com algum ingresso já usado na entrada não podem ser reembolsados");
+    expect(page).toContain("reembolso de 100% (com a taxa) até 24 horas antes do novo horário");
+    expect(page).toContain("Se a diferença não for paga, a entrada não é liberada e não há reembolso");
+    expect(page).toContain("segue a lei");
+    expect(page).not.toMatch(/\d+\s*% dos ingressos/);
+    expect(page).toContain("não há garantia de reembolso");
+    expect(page).toContain("a equipe analisa caso a caso");
+    expect(page).toContain("O ingresso não é nominal: entra quem apresentar o QR Code primeiro");
+    expect(page).toContain("pode passar o ingresso para outra pessoa");
   });
 
   it("identifica quem vende com os mesmos dados da Política de Privacidade", () => {

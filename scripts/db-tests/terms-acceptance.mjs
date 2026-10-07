@@ -29,7 +29,7 @@ const PORT = 54897;
 const DATA_DIR = join(TOOLS, "data-termos");
 const PASSWORD = randomUUID();
 const POLICY = "2026-10-03";
-const TERMS = "2026-10-04";
+const TERMS = "2026-10-07";
 
 let failures = 0;
 function check(name, ok, extra = "") {

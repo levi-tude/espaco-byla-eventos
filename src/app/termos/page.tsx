@@ -9,8 +9,8 @@ import { formatMoney } from "@/lib/domain/service-fee";
 import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
-  MEIA_ENTRADA_MIN_PERCENT,
   REFUND_PROCESSING_DAYS,
+  SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE,
   TERMS_SERVICE_FEE,
   TERMS_UPDATED_LABEL,
   WITHDRAWAL_DAYS,
@@ -24,6 +24,23 @@ export const metadata: Metadata = {
 };
 
 const linkClass = "font-medium text-byla-link underline underline-offset-2";
+
+/** Regra de transferência em seção própria: pode mudar sem tocar no restante dos termos. */
+function TicketTransferSection() {
+  return (
+    <Section title="Transferência do ingresso">
+      <ul className="list-disc space-y-2 pl-5">
+        <li>
+          O ingresso não é nominal: entra quem apresentar o QR Code primeiro.
+        </li>
+        <li>
+          Se você não puder ir, pode passar o ingresso para outra pessoa. Não
+          compartilhe o link do pedido nem o QR Code com quem não vai ao evento.
+        </li>
+      </ul>
+    </Section>
+  );
+}
 
 export default function TermsPage() {
   const contact = <LegalContact />;
@@ -129,12 +146,6 @@ export default function TermsPage() {
               ele não vale de novo.
             </li>
             <li>
-              O ingresso não é nominal: entra quem apresentar o QR Code primeiro.
-              Se você não puder ir, pode passar o ingresso para outra pessoa. Não
-              compartilhe o link do pedido nem o QR Code com quem não vai ao
-              evento.
-            </li>
-            <li>
               Ingressos de outra sessão ou de sessão cancelada não são aceitos.
             </li>
             <li>
@@ -143,6 +154,8 @@ export default function TermsPage() {
             </li>
           </ul>
         </Section>
+
+        <TicketTransferSection />
 
         <Section title="Meia-entrada">
           <ul className="list-disc space-y-2 pl-5">
@@ -163,9 +176,9 @@ export default function TermsPage() {
               paga, a entrada não é liberada e não há reembolso.
             </li>
             <li>
-              Pelo menos {MEIA_ENTRADA_MIN_PERCENT}% dos ingressos de cada sessão
-              ficam disponíveis para meia-entrada (Lei nº 12.933/2013 e Decreto
-              nº 8.537/2015). Quando essa cota acaba, a página de compra avisa.
+              A oferta de meia-entrada segue a lei (Lei nº 12.933/2013 e Decreto
+              nº 8.537/2015). Quando os ingressos de meia-entrada de uma sessão
+              acabam, a página de compra avisa.
             </li>
             <li>
               A meia-entrada custa metade da inteira da mesma sessão e não se soma
@@ -180,9 +193,9 @@ export default function TermsPage() {
               <strong className="text-foreground">Troca de data ou horário:</strong>{" "}
               avisamos por e-mail e seus ingressos continuam valendo para o novo
               horário, sem você precisar fazer nada. Se não puder ir no novo
-              horário, você pode pedir o reembolso de 100% (com a taxa) até o
-              início da sessão no novo horário, desde que nenhum ingresso do
-              pedido tenha sido usado.
+              horário, você pode pedir o reembolso de 100% (com a taxa) até{" "}
+              {SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE} horas antes do novo
+              horário, pelo contato abaixo.
             </li>
             <li>
               <strong className="text-foreground">Sessão cancelada:</strong>{" "}
@@ -201,9 +214,10 @@ export default function TermsPage() {
             <li>
               <strong className="text-foreground">Desistência:</strong> você pode
               desistir da compra em até {WITHDRAWAL_DAYS} dias corridos depois de
-              comprar, desde que peça com pelo menos{" "}
-              {WITHDRAWAL_MIN_HOURS_BEFORE} horas de antecedência do início da
-              sessão. O reembolso é de 100% do valor pago, com a taxa.
+              comprar, desde que o pedido de desistência seja feito com pelo
+              menos {WITHDRAWAL_MIN_HOURS_BEFORE} horas de antecedência do início
+              da sessão. O reembolso é de 100% do valor pago, incluindo a taxa
+              de serviço.
             </li>
             <li>
               Para pedir, escreva para {contact} informando o número do pedido e o
@@ -215,9 +229,9 @@ export default function TermsPage() {
             </li>
             <li>
               Fora dos casos destes termos (desistência no prazo, troca de data ou
-              horário, sessão cancelada ou pagamento sem lugar), a compra não pode
-              ser cancelada. Se não puder ir, você pode passar o ingresso para
-              outra pessoa.
+              horário, sessão cancelada ou pagamento sem lugar), não há garantia
+              de reembolso. Você pode pedir pelo contato e a equipe analisa caso a
+              caso.
             </li>
             <li>
               Fazemos o reembolso em até {REFUND_PROCESSING_DAYS} dias corridos
