@@ -1,0 +1,9 @@
+# Netlify: o adaptador oficial do Next (OpenNext) é instalado automaticamente.
+# Guia: docs/superpowers/plans/2026-10-07-sair-da-vercel.md
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"

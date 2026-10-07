@@ -11,6 +11,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Servidor Node enxuto para Docker (VPS/Cloud Run). Netlify e Vercel usam o próprio adaptador.
+  ...(process.env.NEXT_OUTPUT_STANDALONE === "true" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   // Permite HMR/assets do Next quando o site é aberto via túnel (ngrok etc.)
   allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app", "*.loca.lt"],

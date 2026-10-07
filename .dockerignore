@@ -1,0 +1,21 @@
+# Nunca levar segredos, histórico ou artefatos locais para a imagem.
+.env
+.env*
+!.env.example
+.git
+.github
+.next
+.vercel
+.netlify
+node_modules
+coverage
+*.tsbuildinfo
+npm-debug.log*
+.superpowers
+.security
+.cursor
+.design-refs
+docs
+tests
+Dockerfile
+.dockerignore
