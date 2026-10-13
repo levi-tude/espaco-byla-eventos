@@ -3,12 +3,12 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "https://espaco-byla-eventos-223557602182.us-central1.run.app/",
+      "destination": "https://ingressos.espacobyla.online/",
       "permanent": false
     },
     {
       "source": "/:path*",
-      "destination": "https://espaco-byla-eventos-223557602182.us-central1.run.app/:path*",
+      "destination": "https://ingressos.espacobyla.online/:path*",
       "permanent": false
     }
   ]
