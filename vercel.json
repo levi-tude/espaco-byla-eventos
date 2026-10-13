@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
+      "source": "/",
+      "destination": "https://espaco-byla-eventos-223557602182.us-central1.run.app/",
+      "permanent": false
+    },
+    {
       "source": "/:path*",
       "destination": "https://espaco-byla-eventos-223557602182.us-central1.run.app/:path*",
       "permanent": false
