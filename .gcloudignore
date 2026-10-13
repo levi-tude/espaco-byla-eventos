@@ -1,0 +1,22 @@
+# Arquivos que nunca sobem para o Google Cloud Build.
+.gcloudignore
+.git
+.gitignore
+.github
+.env
+.env*
+!.env.example
+.next
+.vercel
+.netlify
+node_modules
+coverage
+*.tsbuildinfo
+npm-debug.log*
+.superpowers
+.security
+.cursor
+.design-refs
+docs
+tests
+infra

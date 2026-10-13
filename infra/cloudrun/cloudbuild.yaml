@@ -1,0 +1,26 @@
+# Gera a imagem do site no Google Cloud Build.
+# As NEXT_PUBLIC_* entram no JavaScript do navegador (não são segredo).
+# A chave das Server Actions vem do Secret Manager e nunca aparece no histórico do build.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    secretEnv: ["NEXT_SERVER_ACTIONS_ENCRYPTION_KEY"]
+    args:
+      - -c
+      - >-
+        docker build
+        --build-arg NEXT_PUBLIC_SUPABASE_URL="${_SUPABASE_URL}"
+        --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${_SUPABASE_ANON_KEY}"
+        --build-arg NEXT_PUBLIC_APP_URL="${_APP_URL}"
+        --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="${_TURNSTILE_SITE_KEY}"
+        --build-arg NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY"
+        -t "${_IMAGE}" .
+images:
+  - "${_IMAGE}"
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/next-actions-key/versions/latest
+      env: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1800s
