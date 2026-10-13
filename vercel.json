@@ -1,9 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
+  "redirects": [
     {
-      "path": "/api/cron/keep-alive",
-      "schedule": "0 0 * * *"
+      "source": "/:path*",
+      "destination": "https://espaco-byla-eventos-223557602182.us-central1.run.app/:path*",
+      "permanent": false
     }
   ]
 }

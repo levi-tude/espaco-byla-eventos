@@ -35,26 +35,26 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.example` documenta as chaves necessárias **sem segredos reais**.
 
-## Deploy na Vercel
+## Deploy (Google Cloud Run)
 
-1. Importe o repositório na Vercel e mantenha `main` como branch de produção.
-2. Cadastre no projeto todas as chaves de `.env.example`:
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER`,
-   `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`,
-   `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` e `RESEND_FROM_EMAIL`.
+1. A imagem é gerada pelo `Dockerfile` via Cloud Build
+   (`infra/cloudrun/cloudbuild.yaml`); as chaves `NEXT_PUBLIC_*` entram no build.
+2. Cadastre no serviço todas as chaves de `.env.example` (incluindo
+   `TURNSTILE_SECRET_KEY`, `TRUSTED_IP_HEADER` e `CRON_SECRET`), sempre fora do
+   repositório.
 3. Em produção, defina `NEXT_PUBLIC_APP_URL` com a URL pública da aplicação e
    use credenciais de produção do Supabase, Mercado Pago e Resend.
 4. No painel do Mercado Pago (aplicação > Webhooks, modo produção), cadastre
    `https://seu-dominio/api/payments/webhook` com o evento
    **Order (Mercado Pago)**.
-5. Cadastre também `CRON_SECRET`: a tarefa diária de `vercel.json` faz leituras
-   no banco para o Supabase gratuito não pausar.
+5. Agende `GET /api/cron/keep-alive` (com `Authorization: Bearer CRON_SECRET`)
+   1x/dia: faz leituras no banco para o Supabase gratuito não pausar e continua
+   avisos de sessão pendentes.
 6. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
    check-in antes de abrir as vendas.
 
-Não coloque tokens no repositório nem use os valores de produção em Preview ou
-Development. Este repositório não cria o projeto Vercel automaticamente.
+O `vercel.json` só redireciona o endereço antigo da Vercel para o site novo.
+Não coloque tokens no repositório.
 
 ## Pagamentos
 
