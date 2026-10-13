@@ -182,18 +182,24 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("depois do fim das vendas da sessão, PIX novo é recusado e o cartão é oferecido", async () => {
-    const order = pendingOrder({ expires_at: "2026-10-10T22:12:00.000Z" });
-    useOrder(order);
-    mocks.rpc.mockImplementation(async (fn: string) =>
-      fn === "order_pix_allowed" ? { data: false, error: null } : { data: true, error: null },
-    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T22:00:00.000Z"));
+    try {
+      const order = pendingOrder({ expires_at: "2026-10-10T22:12:00.000Z" });
+      useOrder(order);
+      mocks.rpc.mockImplementation(async (fn: string) =>
+        fn === "order_pix_allowed" ? { data: false, error: null } : { data: true, error: null },
+      );
 
-    await expect(payOrder("token", pixSubmission)).resolves.toEqual({
-      status: "rejected",
-      message: "As vendas desta sessão foram encerradas. Se quiser, pague com cartão até 19h12.",
-    });
-    expect(mocks.rpc).toHaveBeenCalledWith("order_pix_allowed", { p_order_id: orderId });
-    expect(mocks.createPayment).not.toHaveBeenCalled();
+      await expect(payOrder("token", pixSubmission)).resolves.toEqual({
+        status: "rejected",
+        message: "As vendas desta sessão foram encerradas. Se quiser, pague com cartão até 19h12.",
+      });
+      expect(mocks.rpc).toHaveBeenCalledWith("order_pix_allowed", { p_order_id: orderId });
+      expect(mocks.createPayment).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("cartão dentro da reserva não depende da venda da sessão", async () => {

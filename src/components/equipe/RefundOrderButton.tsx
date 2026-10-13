@@ -114,7 +114,7 @@ function RefundDialog({
   return (
     <dialog
       aria-labelledby={titleId}
-      className="m-auto w-[calc(100%-1rem)] max-w-lg rounded-2xl border border-byla-border bg-byla-surface p-0 text-foreground backdrop:bg-black/70"
+      className="m-auto max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-lg overflow-y-auto whitespace-normal rounded-2xl border border-byla-border bg-byla-surface p-0 text-foreground backdrop:bg-black/70"
       onCancel={(event) => {
         event.preventDefault();
         if (!isPending) onClose();
@@ -128,8 +128,8 @@ function RefundDialog({
           </h2>
           <p className="mt-2 text-base">
             Será devolvido{" "}
-            <strong>{currency.format(order.totalCents / 100)}</strong> (100% do pedido, incluindo a
-            taxa de serviço) para o meio de pagamento usado. O comprador recebe um e-mail.
+            <strong>{currency.format(order.totalCents / 100)}</strong> (100% do valor pago) para o
+            meio de pagamento usado. O comprador recebe um e-mail.
           </p>
         </div>
 
