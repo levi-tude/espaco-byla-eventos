@@ -1,5 +1,7 @@
 import { CalendarDays, MapPin, Ticket } from "lucide-react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { EventGallery } from "@/components/public/EventGallery";
@@ -33,7 +35,13 @@ import {
 } from "@/lib/domain/sessions";
 import { unitContentsLabel } from "@/lib/domain/ticket-types";
 import { loadEventGallery } from "@/lib/media/gallery";
+import {
+  SHARE_IMAGE_HEIGHT,
+  SHARE_IMAGE_WIDTH,
+  shareImageVersion,
+} from "@/lib/media/share-image";
 import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
+import { shareMetadata } from "@/lib/share-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -50,17 +58,52 @@ function daysLabel(startsAt: readonly string[]) {
   return `De ${days[0]} a ${days.at(-1)}`;
 }
 
-export default async function EventoPublicoPage({
-  params,
-  searchParams,
-}: PageProps<"/eventos/[slug]">) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
+const loadPublicEvent = cache(async (slug: string) => {
   const supabase = await createServerClient();
   const { data: event } = await supabase
     .from("events")
     .select("*")
     .eq("slug", slug)
     .maybeSingle();
+  return { supabase, event };
+});
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/eventos/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const { event } = await loadPublicEvent(slug);
+  if (!event) return {};
+
+  const title = `${event.name} | Espaço Byla`;
+  const description = [dateFormatter.format(new Date(event.starts_at)), event.venue]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    title,
+    description,
+    ...shareMetadata({
+      title,
+      description,
+      path: `/eventos/${event.slug}`,
+      image: event.cover_image_url
+        ? {
+            url: `/eventos/${event.slug}/previa?v=${shareImageVersion(event.cover_image_url)}`,
+            width: SHARE_IMAGE_WIDTH,
+            height: SHARE_IMAGE_HEIGHT,
+            alt: `Capa de ${event.name}`,
+          }
+        : undefined,
+    }),
+  };
+}
+
+export default async function EventoPublicoPage({
+  params,
+  searchParams,
+}: PageProps<"/eventos/[slug]">) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const { supabase, event } = await loadPublicEvent(slug);
 
   if (!event) notFound();
 

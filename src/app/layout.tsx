@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 
 import { SiteFooter } from "@/components/brand/SiteFooter";
 import { ThemeProvider } from "@/components/brand/ThemeProvider";
+import { shareMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/share-metadata";
 import "./globals.css";
 
 const bylaSans = Open_Sans({
@@ -18,8 +19,10 @@ const bylaDisplay = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: "Espaço Byla Eventos",
-  description: "Venda e controle de ingressos para eventos do Espaço Byla",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  ...shareMetadata({ title: SITE_NAME, description: SITE_DESCRIPTION }),
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
