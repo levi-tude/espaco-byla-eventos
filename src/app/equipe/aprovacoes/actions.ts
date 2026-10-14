@@ -19,6 +19,7 @@ const REQUEST_NOT_FOUND = "Pedido não encontrado.";
 const NOTE_MESSAGE = `Escreva o motivo da recusa (de ${NOTE_MIN} a ${NOTE_MAX} caracteres).`;
 const DECISION_ERROR = "Não foi possível registrar a decisão. Tente de novo.";
 const REQUEST_ERROR = "Não foi possível responder o pedido. Tente de novo.";
+const LOOKUP_ERROR = "Não foi possível concluir. Tente de novo.";
 
 export type ApprovalDecision = "aprovar" | "recusar";
 
@@ -56,13 +57,14 @@ async function loadEventRef(admin: AdminClient, eventId: string): Promise<EventR
 
 /**
  * O pedido pendente (para o aviso ao organizador). A tabela só é lida pelas funções do
- * banco; quem decide se a resposta vale é a própria função de resposta.
+ * banco; quem decide se a resposta vale é a própria função de resposta. Se a leitura
+ * falha, nada é respondido: o organizador ficaria sem o aviso.
  */
 async function loadPendingRequest(admin: AdminClient, staffId: string, requestId: string): Promise<PendingRequest | null> {
   const { data, error } = await admin.rpc("list_ops_requests", { p_staff: staffId, p_status: "pendente" });
   if (error) {
     logRpcError("list_ops_requests", error);
-    return null;
+    throw new ActionError(LOOKUP_ERROR);
   }
   const found = (data ?? []).find((row) => row.id === requestId);
   if (!found || (found.kind !== "estorno" && found.kind !== "mudanca" && found.kind !== "exclusao")) return null;

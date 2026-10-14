@@ -398,7 +398,11 @@ export function TicketList({
                   {ticket.buyerName}
                 </p>
                 <p className="break-all text-sm text-byla-muted">{ticket.buyerEmail}</p>
-                <TicketBadges ticket={ticket} className="mt-2" />
+                <TicketBadges
+                  className="mt-2"
+                  showRefundRequest={firstRowOfOrder.has(ticket.id)}
+                  ticket={ticket}
+                />
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
                   {ticket.sessionLabel ? (
                     <CardDetail className="col-span-2" label="Sessão" value={ticket.sessionLabel} />
@@ -453,7 +457,7 @@ export function TicketList({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <TicketBadges ticket={ticket} />
+                      <TicketBadges showRefundRequest={firstRowOfOrder.has(ticket.id)} ticket={ticket} />
                       <span className="mt-1 block whitespace-nowrap text-sm">
                         Pago: {formatDate(ticket.paidAt)}
                       </span>
@@ -473,7 +477,16 @@ export function TicketList({
   );
 }
 
-function TicketBadges({ ticket, className }: { ticket: TicketListItem; className?: string }) {
+function TicketBadges({
+  ticket,
+  showRefundRequest,
+  className,
+}: {
+  ticket: TicketListItem;
+  /** O pedido de estorno é do pedido inteiro: selo só na primeira linha do pedido. */
+  showRefundRequest: boolean;
+  className?: string;
+}) {
   const badge = statusBadge(ticket);
   return (
     <span className={cx("flex flex-wrap items-center gap-1.5", className)}>
@@ -491,7 +504,7 @@ function TicketBadges({ ticket, className }: { ticket: TicketListItem; className
           Novo
         </span>
       ) : null}
-      {ticket.refundRequestReason ? (
+      {showRefundRequest && ticket.refundRequestReason ? (
         <StatusBadge className="whitespace-normal break-words text-left" tone="warning">
           Estorno pedido pelo organizador: {ticket.refundRequestReason}
         </StatusBadge>

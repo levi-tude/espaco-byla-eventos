@@ -1,6 +1,6 @@
 import { createElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Result = { data: unknown; error: unknown };
 
@@ -109,6 +109,10 @@ function eventRow(id: string, name: string, extra: Record<string, unknown> = {})
 
 const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.serverTables = {};
@@ -172,8 +176,9 @@ describe("lista de eventos da equipe", () => {
       error: null,
     };
     mocks.adminRpc.mockResolvedValue({ data: null, error: { message: "falhou", code: "XX000" } });
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const page = text(render(await EquipePage()));
+    expect(log).toHaveBeenCalled();
     expect(page).toContain("Peça em análise");
     expect(page).toContain("Organizador");
     expect(page).toContain("Em análise");
@@ -240,6 +245,20 @@ describe("página do evento: pedidos de estorno do organizador", () => {
       ),
     );
     expect(html).toContain("Estorno pedido pelo organizador: Comprador desistiu da viagem.");
+  });
+
+  it("pedido com vários ingressos: o selo aparece uma vez por pedido", () => {
+    const reason = "Comprador desistiu da viagem.";
+    const html = text(
+      render(
+        createElement(TicketList, {
+          eventId: ID(2),
+          tickets: ["t1", "t2", "t3"].map((id) => ({ ...baseTicket, id, refundRequestReason: reason })),
+        }),
+      ),
+    );
+    // A lista sai duas vezes no HTML (cartões do celular e tabela do computador).
+    expect(html.match(/Estorno pedido pelo organizador/g)).toHaveLength(2);
   });
 
   it("pedido sem pedido de estorno: lista igual a antes", () => {
@@ -339,6 +358,27 @@ describe("Aprovações", () => {
     expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>[^<]*Concluir exclusão/);
   });
 
+  it("exclusão: o link abre a primeira sessão ativa, onde ficam “Cancelar sessão” e “Estornar todos”", () => {
+    const html = render(
+      createElement(OpsRequestCard, {
+        request: {
+          id: ID(7),
+          kind: "exclusao" as const,
+          eventId: ID(2),
+          eventName: "Peça aprovada",
+          producerName: "Produtora Fulana",
+          what: null,
+          reason: "O teatro fechou para reforma.",
+          createdAt: "14/10/2026 15:00",
+          paidOrders: 3,
+          activeSessions: 2,
+          firstActiveSessionId: ID(9),
+        },
+      }),
+    );
+    expect(html).toContain(`href="/equipe/eventos/${ID(2)}?sessao=${ID(9)}#vendas"`);
+  });
+
   it("mudança: mostra o pedido, abre o evento e tem “Marcar como feito”", () => {
     const html = render(
       createElement(OpsRequestCard, {
@@ -415,8 +455,8 @@ describe("Aprovações", () => {
     mocks.adminTables.orders = { data: [{ event_id: ID(2) }, { event_id: ID(2) }], error: null };
     mocks.adminTables.event_sessions = {
       data: [
-        { event_id: ID(2), status: "ativa", archived_at: null },
-        { event_id: ID(2), status: "cancelada", archived_at: null },
+        { id: ID(8), event_id: ID(2), status: "cancelada", archived_at: null, starts_at: "2099-12-01T22:00:00Z" },
+        { id: ID(9), event_id: ID(2), status: "ativa", archived_at: null, starts_at: "2099-12-12T22:00:00Z" },
       ],
       error: null,
     };
@@ -464,6 +504,7 @@ describe("Aprovações", () => {
     expect(page).not.toContain("Outra peça");
     expect(page).toContain("2 pedidos pagos · 1 sessão ativa");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*Concluir exclusão/);
+    expect(html).toContain(`href="/equipe/eventos/${ID(2)}?sessao=${ID(9)}#vendas"`);
     expect(mocks.adminRpc).toHaveBeenCalledWith("list_ops_requests", { p_staff: STAFF_ID, p_status: "pendente" });
   });
 });

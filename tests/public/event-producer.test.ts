@@ -1,6 +1,6 @@
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   event: null as Record<string, unknown> | null,
@@ -74,6 +74,10 @@ function text(html: string): string {
     .replace(/&nbsp;|&#xa0;|\u00a0/g, " ")
     .replace(/\s+/g, " ");
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   mocks.event = {

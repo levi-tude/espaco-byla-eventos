@@ -312,6 +312,23 @@ describe("finishEventDeletion", () => {
   });
 });
 
+describe("falha ao ler o pedido antes de responder", () => {
+  const RETRY = { ok: false, error: "Não foi possível concluir. Tente de novo." };
+
+  it.each([
+    ["finishEventChange", () => finishEventChange(REQUEST_ID)],
+    ["finishEventDeletion", () => finishEventDeletion(REQUEST_ID)],
+    ["declineOpsRequest", () => declineOpsRequest(REQUEST_ID, "Fora do prazo dos Termos.")],
+  ])("%s não responde, não avisa e pede para tentar de novo", async (_name, run) => {
+    as("admin", { list_ops_requests: { error: { message: "timeout", code: "57014" } } });
+    expect(await run()).toEqual(RETRY);
+    expect(actionCalls()).toHaveLength(0);
+    expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(everythingLogged()).not.toContain("timeout");
+  });
+});
+
 describe("declineOpsRequest", () => {
   it.each(["organizador", "anonimo"] as const)("%s → recusado sem tocar no banco", async (role) => {
     as(role);
@@ -372,6 +389,14 @@ describe("declineOpsRequest", () => {
     expect(await declineOpsRequest(REQUEST_ID, "Não dá para mudar agora.")).toEqual(DENIED);
     expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("pedido fora da lista (não encontrado): responde e só atualiza a página, sem aviso", async () => {
+    as("admin", { list_ops_requests: { data: [] } });
+    expect(await declineOpsRequest(REQUEST_ID, "Fora do prazo dos Termos.")).toEqual({ ok: true, data: undefined });
+    expect(calls("decline_ops_request")).toHaveLength(1);
+    expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/equipe/aprovacoes"]]);
   });
 
   it("Admin recusa mudança com motivo e avisa", async () => {

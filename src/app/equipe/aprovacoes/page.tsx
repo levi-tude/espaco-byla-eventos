@@ -200,15 +200,19 @@ function changeDescription(details: unknown): string | null {
   return typeof what === "string" && what.trim() ? what : null;
 }
 
+type DeletionStats = {
+  paid: Map<string, number>;
+  active: Map<string, number>;
+  /** Primeira sessão ativa (pelo horário) de cada evento. */
+  firstActive: Map<string, string>;
+};
+
 /** Pedidos pagos e sessões ativas de cada evento (para aceitar uma exclusão). */
-async function loadDeletionStats(
-  admin: AdminClient,
-  eventIds: string[],
-): Promise<{ paid: Map<string, number>; active: Map<string, number> } | null> {
-  if (!eventIds.length) return { paid: new Map(), active: new Map() };
+async function loadDeletionStats(admin: AdminClient, eventIds: string[]): Promise<DeletionStats | null> {
+  if (!eventIds.length) return { paid: new Map(), active: new Map(), firstActive: new Map() };
   const [orders, sessions] = await Promise.all([
     admin.from("orders").select("event_id").in("event_id", eventIds).eq("status", "pago"),
-    admin.from("event_sessions").select("event_id, status, archived_at").in("event_id", eventIds),
+    admin.from("event_sessions").select("id, event_id, status, archived_at, starts_at").in("event_id", eventIds),
   ]);
   if (orders.error || sessions.error) {
     console.error("[aprovacoes] Falha ao conferir vendas e sessões.", orders.error?.code ?? sessions.error?.code);
@@ -217,12 +221,20 @@ async function loadDeletionStats(
   const paid = new Map<string, number>();
   for (const order of orders.data ?? []) paid.set(order.event_id, (paid.get(order.event_id) ?? 0) + 1);
   const active = new Map<string, number>();
+  const firstActive = new Map<string, { id: string; startsAt: number }>();
   for (const session of sessions.data ?? []) {
     if (session.status === "ativa" && session.archived_at === null) {
       active.set(session.event_id, (active.get(session.event_id) ?? 0) + 1);
+      const startsAt = Date.parse(session.starts_at);
+      const current = firstActive.get(session.event_id);
+      if (!current || startsAt < current.startsAt) firstActive.set(session.event_id, { id: session.id, startsAt });
     }
   }
-  return { paid, active };
+  return {
+    paid,
+    active,
+    firstActive: new Map([...firstActive].map(([eventId, session]) => [eventId, session.id])),
+  };
 }
 
 async function requestsSection(admin: AdminClient, adminId: string, kind: "mudanca" | "exclusao") {
@@ -245,6 +257,7 @@ async function requestsSection(admin: AdminClient, adminId: string, kind: "mudan
       ? {
           paidOrders: stats?.paid.get(row.event_id) ?? 0,
           activeSessions: stats ? (stats.active.get(row.event_id) ?? 0) : null,
+          firstActiveSessionId: stats?.firstActive.get(row.event_id) ?? null,
         }
       : {}),
   }));

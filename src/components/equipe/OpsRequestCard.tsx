@@ -29,6 +29,8 @@ export type OpsRequestView = {
   /** Só em exclusão. `null` = não deu para conferir (o banco confere ao concluir). */
   paidOrders?: number;
   activeSessions?: number | null;
+  /** Só em exclusão: o link abre esta sessão, onde ficam "Cancelar sessão" e "Estornar todos". */
+  firstActiveSessionId?: string | null;
 };
 
 export type RefundRequestView = {
@@ -124,6 +126,9 @@ export function OpsRequestCard({ request }: { request: OpsRequestView }) {
   const activeSessions = request.activeSessions ?? null;
   const sessionsLeft = activeSessions !== null && activeSessions > 0;
   const eventHref = `/equipe/eventos/${request.eventId}`;
+  const panelHref = request.firstActiveSessionId
+    ? `${eventHref}?sessao=${request.firstActiveSessionId}#vendas`
+    : `${eventHref}#vendas`;
 
   return (
     <article className="grid gap-3 rounded-2xl border border-byla-border bg-byla-surface p-4">
@@ -176,7 +181,7 @@ export function OpsRequestCard({ request }: { request: OpsRequestView }) {
 
       <Link
         className="inline-flex min-h-11 items-center gap-1.5 font-medium text-byla-link"
-        href={deletion ? `${eventHref}#vendas` : eventHref}
+        href={deletion ? panelHref : eventHref}
       >
         {deletion ? "Abrir painel de sessões" : "Abrir evento"}
         <ExternalLink aria-hidden className="h-4 w-4" />

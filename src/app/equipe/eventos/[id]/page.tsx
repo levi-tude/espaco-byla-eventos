@@ -470,13 +470,15 @@ export default async function EventoEquipePage({
             <ScanLine aria-hidden className="h-5 w-5" />
             {multi && selected ? "Check-in desta sessão" : "Abrir check-in"}
           </ButtonLink>
-          <ButtonLink href={`/eventos/${event.slug}`} target="_blank" variant="secondary">
-            Ver página
-            <ExternalLink aria-hidden className="h-4 w-4" />
-            <span className="sr-only">(abre em nova aba)</span>
-          </ButtonLink>
           {approvalBadge || event.deleted_at ? null : (
-            <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
+            <>
+              <ButtonLink href={`/eventos/${event.slug}`} target="_blank" variant="secondary">
+                Ver página
+                <ExternalLink aria-hidden className="h-4 w-4" />
+                <span className="sr-only">(abre em nova aba)</span>
+              </ButtonLink>
+              <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
+            </>
           )}
         </div>
         {event.published_at ? (
