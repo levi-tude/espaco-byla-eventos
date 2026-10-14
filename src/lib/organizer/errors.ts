@@ -27,8 +27,13 @@ function joinLabels(fields: string[]): string {
   return labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(", ")} e ${labels.at(-1)}`;
 }
 
+export type OrganizerErrorContext = {
+  /** "admin": telas da equipe (ex.: gerar convite). Padrão: comprador/organizador. */
+  area?: "organizer" | "admin";
+};
+
 /** Traduz os códigos ORG_* do banco. Nunca devolve o texto cru do banco. */
-export function organizerErrorMessage(dbMessage: string): string | null {
+export function organizerErrorMessage(dbMessage: string, context: OrganizerErrorContext = {}): string | null {
   const lotacao = dbMessage.match(/ORG_LOTACAO:(\d+)/);
   if (lotacao) return `Cada sessão pode ter no máximo ${lotacao[1]} lugares.`;
   if (dbMessage.includes("ORG_LOTACAO")) return "A sessão passou do limite de lugares.";
@@ -38,9 +43,17 @@ export function organizerErrorMessage(dbMessage: string): string | null {
   }
   const estado = dbMessage.match(/ORG_ESTADO:([a-z_]+)/);
   if (estado) return STATE_MESSAGES[estado[1]] ?? STATE_MESSAGES.estado;
-  if (dbMessage.includes("ORG_ESTADO")) return STATE_MESSAGES.estado;
-  if (dbMessage.includes("ORG_CONVITE")) return "Este convite não vale mais. Peça um novo ao Espaço Byla.";
-  if (dbMessage.includes("ORG_DONO")) return "Evento não encontrado.";
+  if (dbMessage.includes("ORG_ESTADO")) {
+    return dbMessage.includes("só abre vendas depois de aprovado") ? STATE_MESSAGES.nao_aprovado : STATE_MESSAGES.estado;
+  }
+  if (dbMessage.includes("ORG_CONVITE")) {
+    return context.area === "admin"
+      ? "Não foi possível gerar o convite. Confira os dados e tente de novo."
+      : "Este convite não vale mais. Peça um novo ao Espaço Byla.";
+  }
+  if (dbMessage.includes("ORG_DONO")) {
+    return dbMessage.includes("Pedido não encontrado") ? "Pedido não encontrado." : "Evento não encontrado.";
+  }
   if (dbMessage.includes("ORG_DESLIGADO")) return "Esta área está indisponível no momento.";
   if (dbMessage.includes("ORG_LIMITE")) return "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.";
   if (dbMessage.includes("ORG_ACESSO")) return "Acesso não permitido.";

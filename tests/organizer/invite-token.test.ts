@@ -12,7 +12,6 @@ describe("token do convite", () => {
     expect(newInviteToken()).not.toBe(token);
   });
   it("hash é o SHA-256 conhecido do token", () => {
-    expect(hashInviteToken("a".repeat(43))).toBe(hashInviteToken("a".repeat(43)));
     expect(hashInviteToken("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
   it("só aceita o formato certo", () => {

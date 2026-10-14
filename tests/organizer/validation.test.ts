@@ -90,6 +90,11 @@ describe("validação", () => {
     expect(parsePassword("x".repeat(73)).ok).toBe(false);
     expect(parsePassword(12345678901234).ok).toBe(false);
   });
+  it("senha: os 72 contam em bytes (acento ocupa 2)", () => {
+    expect(parsePassword("é".repeat(36)).ok).toBe(true);
+    expect(parsePassword("é".repeat(37))).toEqual({ ok: false, error: "A senha pode ter no máximo 72 caracteres." });
+    expect(parsePassword("a".repeat(72)).ok).toBe(true);
+  });
   it("motivo: 5 a 500", () => {
     expect(parseReason("ok").ok).toBe(false);
     expect(parseReason("  motivo certo  ")).toEqual({ ok: true, value: "motivo certo" });

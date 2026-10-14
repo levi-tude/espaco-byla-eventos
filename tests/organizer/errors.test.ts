@@ -18,6 +18,32 @@ function migrationOrgCodes(): string[] {
   return [...codes].sort();
 }
 
+/** Mensagens com texto livre depois do prefixo (ex.: 'ORG_ESTADO: Evento ...'), vindas dos gatilhos. */
+function migrationTextMessages(prefix: string): string[] {
+  const messages = new Set<string>();
+  for (const file of MIGRATIONS) {
+    const sql = readFileSync(path.resolve(__dirname, "../..", file), "utf8");
+    for (const match of sql.matchAll(new RegExp(`'(${prefix}: [^']+)'`, "g"))) messages.add(match[1]);
+  }
+  return [...messages].sort();
+}
+
+const STATE_TRIGGER_MESSAGES: Record<string, string> = {
+  "ORG_ESTADO: Evento de organizador só abre vendas depois de aprovado.":
+    "As vendas abrem depois que o Espaço Byla aprovar o evento.",
+  "ORG_ESTADO: Evento de organizador só pelo fluxo próprio.":
+    "Esta ação não está disponível agora. Recarregue a página.",
+  "ORG_ESTADO: Aprovação e exclusão só pelo fluxo próprio.":
+    "Esta ação não está disponível agora. Recarregue a página.",
+};
+
+const OWNER_MESSAGES: Record<string, string> = {
+  "ORG_DONO: Evento não encontrado.": "Evento não encontrado.",
+  "ORG_DONO: Evento de outro organizador.": "Evento não encontrado.",
+  "ORG_DONO: O dono do evento não muda.": "Evento não encontrado.",
+  "ORG_DONO: Pedido não encontrado.": "Pedido não encontrado.",
+};
+
 describe("mensagens dos erros do banco", () => {
   it("traduz cada prefixo", () => {
     expect(organizerErrorMessage("ORG_LOTACAO:100")).toBe("Cada sessão pode ter no máximo 100 lugares.");
@@ -76,6 +102,29 @@ describe("mensagens dos erros do banco", () => {
       expect(message, code).toBeTypeOf("string");
       expect(message, code).not.toMatch(/ORG_|_/);
     }
+  });
+
+  it("mensagens 'ORG_ESTADO: <texto>' dos gatilhos: toda mensagem das migrations tem tradução conferida", () => {
+    const found = migrationTextMessages("ORG_ESTADO");
+    expect(found.length).toBeGreaterThan(0);
+    expect(found).toEqual(Object.keys(STATE_TRIGGER_MESSAGES).sort());
+    for (const message of found) expect(organizerErrorMessage(message), message).toBe(STATE_TRIGGER_MESSAGES[message]);
+  });
+
+  it("ORG_DONO: pedido não encontrado fala de pedido; o resto, de evento", () => {
+    const found = migrationTextMessages("ORG_DONO");
+    expect(found).toEqual(Object.keys(OWNER_MESSAGES).sort());
+    for (const message of found) expect(organizerErrorMessage(message), message).toBe(OWNER_MESSAGES[message]);
+  });
+
+  it("área do Admin: erro de convite com texto para quem gera o convite", () => {
+    expect(organizerErrorMessage("ORG_CONVITE: Apelido muito longo.", { area: "admin" })).toBe(
+      "Não foi possível gerar o convite. Confira os dados e tente de novo.",
+    );
+    expect(organizerErrorMessage("ORG_CONVITE: Convite inválido.", { area: "organizer" })).toBe(
+      "Este convite não vale mais. Peça um novo ao Espaço Byla.",
+    );
+    expect(organizerErrorMessage("ORG_DONO: x", { area: "admin" })).toBe("Evento não encontrado.");
   });
 
   it("estados das migrations não caem na mensagem genérica", () => {

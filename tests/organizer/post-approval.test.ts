@@ -12,6 +12,8 @@ describe("campos travados depois da aprovação", () => {
   });
   it("em análise e situação desconhecida: o dono não edita nada, mas a trava é do banco", () => {
     expect(lockedFieldsFor("em_analise", false)).toEqual([]);
+    expect(lockedFieldsFor("situacao_nova", true)).toEqual([]);
+    expect(lockedFieldsFor("", true)).toEqual([]);
   });
   it("cada campo travado tem um nome simples para a tela", () => {
     expect(LOCKED_FIELD_LABELS).toEqual({
