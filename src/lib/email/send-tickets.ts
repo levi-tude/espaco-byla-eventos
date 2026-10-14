@@ -22,6 +22,8 @@ export type SendTicketsEmailInput = {
   }[];
   publicToken: string;
   summary?: TicketsEmailOrderSummary | null;
+  /** Nome público do organizador ("Produção: …"); evento do próprio Espaço: ausente. */
+  producerName?: string | null;
 };
 
 export type SendTicketsEmailResult = "sent" | "skipped" | "failed";

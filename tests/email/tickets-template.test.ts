@@ -127,6 +127,30 @@ describe("buildTicketsEmail", () => {
     expect(email.html).toContain("&lt;b&gt;VIP&lt;/b&gt;");
   });
 
+  it("evento de organizador: linha “Produção” no HTML e no texto", () => {
+    const email = buildTicketsEmail({ ...base, producerName: "Coletivo Exemplo" });
+    expect(email.html).toContain("Produção: Coletivo Exemplo");
+    expect(email.text).toContain("Produção: Coletivo Exemplo");
+    expect(email.html.match(/Produção:/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ["sem produtor", undefined],
+    ["produtor nulo", null],
+    ["nome vazio", "   "],
+  ])("%s: nenhuma linha “Produção”", (_caso, producerName) => {
+    const email = buildTicketsEmail({ ...base, producerName });
+    expect(email.html).not.toContain("Produção");
+    expect(email.text).not.toContain("Produção");
+  });
+
+  it("escapa o nome da produção no HTML", () => {
+    const email = buildTicketsEmail({ ...base, producerName: '<b>Cia</b> "A&B"' });
+    expect(email.html).not.toContain("<b>Cia</b>");
+    expect(email.html).toContain("Produção: &lt;b&gt;Cia&lt;/b&gt; &quot;A&amp;B&quot;");
+    expect(email.text).toContain('Produção: <b>Cia</b> "A&B"');
+  });
+
   it("escapa HTML vindo dos dados do pedido", () => {
     const email = buildTicketsEmail({
       ...base,

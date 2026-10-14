@@ -28,6 +28,8 @@ export type TicketsEmailData = {
   orderNumber: string;
   tickets: TicketsEmailTicket[];
   ticketUrl: string;
+  /** Nome público do organizador ("Produção: …"); evento do próprio Espaço: ausente. */
+  producerName?: string | null;
   /** Valores do pedido; cortesia (total 0) ou ausente: sem bloco "Resumo do pedido". */
   summary?: TicketsEmailOrderSummary | null;
 };
@@ -131,6 +133,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const subjectWhen = formatSessionSubject(data.startsAt);
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
+  const producer = data.producerName?.trim() || null;
 
   const subject = subjectWhen
     ? `Seus ingressos — ${data.eventName} · ${subjectWhen}`
@@ -141,6 +144,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     data.sessionName ? `<strong>Sessão:</strong> ${escapeHtml(data.sessionName)}` : "",
     when ? `<strong>Quando:</strong> ${escapeHtml(when)}` : "",
     `<strong>Onde:</strong> ${escapeHtml(data.venue)}`,
+    producer ? `Produção: ${escapeHtml(producer)}` : "",
     `<strong>Quantidade:</strong> ${count}`,
   ]
     .filter(Boolean)
@@ -201,6 +205,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     ...(data.sessionName ? [`Sessão: ${data.sessionName}`] : []),
     ...(when ? [`Quando: ${when}`] : []),
     `Onde: ${data.venue}`,
+    ...(producer ? [`Produção: ${producer}`] : []),
     `Quantidade: ${count}`,
     "",
     ...data.tickets.map(

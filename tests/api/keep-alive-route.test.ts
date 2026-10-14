@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   runSessionNotices: vi.fn(),
   queryError: null as unknown,
   purgeError: null as unknown,
+  organizerPurge: null as null | (() => Promise<unknown>),
   rpcNames: [] as string[],
 }));
 
@@ -17,6 +18,9 @@ vi.mock("@/lib/supabase/admin", () => ({
       mocks.rpcNames.push(name);
       if (name === "purge_login_verification") {
         return Promise.resolve({ data: 0, error: mocks.purgeError });
+      }
+      if (name === "purge_organizer_records") {
+        return mocks.organizerPurge ? mocks.organizerPurge() : Promise.resolve({ data: 0, error: null });
       }
       return result();
     };
@@ -35,6 +39,7 @@ describe("GET /api/cron/keep-alive", () => {
     vi.clearAllMocks();
     mocks.queryError = null;
     mocks.purgeError = null;
+    mocks.organizerPurge = null;
     mocks.rpcNames = [];
     vi.stubEnv("CRON_SECRET", secret);
     mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 2, sent: 2, failed: 0, pausedUntil: null });
@@ -79,6 +84,24 @@ describe("GET /api/cron/keep-alive", () => {
     const response = await GET(request(`Bearer ${secret}`));
     expect(response.status).toBe(200);
     expect(mocks.runSessionNotices).toHaveBeenCalled();
+  });
+
+  it("limpa convites e pedidos do site antigos dos organizadores", async () => {
+    await GET(request(`Bearer ${secret}`));
+    expect(mocks.rpcNames).toContain("purge_organizer_records");
+  });
+
+  it.each([
+    ["erro do banco", () => Promise.resolve({ data: null, error: { code: "PGRST000", message: "fora" } })],
+    ["exceção", () => Promise.reject(new Error("fora"))],
+  ])("falha na limpeza dos organizadores (%s) não derruba o keep-alive", async (_caso, purge) => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.organizerPurge = purge;
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, notices: 2 });
+    expect(mocks.runSessionNotices).toHaveBeenCalled();
+    expect(logged).toHaveBeenCalled();
   });
 
   it("falha do banco responde 500 sem enviar avisos", async () => {

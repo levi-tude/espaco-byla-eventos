@@ -25,8 +25,12 @@ const orderId = "00000000-0000-4000-8000-000000000010";
 type Row = Record<string, unknown> | Record<string, unknown>[] | null;
 
 /** Cada tabela devolve sempre a mesma linha, seja por maybeSingle/single ou await direto. */
-function fakeAdmin(rows: Record<string, Row>) {
+function fakeAdmin(
+  rows: Record<string, Row>,
+  rpc: (name: string, args: unknown) => unknown = async () => ({ data: [], error: null }),
+) {
   return {
+    rpc,
     from: (table: string) => {
       const result = { data: rows[table] ?? null, error: null };
       const chain = {
@@ -300,6 +304,70 @@ describe("sendOrderTicketsEmail", () => {
       orderId,
       expect.stringContaining("sessão não encontrada"),
     );
+  });
+
+  it("evento de organizador: busca o nome público pelo evento do pedido e leva ao e-mail", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    const rpc = vi.fn(async () => ({
+      data: [{ event_id: "evento-1", public_name: "Coletivo Exemplo" }],
+      error: null,
+    }));
+    await expect(sendOrderTicketsEmail(fakeAdmin(paidOrderRows, rpc), orderId)).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith("event_producer_names", { p_event_ids: ["evento-1"] });
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ producerName: "Coletivo Exemplo" }),
+    );
+  });
+
+  it("evento do próprio Espaço: e-mail sem produção", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    const rpc = vi.fn(async () => ({ data: [], error: null }));
+    await sendOrderTicketsEmail(fakeAdmin(paidOrderRows, rpc), orderId);
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(expect.objectContaining({ producerName: null }));
+  });
+
+  it.each([
+    ["erro do banco", async () => ({ data: null, error: { code: "PGRST000", message: "fora" } })],
+    [
+      "exceção",
+      () => {
+        throw new Error("fora");
+      },
+    ],
+    ["promessa rejeitada", async () => Promise.reject(new Error("fora"))],
+  ])("falha ao buscar a produção (%s) não impede o e-mail", async (_caso, rpc) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await expect(sendOrderTicketsEmail(fakeAdmin(paidOrderRows, rpc), orderId)).resolves.toBe(true);
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(expect.objectContaining({ producerName: null }));
+    expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("busca da produção que não responde não segura o e-mail", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      mocks.sendTicketsEmail.mockResolvedValue("sent");
+      const rpc = () => new Promise(() => {});
+      const sent = sendOrderTicketsEmail(fakeAdmin(paidOrderRows, rpc), orderId);
+      await vi.advanceTimersByTimeAsync(3000);
+      await expect(sent).resolves.toBe(true);
+      expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(expect.objectContaining({ producerName: null }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("confirmOrderPaid envia o e-mail mesmo com falha na busca da produção", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.markOrderPaidIfPending.mockResolvedValue("updated");
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    const rpc = async () => ({ data: null, error: { code: "PGRST000", message: "fora" } });
+    await expect(
+      confirmOrderPaid(fakeAdmin(paidOrderRows, rpc), orderId, "mercadopago", 5000),
+    ).resolves.toBe("updated");
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.alertTeam).not.toHaveBeenCalled();
   });
 
   it("devolve false e avisa a equipe quando não há ingressos pagos", async () => {

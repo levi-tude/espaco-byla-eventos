@@ -9,6 +9,7 @@ import {
 import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName } from "@/lib/domain/ticket-types";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
+import { loadEventProducerName } from "@/lib/organizer/producer";
 import type { ProviderIds } from "@/lib/payments/types";
 
 const brl = new Intl.NumberFormat("pt-BR", {
@@ -144,7 +145,7 @@ export async function sendOrderTicketsEmail(
     return emailNotSent("dados do pedido não encontrados");
   }
 
-  const [eventResult, sessionResult, ticketsResult, itemsResult] = await Promise.all([
+  const [eventResult, sessionResult, ticketsResult, itemsResult, producerName] = await Promise.all([
     admin
       .from("events")
       .select("name, venue, starts_at")
@@ -166,6 +167,8 @@ export async function sendOrderTicketsEmail(
       .select("name, quantity, line_total_cents")
       .eq("order_id", orderId)
       .order("created_at"),
+    // Nunca lança e responde em até 2 s: em falha o e-mail sai sem a linha "Produção".
+    loadEventProducerName(admin, order.event_id),
   ]);
 
   if (eventResult.error || !eventResult.data) {
@@ -222,6 +225,7 @@ export async function sendOrderTicketsEmail(
     })),
     publicToken: order.public_token,
     summary,
+    producerName,
   });
 
   if (emailResult !== "sent") {

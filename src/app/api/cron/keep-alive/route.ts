@@ -42,6 +42,14 @@ export async function GET(request: Request) {
     console.error("[keep-alive] falha ao limpar códigos de acesso", error);
   }
 
+  // Convites vencidos e pedidos do site já tratados dos organizadores: falha só vai para o log.
+  try {
+    const { error } = await supabase.rpc("purge_organizer_records");
+    if (error) console.error("[keep-alive] falha ao limpar convites e pedidos antigos", error.code);
+  } catch {
+    console.error("[keep-alive] falha ao limpar convites e pedidos antigos");
+  }
+
   let notices = 0;
   try {
     const run = await runSessionNotices(supabase, { limit: NOTICE_CRON_LIMIT });

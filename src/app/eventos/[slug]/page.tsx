@@ -42,6 +42,7 @@ import {
   SHARE_IMAGE_WIDTH,
   shareImageVersion,
 } from "@/lib/media/share-image";
+import { loadPublicEventProducer } from "@/lib/organizer/producer";
 import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { shareMetadata } from "@/lib/share-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -110,7 +111,7 @@ export default async function EventoPublicoPage({
   if (!event) notFound();
 
   const admin = createAdminClient();
-  const [gallery, { data: ticketTypes }, summary, feePolicy, { data: pastFlag }] =
+  const [gallery, { data: ticketTypes }, summary, feePolicy, { data: pastFlag }, producer] =
     await Promise.all([
       loadEventGallery(supabase, event.id),
       supabase
@@ -125,6 +126,7 @@ export default async function EventoPublicoPage({
       loadEventSessions(admin, event.id),
       loadServiceFeePolicy(admin),
       supabase.rpc("event_is_past", { p_event_id: event.id }),
+      loadPublicEventProducer(supabase, event.id),
     ]);
   // Evento que já aconteceu: só vitrine, sem sessões à venda, preços ou compra.
   const ended = pastFlag === true;
@@ -250,6 +252,9 @@ export default async function EventoPublicoPage({
                 <MapPin aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-byla-accent-text" />
                 {event.venue}
               </p>
+              {producer ? (
+                <p className="mt-1 pl-7 text-base text-byla-muted">Produção: {producer}</p>
+              ) : null}
             </header>
           </div>
 
