@@ -39,23 +39,21 @@ Spec (fonte da verdade, todas as decisões fechadas): `docs/superpowers/specs/20
 8. **Funções de administração funcionam com a área desligada** (gerar convite, ver pedidos do site): o Admin pode se preparar. Tudo do lado do organizador (entrar, cadastrar, pedido público, ações) recusa com a área desligada.
 9. **Tudo que é do organizador fica em `/organizador`** (área com login, cookie do aparelho `byla_org_aparelho` com `path=/organizador`) e as páginas públicas novas ficam fora dela: `/convite`, `/redefinir-senha`, `/quero-fazer-meu-evento`, `/termos-organizador`. Com a área desligada, as públicas respondem 404 e o link do rodapé some.
 10. **O mesmo formulário de evento** (`EventForm`) serve equipe e organizador. As regras de validação saem de `src/app/equipe/eventos/actions.ts` para `src/lib/events/event-input.ts` (sem mudar comportamento) e são usadas pelas duas áreas.
-11. **Mudanças depois da aprovação (decisão 12, regra exata [R]):** o banco recusa com `ORG_ESTADO:mudanca:<campos>` quando o dono, em evento `aprovado`, muda o **nome**, o **local** (ver pergunta 2), ou, numa **sessão com vendas** (`session_has_live_orders`): horário de início/fim, preço de um tipo que já estava à venda, tirar um tipo de venda, reduzir lotação, reduzir cota de inteira/meia ou reduzir limite por tipo; remover sessão com vendas já é recusado hoje (`SESSAO_COM_VENDAS`). Valem na hora: descrição, capa, fotos, sessão nova, tudo em sessão sem vendas (respeitando o limite de lugares) e aumentos. A tela trava os mesmos campos (só conforto; quem decide é o banco).
+11. **Mudanças depois da aprovação (decisão 12, regra exata [R]):** o banco recusa com `ORG_ESTADO:mudanca:<campos>` quando o dono, em evento `aprovado`, muda o **nome**, o **local** (decisão 2A), ou, numa **sessão com vendas** (`session_has_live_orders`): horário de início/fim, preço de um tipo que já estava à venda, tirar um tipo de venda, reduzir lotação, reduzir cota de inteira/meia ou reduzir limite por tipo; remover sessão com vendas já é recusado hoje (`SESSAO_COM_VENDAS`). Valem na hora: descrição, capa, fotos, sessão nova, tudo em sessão sem vendas (respeitando o limite de lugares) e aumentos. A tela trava os mesmos campos (só conforto; quem decide é o banco).
 12. **Anti-robô** no pedido público "Quero fazer meu evento" e no envio do código de e-mail do cadastro (o único passo do convite que manda e-mail). Conferir o convite e concluir o cadastro ficam só com limite por IP (o convite já é um segredo de 256 bits).
 13. **Ninguém do organizador vê a chave PIX completa de outro**; o Admin vê só mascarado nesta fase (a tela de repasse com dados completos é da fase 3).
 
 ## O que fica para a fase 3 (não fazer agora)
 
-Tarifa do banco por pagamento (`order_payment_fees`), painel "Financeiro"/"Sua parte" do organizador, `organizer_payouts` e itens, página "Repasses", feriados e prazo de repasse (`business_holidays`), desconto pendente e devolução (`ORG_DEVOLUCAO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`), e — se o dono responder **1A** — o pedido de troca de chave PIX (`organizer_pix_change_requests`). A fase 2 só **prepara**: guarda chave PIX, titular e CPF/CNPJ no cadastro (decisão 14), mostra tudo mascarado e deixa `audit_log` com a lista de ações aberta a novas (a fase 3 troca o `check` por migration).
+Tarifa do banco por pagamento (`order_payment_fees`), painel "Financeiro"/"Sua parte" do organizador, `organizer_payouts` e itens, página "Repasses", feriados e prazo de repasse (`business_holidays`), desconto pendente e devolução (`ORG_DEVOLUCAO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`), e o pedido de troca de chave PIX (`organizer_pix_change_requests`, decisão 1A de 2026-10-14). A fase 2 só **prepara**: guarda chave PIX, titular e CPF/CNPJ no cadastro (decisão 14), mostra tudo mascarado e deixa `audit_log` com a lista de ações aberta a novas (a fase 3 troca o `check` por migration).
 
 **Regra de ordem (spec 18):** a área pode ser ligada para teste do dono depois da fase 2, mas o **primeiro evento real de organizador só é aprovado depois da fase 3 no ar**.
 
-## Perguntas ao dono (bloqueiam só as tarefas indicadas)
+## Decisões do dono (fechadas em 2026-10-14; decisões 21 a 23 do spec, seção 2.1)
 
-1. **Troca da chave PIX depois do cadastro** (Tarefa 10): A) fica para a fase 3, antes do primeiro repasse; na fase 2 a tela "Minha conta" mostra a chave mascarada e "Para trocar, fale com o Espaço Byla" (recomendado: nenhum repasse acontece antes da fase 3). B) já na fase 2.
-2. **Trocar o local do evento depois de aprovado** (Tarefas 1, 4 e 16): A) vira pedido ao Admin, como nome e horário (os Termos do organizador ganham a palavra "local" no item 3) (recomendado). B) vale na hora.
-3. **Publicar a nova Política de Privacidade e os novos Termos de compra** (Tarefa 17 e Publicação): A) num segundo deploy pequeno, só depois da leitura do advogado/contador (spec 21.1) e logo antes de ligar a área (recomendado). B) junto com o resto da fase 2.
-
-Este plano está escrito com as respostas **A**. Se alguma for B, as tarefas indicadas dizem o que muda.
+1. **Troca da chave PIX depois do cadastro — 1A:** fica para a fase 3, antes do primeiro repasse. Na fase 2 a tela "Minha conta" (Tarefa 10) mostra a chave mascarada e "Para trocar a chave PIX, fale com o Espaço Byla"; não existe ação nem tabela de troca nesta fase.
+2. **Trocar o local do evento depois de aprovado — 2A:** vira "Pedir mudança" ao Admin, como nome e preço (Tarefas 1, 4 e 16; os Termos do organizador têm "local" no item 3).
+3. **Publicar os textos legais — 3B:** Termos do organizador, nova Política de Privacidade e novos Termos de compra (Tarefas 16 e 17) vão ao ar **junto com o resto da fase 2**, no mesmo push e deploy (sem deploy só de textos). Continua valendo: a leitura do advogado/contador (spec 21.1) acontece antes de aprovar o **primeiro evento real de organizador**, que só é aprovado depois da fase 3 no ar; se a leitura pedir ajustes, eles saem como nova versão dos textos.
 
 ## File Structure
 
@@ -99,7 +97,7 @@ Este plano está escrito com as respostas **A**. Se alguma for B, as tarefas ind
 | `src/app/eventos/[slug]/page.tsx`, `src/lib/payments/confirm-order.ts`, `src/lib/email/send-tickets.ts`, `src/lib/email/tickets-template.ts` | "Produção: <nome público>" |
 | `src/components/brand/SiteFooter.tsx`, `src/app/page.tsx` | Link "Quero fazer meu evento" (só com a área ligada) |
 | `src/lib/legal/organizer-terms.ts`, `src/app/termos-organizador/page.tsx` (novos) | Termos do organizador |
-| `src/lib/legal/privacy.ts`, `src/app/privacidade/page.tsx`, `src/lib/legal/terms.ts`, `src/app/termos/page.tsx` | Novas versões (commit separado, Tarefa 17) |
+| `src/lib/legal/privacy.ts`, `src/app/privacidade/page.tsx`, `src/lib/legal/terms.ts`, `src/app/termos/page.tsx` | Novas versões (Tarefa 17; vão ao ar com o resto da fase 2, decisão 3B) |
 | `src/app/api/cron/keep-alive/route.ts` | Limpeza diária de convites e pedidos antigos |
 | `tests/security/action-inventory.test.ts` (novo) | Inventário: toda ação/rota chama um helper de acesso |
 
@@ -769,7 +767,7 @@ end;
 $$;
 ```
 
-Se a resposta à pergunta 2 for **B**, apagar a linha do `local` (e o caso de teste correspondente).
+A linha do `local` fica (decisão 2A, fechada em 2026-10-14).
 
 Trocas em funções existentes (mesma assinatura, `create or replace`; copiar o corpo atual da migration `20261011120000_session_editor.sql` e mudar **só** o indicado):
 
@@ -1369,7 +1367,7 @@ export function organizerErrorMessage(dbMessage: string): string | null {
 }
 ```
 
-Com a pergunta 2 respondida como **A**, o teste espera `"nome do evento e horário"`; o mapeamento acima já produz esse texto.
+Com a decisão 2A, o teste espera `"nome do evento e horário"`; o mapeamento acima já produz esse texto.
 
 `src/lib/organizer/validation.ts`: implementar as funções da interface usando `onlyDigits`/`isValidTaxDocument`; telefone = 10 a 13 dígitos depois de `onlyDigits`; chave PIX por tipo: `cpf`/`cnpj` = documento válido **igual** ao do titular (mensagem "Para chave CPF/CNPJ, use o documento do titular informado."), `email` = `parseEmail` (até 77), `telefone` = 10 a 13 dígitos guardados como `+55` + dígitos quando não começar com 55, `aleatoria` = UUID (`/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`, guardado em minúsculas); textos com `btrim` e limites do spec 5.1 e 7.2; senha 12–72 caracteres sem outra regra. Mensagens em português simples, uma por campo.
 
@@ -1868,7 +1866,7 @@ git commit -m "feat(organizador): convite de uso unico, cadastro com codigo no e
 
 - [ ] **Step 1: Testes (falham)**
 
-Layout: em `/organizador/entrar` e `/organizador/verificar` renderiza só a página; nos demais, `readLoginState(..., "organizador")` → `pendente` redireciona para verificar, `fora` para entrar. Menu: "Meus eventos" · "Minha conta" · "Sair". Entrar: área desligada mostra "A área do organizador ainda não está disponível." e não mostra o formulário; senha errada ou conta da equipe → "Não foi possível entrar" (mensagem única). Meus eventos: cards com capa, datas, selo (Rascunho · Em análise · Recusado · À venda · Vendas pausadas · Encerrado), "38 de 100 vendidos", botão "+ Criar evento", lembrete "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."; lista vem de `events` pela RLS (só os próprios, `deleted_at is null`). Minha conta: nome, nome público, telefone, e-mail mascarado, chave PIX e CPF/CNPJ do titular **mascarados** (a página lê a própria linha pela RLS e mascara no servidor antes de mandar ao navegador), "Para trocar a chave PIX, fale com o Espaço Byla" (resposta **1A**), Termos aceitos (versão e data), "Meus aparelhos" com "Esquecer". `forgetMyDeviceAction`: UUID inválido → erro; organizador sem sessão verificada → "Acesso não permitido.".
+Layout: em `/organizador/entrar` e `/organizador/verificar` renderiza só a página; nos demais, `readLoginState(..., "organizador")` → `pendente` redireciona para verificar, `fora` para entrar. Menu: "Meus eventos" · "Minha conta" · "Sair". Entrar: área desligada mostra "A área do organizador ainda não está disponível." e não mostra o formulário; senha errada ou conta da equipe → "Não foi possível entrar" (mensagem única). Meus eventos: cards com capa, datas, selo (Rascunho · Em análise · Recusado · À venda · Vendas pausadas · Encerrado), "38 de 100 vendidos", botão "+ Criar evento", lembrete "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."; lista vem de `events` pela RLS (só os próprios, `deleted_at is null`). Minha conta: nome, nome público, telefone, e-mail mascarado, chave PIX e CPF/CNPJ do titular **mascarados** (a página lê a própria linha pela RLS e mascara no servidor antes de mandar ao navegador), "Para trocar a chave PIX, fale com o Espaço Byla" (decisão **1A**; sem botão de troca nesta fase), Termos aceitos (versão e data), "Meus aparelhos" com "Esquecer". `forgetMyDeviceAction`: UUID inválido → erro; organizador sem sessão verificada → "Acesso não permitido.".
 
 - [ ] **Step 2: Rodar e ver falhar**
 
@@ -2057,7 +2055,7 @@ git commit -m "feat: Producao no evento e no e-mail do ingresso, seguranca da eq
 **Interfaces:**
 - Produces: `ORGANIZER_TERMS_VERSION` (data da publicação, `AAAA-MM-DD`), `ORGANIZER_TERMS_UPDATED_LABEL`, `ORGANIZER_TERMS_PATH = "/termos-organizador"`, `<OrganizerTermsText />` (usado na página e no passo "Termos" do cadastro, com rolagem).
 
-- [ ] **Step 1: Teste (falha)** — a página renderiza os 16 itens da seção 13 do spec, com `COMPANY` (razão social, CNPJ, endereço) e `PRIVACY_CONTACT_EMAIL` vindos das constantes/ambiente; percentual e mínimo da taxa vêm de `TERMS_SERVICE_FEE`; item 3 inclui "local" na lista de mudanças que dependem do Espaço (resposta **2A**); item 2 descreve o código por e-mail (decisão 9 revista), sem aplicativo; nenhum fornecedor citado (mesma lista proibida da Task 7); com a área desligada, `notFound()`.
+- [ ] **Step 1: Teste (falha)** — a página renderiza os 16 itens da seção 13 do spec, com `COMPANY` (razão social, CNPJ, endereço) e `PRIVACY_CONTACT_EMAIL` vindos das constantes/ambiente; percentual e mínimo da taxa vêm de `TERMS_SERVICE_FEE`; item 3 inclui "local" na lista de mudanças que dependem do Espaço (decisão **2A**); item 2 descreve o código por e-mail (decisão 9 revista), sem aplicativo; nenhum fornecedor citado (mesma lista proibida da Task 7); com a área desligada, `notFound()`.
 
 - [ ] **Step 2: Rodar e ver falhar**
 
@@ -2075,7 +2073,7 @@ git add src/lib/legal/organizer-terms.ts src/app/termos-organizador src/componen
 git commit -m "feat(legal): Termos do organizador"
 ```
 
-### Task 17: Nova Política de Privacidade e novos Termos de compra (commit separado)
+### Task 17: Nova Política de Privacidade e novos Termos de compra
 
 **Files:**
 - Modify: `src/lib/legal/privacy.ts`, `src/app/privacidade/page.tsx`, `src/lib/legal/terms.ts`, `src/app/termos/page.tsx`
@@ -2092,14 +2090,12 @@ Expected: FAIL.
 
 - [ ] **Step 4: Rodar e ver passar** — PASS.
 
-- [ ] **Step 5: Commit (o último da fase; só vai ao ar na Publicação, passo 5)**
+- [ ] **Step 5: Commit (vai ao ar junto com o resto da fase 2, Publicação passo 2; decisão 3B)**
 
 ```powershell
 git add src/lib/legal/privacy.ts src/app/privacidade/page.tsx src/lib/legal/terms.ts src/app/termos/page.tsx tests/legal/privacy-page.test.ts tests/legal/terms-page.test.ts
 git commit -m "feat(legal): Politica de Privacidade e Termos de compra com organizadores parceiros"
 ```
-
-Se a resposta à pergunta 3 for **B**, este commit sobe junto com o resto no passo 3 da Publicação.
 
 ### Task 18: Verificação final
 
@@ -2126,13 +2122,12 @@ Sem push, sem deploy, sem migration aplicada: tudo isso espera a Publicação.
 
 ## Publicação (cada passo precisa do "pode" do dono)
 
-0. **Antes:** o dono pede ao advogado/contador a leitura de 21.1 do spec (Termos do organizador, item 9 de LGPD, cláusula de devolução, documento fiscal). Não bloqueia os passos 1–4.
+0. **Em paralelo:** o dono pede ao advogado/contador a leitura de 21.1 do spec (Termos do organizador, item 9 de LGPD, cláusula de devolução, documento fiscal). Não bloqueia nenhum passo desta publicação (decisão 3B); bloqueia só a aprovação do primeiro evento real de organizador (depois da fase 3). Ajustes pedidos viram nova versão dos textos.
 1. **Migrations** `20261018100000_organizer_accounts.sql` e `20261018110000_organizer_operations.sql`, nessa ordem (MCP `user-supabase-eventos`, projeto Espaço Byla Eventos, fingerprint conferido e declarado no chat). A área nasce desligada; equipe e compradores não percebem nada. Logo depois, só leitura: `get_advisors` (segurança) sem alertas novos e `select enabled from public.organizer_settings` = `false`.
-2. **Push** para `origin/main` **até o commit anterior ao da Tarefa 17** (`git push origin <sha-da-tarefa-16>:main`, avanço rápido) e **deploy** no Cloud Run: `gcloud builds submit --config=infra/cloudrun/cloudbuild.yaml` com as substituições `NEXT_PUBLIC_*` de sempre (gcloud em `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`). Nenhuma variável de ambiente nova.
-3. **Conferências só de leitura** (HTTP e banco, sem o navegador compartilhado): `/quero-fazer-meu-evento`, `/convite`, `/termos-organizador` respondem 404; `/organizador/entrar` mostra "ainda não está disponível"; home e página de evento iguais a antes; `/equipe` pede login como antes; `/api/check-in` sem login → 401.
-4. **Teste do dono com a área ligada só para ele** (spec 17.6): "pode" → `update public.organizer_settings set enabled = true where id = 1;`. O dono, logado como Admin, gera um convite para um e-mail próprio (não da equipe), faz o cadastro no celular, entra com o código, cria um evento de teste, envia; o Admin aprova **sem publicar**; o dono confere a área, pede uma mudança, o Admin recusa; o dono exclui o evento (sem vendas → apagado). Depois, desligar de novo (`enabled = false`) até o passo 6.
-5. **Depois da leitura jurídica:** "pode" → push do commit da Tarefa 17 e novo deploy (Política e Termos de compra novos).
-6. **Ligar de vez:** "pode" → `enabled = true`. Avisar o dono da **regra de ordem**: nenhum evento real de organizador é aprovado antes da fase 3 no ar.
+2. **Push** de todos os commits da fase 2 (Tarefas 1–18, inclusive os textos legais da Tarefa 17) para `origin/main` (avanço rápido) e **deploy** no Cloud Run: `gcloud builds submit --config=infra/cloudrun/cloudbuild.yaml` com as substituições `NEXT_PUBLIC_*` de sempre (gcloud em `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`). Nenhuma variável de ambiente nova.
+3. **Conferências só de leitura** (HTTP e banco, sem o navegador compartilhado): `/quero-fazer-meu-evento`, `/convite`, `/termos-organizador` respondem 404; `/organizador/entrar` mostra "ainda não está disponível"; home e página de evento iguais a antes; `/privacidade` e `/termos` com as versões novas (data da publicação) e sem nome de fornecedor; um pedido criado depois disso grava as versões novas (`orders.privacy_policy_version`/versão dos Termos, consulta só de leitura); `/equipe` pede login como antes; `/api/check-in` sem login → 401.
+4. **Teste do dono com a área ligada só para ele** (spec 17.6): "pode" → `update public.organizer_settings set enabled = true where id = 1;`. O dono, logado como Admin, gera um convite para um e-mail próprio (não da equipe), faz o cadastro no celular, entra com o código, cria um evento de teste, envia; o Admin aprova **sem publicar**; o dono confere a área, pede uma mudança, o Admin recusa; o dono exclui o evento (sem vendas → apagado). Depois, desligar de novo (`enabled = false`) até o passo 5.
+5. **Ligar de vez:** "pode" → `enabled = true`. Avisar o dono da **regra de ordem**: nenhum evento real de organizador é aprovado antes da fase 3 no ar **e** da leitura do advogado/contador (passo 0).
 
 **Voltar atrás:** `update public.organizer_settings set enabled = false where id = 1;` desliga tudo do organizador na hora (login, cadastro, pedido público, ações). As migrations não precisam ser desfeitas: com a área desligada e sem eventos de organizador, o site funciona como antes.
 

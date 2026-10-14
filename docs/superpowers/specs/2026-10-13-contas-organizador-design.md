@@ -1,6 +1,6 @@
 # Contas de organizador — design
 
-Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as perguntas respondidas; decisões 12 a 20 na seção 2.1) · **Revisão 2026-10-14:** decisão 9 trocada de aplicativo autenticador (TOTP/AAL2) para **código por e-mail + aparelho lembrado por 30 dias** (motivo do dono: aplicativo autenticador é complicado demais para quem opera) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
+Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as perguntas respondidas; decisões 12 a 20 na seção 2.1) · **Revisão 2026-10-14:** decisão 9 trocada de aplicativo autenticador (TOTP/AAL2) para **código por e-mail + aparelho lembrado por 30 dias** (motivo do dono: aplicativo autenticador é complicado demais para quem opera); decisões 21 a 23 (troca de chave PIX na fase 3, local vira pedido, textos legais junto com a fase 2) respondidas no plano da fase 2 (seção 2.1) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -13,7 +13,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 - **Nada vai ao ar sem o Admin:** o organizador cria o evento como rascunho e envia para aprovação. Só depois do "Aprovar e publicar" o evento aparece no site e vende.
 - **Estorno:** o organizador **pede**; a equipe do Espaço faz, pelo botão "Estornar pedido" que já existe.
 - **Cortesia:** o organizador **não emite**; pede à equipe do Espaço pelo WhatsApp, e a equipe emite pelo botão de cortesia que já existe.
-- **Mudanças depois de aprovado:** textos, fotos, pausar vendas e sessão nova valem na hora; nome, preço já vendido, menos lugares, troca de horário e cancelamento viram pedido ao Admin.
+- **Mudanças depois de aprovado:** textos, fotos, pausar vendas e sessão nova valem na hora; nome, local, preço já vendido, menos lugares, troca de horário e cancelamento viram pedido ao Admin.
 - **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento (inteira, inclusive a parte cobrada sobre a taxa de serviço) sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento (calendário de Salvador, com Carnaval), para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
 - **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A página do evento e o e-mail do ingresso mostram "Produção: <nome do organizador>". A Política de Privacidade ganha uma versão nova dizendo isso.
 - **Portaria:** o organizador faz check-in só de ingressos dos próprios eventos; o banco recusa os outros sem revelar de qual evento são.
@@ -51,7 +51,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 10 | Excluir evento | Sem vendas: direto. Com vendas: pedido ao Admin. |
 | 11 | Textos | Textos ao comprador não citam fornecedores. Termos do organizador preferem termos genéricos (seção 13.0). |
 
-### 2.1 Respostas às perguntas da spec (dono, 2026-10-13)
+### 2.1 Respostas às perguntas da spec (dono, 2026-10-13; 21 a 23 em 2026-10-14)
 
 | # | Tema | Resposta | Onde muda |
 | --- | --- | --- | --- |
@@ -64,7 +64,9 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 18 (perg. 7) | Portaria do organizador | **A** — sem subcontas nesta entrega; o próprio organizador (ou a equipe do Espaço) faz o check-in. | 19 |
 | 19 (perg. 8) | Tarifa do banco sobre a taxa de serviço | **A** — o organizador paga a **tarifa real inteira** de cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço. O Espaço fica neutro nos eventos de organizador. Nos eventos do próprio Espaço continua valendo a decisão 4 da spec da taxa de serviço. | 10.1, 10.2, 13 |
 | 20 (perg. 9) | Dias úteis do prazo do repasse | **A** — Espaço Byla fica em Salvador (BA): dias úteis = segunda a sexta, fora feriados nacionais, o feriado estadual da Bahia, os feriados municipais de Salvador e os dias sem expediente bancário (segunda e terça de Carnaval). Lista, fontes e manutenção na seção 7.9. | 7.9, 10.3, 13 |
-
+| 21 (plano fase 2, perg. 1 — 2026-10-14) | Troca da chave PIX pelo organizador | **A** — fica para a fase 3, antes do primeiro repasse. Na fase 2 a tela "Minha conta" mostra a chave mascarada e "Para trocar a chave PIX, fale com o Espaço Byla". | 4.2, 7.2, 8.4, 12.2, 18 |
+| 22 (plano fase 2, perg. 2 — 2026-10-14) | Trocar o local depois da aprovação | **A** — vira "Pedir mudança" ao Admin, como nome e preço. | 6.4, 13 (item 3) |
+| 23 (plano fase 2, perg. 3 — 2026-10-14) | Quando publicar os textos legais | **B** — Termos do organizador, nova Política de Privacidade e novos Termos de compra vão ao ar junto com o resto da fase 2 (sem deploy separado). A leitura do jurídico/contador (21.1) continua obrigatória antes de aprovar o primeiro evento real de organizador, que só acontece depois da fase 3. | 18, 21.1 |
 **Cortesia a pedido — escolha desta spec [R]:** o pedido de cortesia vai **pelo WhatsApp**, sem tela nova. Motivo: a cortesia precisa de nome e e-mail do convidado; um formulário no painel guardaria esses dados num pedido intermediário (mais dados pessoais guardados, mais uma tela e mais uma regra), enquanto o botão "Emitir cortesia" que a equipe já usa resolve com uma conversa. O organizador vê as cortesias emitidas no próprio evento (lista de pedidos, valor R$ 0,00) e elas não mexem na parte dele. Se o volume crescer, um "Pedir cortesia" no painel pode entrar depois (fora de escopo).
 
 **Tarifa (decisão 19):** "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento. Exemplo: o comprador paga R$ 52,50 no cartão (R$ 50,00 de ingresso + R$ 2,50 de taxa de serviço) e o banco cobra R$ 2,61; os R$ 2,61 saem da parte do organizador, e a taxa de serviço chega inteira ao desenvolvedor.
@@ -113,7 +115,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | Pedir estorno | — | — | — | ✔ próprios eventos |
 | Decidir "Pago sem vaga" | ✔ | ✔ | ✔ | ✘ (vê o aviso) |
 | Emitir / cancelar cortesia | ✔ (inclusive em evento de organizador, a pedido dele) | ✔ | ✔ | ✘ (pede à equipe pelo WhatsApp; vê as cortesias do próprio evento) |
-| Pedir mudança (nome, preço vendido, lugares, horário, cancelar sessão) | — | — | — | ✔ próprios eventos aprovados |
+| Pedir mudança (nome, local, preço vendido, lugares, horário, cancelar sessão) | — | — | — | ✔ próprios eventos aprovados |
 | Decidir pedido de mudança | ✔ | ✔ | ✘ | ✘ |
 | Trocar horário com venda / cancelar sessão | ✔ | ✔ | ✔ | ✘ (pede; seção 6.4) |
 | Check-in | ✔ todos | ✔ todos | ✔ todos | ✔ só dos próprios eventos |
@@ -247,7 +249,7 @@ Gatilho `events_guard_publication`: se `organizer_id` não é nulo e `approval_s
 | Descrição, fotos, capa | Sim (registrada no histórico; Admin vê "alterado depois da aprovação") |
 | Pausar / reabrir vendas | Sim |
 | Nova sessão, preço de sessão ainda sem venda | Sim |
-| Nome do evento, preço de sessão com venda, reduzir lotação | Pedido ao Admin (seção 5.5.1) |
+| Nome do evento, local (decisão 22), preço de sessão com venda, reduzir lotação | Pedido ao Admin (seção 5.5.1) |
 | Trocar horário de sessão com venda, cancelar sessão | Pedido ao Admin (a equipe usa os fluxos atuais, com aviso aos compradores) |
 
 Antes da aprovação (rascunho ou recusado) tudo é livre. O banco confere a regra (`save_event_with_sessions` compara o que mudou e recusa com `ORG_ESTADO` o que precisa de pedido).
@@ -790,7 +792,7 @@ A taxa de serviço paga pelos compradores (R$ 22,50) não entra na sua parte.
 - **Pedidos à equipe** — lista de estorno/exclusão/mudança com situação.
 - Rodapé da página: "Excluir evento" (ou "Pedir exclusão" quando houve vendas).
 
-**Minha conta:** dados, nome público, chave PIX e CPF/CNPJ do titular (mascarados) + "Trocar chave PIX" (aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"), aparelhos lembrados ("Esquecer"), Termos aceitos (versão e data).
+**Minha conta:** dados, nome público, chave PIX e CPF/CNPJ do titular (mascarados) + "Trocar chave PIX" (fase 3, decisão 21; aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"; na fase 2 aparece só "Para trocar a chave PIX, fale com o Espaço Byla"), aparelhos lembrados ("Esquecer"), Termos aceitos (versão e data).
 
 ### 12.3 Painel da equipe
 
@@ -837,7 +839,7 @@ Estes termos valem para quem cria e vende ingressos de eventos próprios pelo si
 
 - Você cria o evento como rascunho e envia para aprovação. O evento só aparece no site e vende depois que o Espaço Byla aprova.
 - O Espaço Byla pode recusar um evento, informando o motivo, e pode tirar do ar um evento que descumpra estes termos ou a lei.
-- Depois de aprovado, algumas mudanças (nome, preço de sessão já vendida, redução de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação do Espaço Byla, porque afetam quem já comprou.
+- Depois de aprovado, algumas mudanças (nome, local, preço de sessão já vendida, redução de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação do Espaço Byla, porque afetam quem já comprou.
 
 **4. Eventos que não aceitamos**
 
@@ -916,7 +918,7 @@ Fica eleito o foro de Salvador – BA.
 
 ---
 
-**[S]** Pedir a quem cuida da parte jurídica e ao contador uma leitura antes de publicar, em especial: papel do organizador perante a LGPD (operador x controlador), documento fiscal do repasse e a cláusula de devolução depois do repasse (lista completa na seção 21.1).
+**[S]** Pedir a quem cuida da parte jurídica e ao contador uma leitura antes de aprovar o primeiro evento real de organizador (os textos vão ao ar com a fase 2, decisão 23), em especial: papel do organizador perante a LGPD (operador x controlador), documento fiscal do repasse e a cláusula de devolução depois do repasse (lista completa na seção 21.1).
 
 ---
 
@@ -1032,10 +1034,10 @@ Tabelas `login_email_codes`, `verified_sessions`, `trusted_devices`; tela `/equi
 **Fase 2 — Contas de organizador, eventos e aprovação** (≈5–7 dias; pode ser dividida em 2a e 2b)
 - 2a: "Quero fazer meu evento", convites, cadastro (código do e-mail, CPF/CNPJ do titular), área do organizador, eventos próprios, aprovação, regras de mudança depois da aprovação e "Pedir mudança", `organizer_id` e mudanças de RLS/funções, "Produção" na página do evento e no e-mail do ingresso, Termos do organizador, nova Política de Privacidade e Termos de compra, e-mails de aprovação.
 - 2b: pedidos (compradores e cortesias) do organizador, portaria só dos próprios eventos, pedidos de estorno e de exclusão, histórico. Sem cortesia na área do organizador (decisão 13).
-- Publicada com `organizer_settings.enabled = false`; o dono liga quando quiser.
+- Publicada com `organizer_settings.enabled = false`; o dono liga quando quiser. Termos do organizador, nova Política de Privacidade e novos Termos de compra sobem no mesmo deploy (decisão 23).
 
 **Fase 3 — Financeiro do organizador e repasses** (≈3–4 dias)
-Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → desconto pendente e devolução (seção 10.5) → avisos de atraso. Fórmula da tarifa (decisão 19) e calendário de Salvador (decisão 20, seção 7.9) já definidos.
+Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → desconto pendente e devolução (seção 10.5) → avisos de atraso → troca de chave PIX pedida pelo organizador e confirmada pelo Admin (decisão 21). Fórmula da tarifa (decisão 19) e calendário de Salvador (decisão 20, seção 7.9) já definidos.
 
 **Regra de ordem [R]:** o primeiro evento real de organizador só é aprovado depois da fase 3 no ar, para o painel e o prazo de repasse prometidos nos Termos existirem desde a primeira venda.
 
@@ -1073,11 +1075,11 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 
 ## 21. Perguntas para o dono
 
-Nenhuma pergunta em aberto. As perguntas 1 a 9 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A, 8A, 9A) e viraram as decisões 12 a 20 (seção 2.1).
+Nenhuma pergunta em aberto. As perguntas 1 a 9 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A, 8A, 9A) e viraram as decisões 12 a 20 (seção 2.1). As 3 perguntas do plano da fase 2 foram respondidas em 2026-10-14 (1A, 2A, 3B) e viraram as decisões 21 a 23.
 
-### 21.1 Revisões recomendadas antes de publicar (jurídico e contador)
+### 21.1 Revisões recomendadas antes do primeiro evento real de organizador (jurídico e contador)
 
-Não bloqueiam o desenvolvimento, mas o dono deve pedir antes de publicar os Termos do organizador e a nova Política de Privacidade (fase 2a):
+Não bloqueiam o desenvolvimento nem a publicação da fase 2 (decisão 23: os textos vão ao ar junto com ela), mas o dono deve pedir e ajustar o que vier delas **antes de aprovar o primeiro evento real de organizador** (que só acontece depois da fase 3). Ajustes viram nova versão dos Termos/Política:
 
 1. **Jurídico:** papel do organizador perante a LGPD (operador x controlador) e o texto do item 9 dos Termos do organizador.
 2. **Jurídico:** cláusula de devolução depois do repasse (item 8: desconto em 30 dias, devolução por PIX em 10 dias) e a de suspensão/encerramento (item 14).
