@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { HomeSingleEvent } from "@/components/public/HomeSingleEvent";
+import { OrganizerCallout } from "@/components/public/OrganizerCallout";
 import { type PastEventCard, PastEventsSection } from "@/components/public/PastEventsSection";
 import { SessionChips } from "@/components/public/SessionChips";
 import { CoverImage } from "@/components/ui/CoverImage";
@@ -13,6 +14,7 @@ import { loadEventSessions } from "@/lib/domain/event-availability";
 import { nextPastLimit, parsePastLimit, pastEventDateLabel } from "@/lib/domain/past-events";
 import { priceWithFeeLabel } from "@/lib/domain/service-fee";
 import { homeChipSessions, sessionName } from "@/lib/domain/sessions";
+import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -51,10 +53,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   );
 
   const admin = createAdminClient();
-  const [summaries, feePolicy] = await Promise.all([
+  const [summaries, feePolicy, organizerArea] = await Promise.all([
     Promise.all((events ?? []).map((event) => loadEventSessions(admin, event.id))),
     loadServiceFeePolicy(admin),
+    organizerAreaEnabled(),
   ]);
+  const organizerCallout = organizerArea ? <OrganizerCallout /> : null;
   // Um card por evento, enquanto houver sessão que ainda não começou (vendendo ou
   // esgotada). Sem o resumo das sessões (falha na consulta), o card fica como antes.
   const list = (events ?? [])
@@ -97,6 +101,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         }}
       >
         {pastSection}
+        {organizerCallout}
       </HomeSingleEvent>
     );
   }
@@ -209,6 +214,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         ) : null}
 
         {pastSection}
+        {organizerCallout}
       </div>
     </main>
   );

@@ -7,6 +7,7 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 vi.mock("@/components/brand/SiteHeader", () => ({ SiteHeader: () => null }));
+vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: async () => false }));
 
 import TermsPage from "@/app/termos/page";
 import { SiteFooter } from "@/components/brand/SiteFooter";
@@ -101,8 +102,8 @@ describe("página Termos de compra", () => {
 });
 
 describe("rodapé", () => {
-  it("leva aos Termos de compra e à Política de Privacidade", () => {
-    const html = renderToStaticMarkup(SiteFooter());
+  it("leva aos Termos de compra e à Política de Privacidade", async () => {
+    const html = renderToStaticMarkup(await SiteFooter());
     expect(html).toContain(`href="${TERMS_PATH}"`);
     expect(html).toContain('href="/privacidade"');
     expect(text(html)).toContain("Termos de compra");
