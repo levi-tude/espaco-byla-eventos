@@ -1,6 +1,6 @@
 # Contas de organizador — design
 
-Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as perguntas respondidas; decisões 12 a 20 na seção 2.1) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
+Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as perguntas respondidas; decisões 12 a 20 na seção 2.1) · **Revisão 2026-10-14:** decisão 9 trocada de aplicativo autenticador (TOTP/AAL2) para **código por e-mail + aparelho lembrado por 30 dias** (motivo do dono: aplicativo autenticador é complicado demais para quem opera) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -8,7 +8,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 
 ## Resumo executivo
 
-- **Entrada só por convite:** o Admin gera um link de uso único (vale 7 dias) e manda pelo WhatsApp. A pessoa abre, preenche os dados, a chave PIX, aceita os "Termos do organizador" e liga a verificação em duas etapas. Quem não tem convite usa a página pública **"Quero fazer meu evento"**, e o Admin responde mandando o convite.
+- **Entrada só por convite:** o Admin gera um link de uso único (vale 7 dias) e manda pelo WhatsApp. A pessoa abre, preenche os dados, a chave PIX e aceita os "Termos do organizador" (o e-mail confirmado no cadastro passa a receber o código de acesso). Quem não tem convite usa a página pública **"Quero fazer meu evento"**, e o Admin responde mandando o convite.
 - **Cada um no seu quadrado:** o organizador só vê e mexe nos próprios eventos. Não vê eventos de outros, nem o financeiro geral, nem a página da taxa de serviço. Isso é garantido no servidor **e** no banco.
 - **Nada vai ao ar sem o Admin:** o organizador cria o evento como rascunho e envia para aprovação. Só depois do "Aprovar e publicar" o evento aparece no site e vende.
 - **Estorno:** o organizador **pede**; a equipe do Espaço faz, pelo botão "Estornar pedido" que já existe.
@@ -17,10 +17,10 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 - **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento (inteira, inclusive a parte cobrada sobre a taxa de serviço) sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento (calendário de Salvador, com Carnaval), para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
 - **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A página do evento e o e-mail do ingresso mostram "Produção: <nome do organizador>". A Política de Privacidade ganha uma versão nova dizendo isso.
 - **Portaria:** o organizador faz check-in só de ingressos dos próprios eventos; o banco recusa os outros sem revelar de qual evento são.
-- **Verificação em duas etapas obrigatória** (código de 6 dígitos num aplicativo do celular) para organizadores **e** para a equipe atual, com implantação sem trancar ninguém para fora.
+- **Verificação em duas etapas obrigatória por código no e-mail** para organizadores **e** para a equipe atual: depois da senha, o site manda um código de 6 dígitos (vale 10 minutos) para o e-mail da conta; quem marca "Lembrar este aparelho" não digita código de novo nesse aparelho por 30 dias. Sem aplicativo, sem custo, sem trancar ninguém para fora (decisão 9, revista em 2026-10-14).
 - **Excluir evento:** sem vendas, o organizador exclui sozinho; com vendas, pede e o Admin decide (na prática, cancelar com reembolso de todos).
 - **Achado no código [V]:** o site hoje **não guarda a tarifa do banco de pagamento** de cada venda. A spec propõe buscá-la depois de cada pagamento e guardá-la (seção 9).
-- **Em 3 fases:** (1) duas etapas para a equipe; (2) contas de organizador, eventos e aprovação; (3) financeiro do organizador e repasses.
+- **Em 3 fases:** (1) código por e-mail para a equipe; (2) contas de organizador, eventos e aprovação; (3) financeiro do organizador e repasses.
 
 ---
 
@@ -47,7 +47,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 6 | Prazo do repasse | Até 5 dias úteis depois do evento (contando do dia seguinte à última sessão). Admin marca como pago (quem/quando imutável). |
 | 7 | Dados do comprador | Organizador vê nome e e-mail dos compradores dos próprios eventos; Política de Privacidade ganha versão nova. |
 | 8 | Check-in | Organizador faz check-in só de ingressos dos próprios eventos (conferido no banco). |
-| 9 | Duas etapas | Obrigatória (aplicativo autenticador, nível AAL2) para organizadores e equipe (Admin e secretaria), com implantação sem trancar contas. |
+| 9 | Duas etapas | **Revista em 2026-10-14** (antes: aplicativo autenticador TOTP/AAL2; motivo da troca: aplicativo é complicado demais para quem opera). Obrigatória para organizadores e equipe (Admin, secretaria e desenvolvedor): depois de e-mail e senha, código de 6 dígitos enviado ao e-mail da conta, válido por 10 minutos; o aparelho pode ser lembrado por 30 dias ("Lembrar este aparelho por 30 dias", marcado por padrão). Custo zero (mesmo serviço de e-mail do site). Compradores não mudam. Seção 11. |
 | 10 | Excluir evento | Sem vendas: direto. Com vendas: pedido ao Admin. |
 | 11 | Textos | Textos ao comprador não citam fornecedores. Termos do organizador preferem termos genéricos (seção 13.0). |
 
@@ -106,7 +106,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | Abrir/pausar vendas | ✔ | ✔ | ✔ | ✔ próprios, só depois de aprovado |
 | Aprovar / recusar evento de organizador | ✔ | ✔ | ✘ | ✘ |
 | Gerar/revogar convite, ver "Quero fazer meu evento" | ✔ | ✔ | ✘ | ✘ |
-| Suspender organizador, redefinir duas etapas de organizador | ✔ | ✔ | ✘ | ✘ |
+| Suspender organizador, esquecer os aparelhos lembrados de um organizador | ✔ | ✔ | ✘ | ✘ |
 | Ver nome e e-mail do comprador | ✔ | ✔ | ✔ | ✔ só dos próprios eventos |
 | Ver telefone, link do pedido, código do ingresso | ✔ | ✔ | ✔ | ✘ nunca |
 | Estornar pedido | ✔ | ✔ | ✔ | ✘ (só pedir) |
@@ -125,7 +125,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | Marcar repasse ao organizador como pago, lançar tarifa manual, ajuste | ✔ | ✘ | ✘ | ✘ |
 | Ver chave PIX do organizador | ✔ | ✘ | ✘ | ✔ a própria |
 | Confirmar troca de chave PIX | ✔ | ✘ | ✘ | pede |
-| Redefinir duas etapas da equipe | ✔ (de outra conta, nunca a própria) | ✔ idem | ✘ | ✘ |
+| Esquecer aparelhos lembrados de outra conta da equipe | ✔ (de outra conta; a própria, em "Meus aparelhos") | ✔ idem | ✘ (só os próprios) | ✘ (só os próprios) |
 
 Tudo que diz ✔ é conferido **duas vezes**: no servidor (helper da seção 11.3) e dentro da função do banco (seção 8).
 
@@ -164,10 +164,10 @@ Página `/convite` (celular primeiro), em passos com barra de progresso:
 5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado."
 6. **Termos** — texto dos "Termos do organizador" com rolagem e caixa "Li e aceito os Termos do organizador e a Política de Privacidade". Versão gravada.
 7. Servidor: confere o token de novo, cria a conta com a chave `service_role` (`auth.admin.createUser`, e-mail já confirmado), chama `accept_organizer_invite` (marca o convite usado e cria o perfil na mesma transação). Se a função falhar, apaga a conta recém-criada (compensação) e mostra erro genérico. Dois envios ao mesmo tempo: só um passa (trava no convite).
-8. **Duas etapas** — já logado, tela "Proteja sua conta": QR Code + código para digitar à mão + campo do código de 6 dígitos. Sugestão de aplicativos gratuitos (Google Authenticator, Microsoft Authenticator). Sem concluir este passo, nenhuma tela do painel abre (seção 11.2).
+8. **Duas etapas** — nada a cadastrar: o e-mail confirmado no passo 3 é o canal do código de acesso. A tela final explica: "A cada acesso em um aparelho novo, enviaremos um código para o seu e-mail." O primeiro login logo depois do cadastro já pede o código (mesmo fluxo da equipe, seção 11), com "Lembrar este aparelho por 30 dias".
 9. Pronto: "Sua conta está pronta. Crie seu primeiro evento."
 
-Login depois: `/organizador/entrar` (e-mail + senha) → código de 6 dígitos → painel. Esqueceu a senha ou perdeu o celular: fala com o Espaço; o Admin gera um **link de redefinição** (mesmo mecanismo do convite, uso único, vale 24 h) ou **redefine as duas etapas** (apaga o fator; a pessoa cadastra de novo no próximo login). Tudo registrado no histórico.
+Login depois: `/organizador/entrar` (e-mail + senha) → código de 6 dígitos no e-mail (pulado em aparelho lembrado) → painel. Esqueceu a senha: fala com o Espaço; o Admin gera um **link de redefinição** (mesmo mecanismo do convite, uso único, vale 24 h). Perdeu acesso ao e-mail: o Admin troca o e-mail da conta no painel do Supabase depois de confirmar a identidade pelo WhatsApp e **esquece os aparelhos lembrados** daquela conta. Tudo registrado no histórico.
 
 ### 5.4 Evento: rascunho → aprovação → no ar
 
@@ -272,7 +272,6 @@ Tudo aditivo e compatível com o código no ar. Cada tabela nova: RLS ligada, `r
 create table public.organizer_settings (
   id smallint primary key default 1 check (id = 1),
   enabled boolean not null default false,              -- área do organizador DESLIGADA ao publicar
-  staff_mfa_enforced boolean not null default false,   -- trava de duas etapas no banco (fase 1)
   max_session_capacity integer not null default 100 check (max_session_capacity between 1 and 2000),
   updated_at timestamptz not null default now()
 );
@@ -318,8 +317,8 @@ create unique index on public.organizer_pix_change_requests (organizer_id) where
 ```
 
 - Gatilho `forbid_staff_and_organizer`: recusa inserir em `organizer_profiles` quem está em `staff_profiles`, e o inverso.
-- RLS `organizer_profiles`: `select` para `authenticated` quando `user_id = auth.uid() and public.is_organizer()` (o próprio, com duas etapas). Admin lê por função (não por RLS), para a chave PIX não ficar exposta a toda a equipe.
-- Troca de chave PIX: o organizador pede (com duas etapas), recebe e-mail de aviso, e o Admin confirma em **Organizadores → Contas** antes do próximo repasse. Defesa contra quem roubar a conta e trocar a chave.
+- RLS `organizer_profiles`: `select` para `authenticated` quando `user_id = auth.uid() and public.is_organizer()` (o próprio, com o login verificado por código). Admin lê por função (não por RLS), para a chave PIX não ficar exposta a toda a equipe.
+- Troca de chave PIX: o organizador pede (com o login verificado), recebe e-mail de aviso, e o Admin confirma em **Organizadores → Contas** antes do próximo repasse. Defesa contra quem roubar a conta e trocar a chave.
 - CPF/CNPJ do titular (decisão 14): validado pelos dígitos verificadores no servidor; nas telas aparece mascarado (`•••.456.789-••`), completo só na tela de repasse do Admin não desenvolvedor; nunca em logs, e-mails ou planilhas. O Admin confere, ao confirmar a conta ou a troca de chave, que o titular é o organizador ou a empresa dele.
 
 ### 7.3 Convites e pedidos do site
@@ -537,20 +536,20 @@ Datas móveis em 2026: Carnaval 16 e 17/2, Sexta-feira da Paixão 3/4, Corpus Ch
 
 ## 8. Funções do banco e mudanças no que existe
 
-Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, authenticated`; `grant execute ... to service_role` (exceto as marcadas "RLS", que precisam de `grant execute to authenticated` porque são usadas em políticas e só devolvem verdadeiro/falso). As que escrevem recebem `p_actor_user_id` e reconferem papel, dono e duas etapas **dentro** do banco. Erros com prefixos estáveis: `ORG_ACESSO`, `ORG_DONO`, `ORG_ESTADO`, `ORG_CONVITE`, `ORG_DESLIGADO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`, `ORG_MUDOU`, `ORG_NADA`, `ORG_DEVOLUCAO`, `ORG_EMAIL`.
+Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, authenticated`; `grant execute ... to service_role` (exceto as marcadas "RLS", que precisam de `grant execute to authenticated` porque são usadas em políticas e só devolvem verdadeiro/falso). As que escrevem recebem `p_actor_user_id` e reconferem papel e dono **dentro** do banco (a verificação do login é conferida antes, pelo helper do servidor com a sessão do usuário; seção 8.1). Erros com prefixos estáveis: `ORG_ACESSO`, `ORG_DONO`, `ORG_ESTADO`, `ORG_CONVITE`, `ORG_DESLIGADO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`, `ORG_MUDOU`, `ORG_NADA`, `ORG_DEVOLUCAO`, `ORG_EMAIL`.
 
 ### 8.1 Novas — identidade e acesso
 
 | Função | Tipo | O que faz |
 | --- | --- | --- |
-| `jwt_is_aal2()` | RLS | `(select auth.jwt() ->> 'aal') = 'aal2'` |
-| `my_account_kind()` | RLS, SECURITY DEFINER | `'equipe'`, `'organizador'` ou nulo para `auth.uid()`; não exige duas etapas e não revela mais nada. Usada no login e no `proxy` para mandar à tela de duas etapas certa. |
-| `is_organizer()` | RLS, SECURITY DEFINER | organizador `ativo`, área ligada **e** `jwt_is_aal2()` |
+| `session_is_verified()` | RLS, SECURITY DEFINER (fase 1) | a sessão do token atual (`auth.jwt() ->> 'session_id'`) tem linha válida em `verified_sessions` para `auth.uid()` (seção 11) |
+| `my_account_kind()` | RLS, SECURITY DEFINER | `'equipe'`, `'organizador'` ou nulo para `auth.uid()`; não exige o código e não revela mais nada. Usada no login e no `proxy` para mandar à tela do código certa. |
+| `is_organizer()` | RLS, SECURITY DEFINER | organizador `ativo`, área ligada **e** `session_is_verified()` |
 | `owns_event(p_event_id)` | RLS, SECURITY DEFINER | `is_organizer()` e `events.organizer_id = auth.uid()` e `deleted_at is null` |
 | `actor_event_access(p_actor_user_id, p_event_id)` | service_role | `'equipe'`, `'dono'` ou nulo. Base de todas as funções compartilhadas. Organizador: confere `status = 'ativo'`, área ligada e dono. |
 | `organizer_access(p_actor_user_id)` | service_role | perfil resumido (status, nome público) ou erro `ORG_ACESSO` |
 
-**Duas etapas dentro de funções `service_role`:** a chave `service_role` não carrega o login do usuário, então o banco não consegue ver o nível AAL nessas chamadas. Por isso a conferência de duas etapas dessas funções fica no helper do servidor (seção 11.3), que é o único caminho até elas; e as leituras feitas com a sessão do usuário (RLS) conferem no banco.
+**Duas etapas dentro de funções `service_role`:** a chave `service_role` não carrega o login do usuário, então o banco não consegue ver a sessão nessas chamadas. Por isso a conferência dessas funções fica no helper do servidor (seção 11.3), que chama `is_staff()`/`is_organizer()` **com a sessão do usuário** antes de usar a `service_role`; e as leituras feitas com a sessão do usuário (RLS) conferem no banco.
 
 ### 8.2 Novas — convites, cadastro, pedidos do site
 
@@ -607,7 +606,7 @@ Cortesia: **nenhuma função nova** (decisão 13). `issue_courtesy_ticket` e `ca
 
 | Função | Mudança |
 | --- | --- |
-| `is_staff()`, `is_admin()` | depois da fase 1 (com `staff_mfa_enforced = true`): passam a exigir `jwt_is_aal2()`. `staff_profiles_self` continua deixando a pessoa ler a própria linha sem duas etapas (necessário para o login mandar à tela do código). |
+| `is_staff()`, `is_admin()` | desde a fase 1: passam a exigir `session_is_verified()` (sem chave de liga/desliga; a ordem de publicação da seção 11.4 evita trancar a equipe). `staff_profiles_self` continua deixando a pessoa ler a própria linha sem o código. |
 | `check_in_ticket` (v3, mesma lista de parâmetros, `p_staff_user_id` passa a significar "quem faz") | trocar a checagem de equipe por `actor_event_access(p_staff_user_id, p_event_id) is not null`. Para **organizador**, ingresso de outro evento devolve `evento_errado` **sem** o nome do outro evento ("Ingresso de outro evento"); equipe continua vendo o nome. `checked_in_by` grava o organizador. Remover a assinatura antiga de 3 parâmetros, se ainda existir. |
 | `save_event_with_sessions` | checagem de equipe vira `actor_event_access`; dono só com estado `rascunho`/`recusado`, ou `aprovado` respeitando a seção 6.4 (`ORG_ESTADO`); dono nunca muda `sales_open` por aqui |
 | `set_session_sales_open` | dono permitido só com evento `aprovado` |
@@ -699,37 +698,40 @@ Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inte
 
 ---
 
-## 11. Verificação em duas etapas (AAL2)
+## 11. Verificação em duas etapas (código por e-mail)
+
+Revista em 2026-10-14 (decisão 9). Plano de implementação da fase 1: `docs/superpowers/plans/2026-10-14-codigo-email-equipe.md`.
 
 ### 11.1 Como funciona
 
-Supabase Auth com fator TOTP (aplicativo autenticador; incluso no plano gratuito). Depois de senha + código, o login fica no nível `aal2` (campo `aal` do token).
+1. A pessoa entra com e-mail e senha (Supabase Auth, como hoje). O login cria uma **sessão** do Supabase; o token dela traz o campo `session_id`.
+2. Se o navegador tem um **aparelho lembrado** válido daquela mesma conta (cookie `httpOnly`, `Secure`, `SameSite=Lax`, caminho da área, 30 dias), a sessão é marcada como verificada na hora, sem e-mail.
+3. Senão, o servidor gera um código de 6 dígitos (gerador criptográfico), guarda só o **hash com sal** e manda o código ao e-mail da conta. Vale **10 minutos**; **5 tentativas** erradas invalidam o código; um código novo invalida o anterior; reenvio só depois de 60 s; no máximo 5 códigos por hora e 10 por dia por conta (mais um teto geral de 40 por dia para todo o site).
+4. Código certo → linha em `verified_sessions` (sessão + usuário + validade). Com "Lembrar este aparelho por 30 dias" (marcado por padrão), o servidor cria um token aleatório de 32 bytes, guarda só o hash em `trusted_devices` e grava o cookie.
+5. Validade da sessão verificada: 30 dias com aparelho lembrado; 12 horas sem. Quando vence, o aparelho lembrado reverifica sozinho; sem ele, novo código.
+6. Sair apaga as sessões verificadas da conta (o aparelho continua lembrado até vencer ou ser esquecido).
+
+Tabelas (RLS ligada, **sem nenhuma política**: só funções `security definer` e `service_role`): `login_email_codes`, `verified_sessions`, `trusted_devices`. Genéricas por usuário: a fase 2 só acrescenta "é organizador" à função que diz quem pode usar o código (`login_code_eligible`).
 
 ### 11.2 Telas
 
-- **Cadastrar:** QR Code + código para digitar à mão + campo do código. Recomendação forte na tela: "Cadastre também em um segundo aparelho (ou guarde o código de configuração em lugar seguro)": o Supabase permite mais de um fator TOTP, e isso substitui códigos de recuperação.
-- **Entrar:** depois da senha, "Digite o código de 6 dígitos do seu aplicativo autenticador".
-- **Minha segurança:** lista de aparelhos cadastrados, "Adicionar aparelho", "Remover" (exige estar em `aal2`; não deixa remover o último).
-- Rotas: `/equipe/seguranca` e `/organizador/seguranca`.
+- **Entrar:** e-mail e senha (sem mudança) → `/equipe/verificar` (organizador: `/organizador/verificar`): "Enviamos um código de 6 dígitos para o seu e-mail" com o e-mail mascarado (`le***@gm***.com`), campo numérico com preenchimento automático do celular, caixa "Lembrar este aparelho por 30 dias", "Reenviar código" (espera de 60 s) e "Sair".
+- **Meus aparelhos** (fase 2, junto com a área do organizador): lista dos aparelhos lembrados (navegador e data) com "Esquecer"; Admin pode esquecer os de outra conta. Até lá, o dono usa o SQL do plano (seção "Emergência").
 
 ### 11.3 Onde é conferido
 
-1. **`proxy.ts`** (conforto, não segurança): `/equipe` e `/organizador` mandam para a tela de cadastro/código quando o login está em `aal1`. `/organizador/*` exige conta de organizador; `/equipe/*` continua exigindo equipe.
-2. **Servidor (segurança):** um helper único em `src/lib/auth/actor.ts` (`server-only`): `getActor()` lê o token verificado (`supabase.auth.getClaims()`, que confere a assinatura) e o usuário (`getUser()`), e devolve `{ userId, kind: 'equipe' | 'organizador', role, isDeveloper, aal2 }`. Em cima dele:
-   - `requireStaffUser()` / `assertStaff()` / `requireFinanceAdmin()` passam a exigir `aal2` (atrás da chave `staff_mfa_enforced`, ver 11.4);
-   - `requireOrganizer()` exige organizador ativo, área ligada e `aal2` desde o primeiro dia;
-   - `requireEventAccess(eventId, { write })` devolve `'equipe' | 'dono'` ou lança `ActionError` genérico.
-   Toda página, Server Action e `route.ts` (inclusive `/api/check-in`) chama um desses **dentro** dela.
-3. **Banco:** `is_organizer()` exige `aal2`; `is_staff()`/`is_admin()` passam a exigir depois da 11.4. Funções `service_role` não enxergam o nível (seção 8.1), por isso o helper do servidor é obrigatório antes delas, e um teste de inventário (seção 16) confere isso em todo arquivo de ações.
+1. **`proxy.ts`** (conforto, não segurança): `/equipe/*` sem login → `/equipe/login`; com login de equipe não verificado → `/equipe/verificar`; verificado em `/equipe/login` ou `/equipe/verificar` → `/equipe`. Lê o estado por `staff_access_status()` (com a sessão do usuário).
+2. **Servidor (segurança):** `requireStaffUser()` / `assertStaff()` / `requireFinanceAdmin()` / `/api/check-in` chamam `is_staff()` **com a sessão do usuário**, e `is_staff()` passou a exigir a sessão verificada. Na fase 2, o helper `getActor()` (`src/lib/auth/actor.ts`) generaliza isso para `requireOrganizer()` / `requireEventAccess()`.
+3. **Banco:** `is_staff()`, `is_admin()` (fase 1) e `is_organizer()` (fase 2) exigem `session_is_verified()`. Toda política RLS que usa `is_staff()` passa a exigir o código sem mudar a política. Funções `service_role` não enxergam a sessão (seção 8.1), por isso o helper do servidor é obrigatório antes delas, e um teste de inventário (seção 16) confere isso.
 
 ### 11.4 Implantação para a equipe atual (sem trancar ninguém)
 
-1. **Antes:** conferir no painel do Supabase que TOTP está ativo (Auth → MFA) e definir senha mínima de 12 caracteres para contas novas.
-2. **Publicar o código** com as telas de duas etapas e o helper com `staff_mfa_enforced = false`. Nesse modo, quem entra sem fator vai direto para "Proteja sua conta" (obrigatório, mas basta a senha para cadastrar: ninguém fica trancado).
-3. **As duas contas atuais** (Admin do Espaço e Admin desenvolvedor) cadastram o fator, de preferência em dois aparelhos cada. Tela **Equipe → Segurança da equipe** (Admin) mostra quem já tem duas etapas.
-4. **Ligar a trava** (`staff_mfa_enforced = true`, com "pode" do dono) só quando todas as contas da equipe tiverem fator verificado. A partir daí servidor e banco exigem `aal2`.
-5. **Perdeu o celular:** outro Admin usa "Redefinir duas etapas" (apaga os fatores; histórico). **Emergência** (todos os Admins sem acesso): o dono apaga o fator no painel do Supabase (Authentication → Users → fatores MFA) — documentado no guia de publicação.
-6. Contas novas da equipe (criadas pelo dono no painel) cadastram o fator no primeiro login, pelo mesmo fluxo.
+1. **Antes:** conferir que cada conta da equipe usa um e-mail que a pessoa realmente abre (o código vai para lá).
+2. **Migration 1** (`staff_email_code`): só cria tabelas e funções; nada muda para o site no ar.
+3. **Publicar o código** novo: a tela do código passa a valer pelo `proxy` e pelo layout da equipe.
+4. **Migration 2** (`staff_email_code_enforce`): `is_staff()`/`is_admin()` passam a exigir a sessão verificada no banco. Logo depois, cada conta entra e digita o código uma vez.
+5. **Perdeu acesso ao e-mail:** outro Admin (ou o dono) troca o e-mail da conta no painel do Supabase. **Emergência** (e-mail fora do ar, ninguém consegue entrar): o dono insere uma linha em `verified_sessions` pelo SQL Editor do Supabase (passo a passo no plano). Não existe chave de ambiente para desligar a verificação (seria uma porta dos fundos).
+6. Contas novas da equipe (criadas pelo dono no painel) usam o mesmo fluxo no primeiro login.
 
 ---
 
@@ -788,17 +790,17 @@ A taxa de serviço paga pelos compradores (R$ 22,50) não entra na sua parte.
 - **Pedidos à equipe** — lista de estorno/exclusão/mudança com situação.
 - Rodapé da página: "Excluir evento" (ou "Pedir exclusão" quando houve vendas).
 
-**Minha conta:** dados, nome público, chave PIX e CPF/CNPJ do titular (mascarados) + "Trocar chave PIX" (aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"), duas etapas, Termos aceitos (versão e data).
+**Minha conta:** dados, nome público, chave PIX e CPF/CNPJ do titular (mascarados) + "Trocar chave PIX" (aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"), aparelhos lembrados ("Esquecer"), Termos aceitos (versão e data).
 
 ### 12.3 Painel da equipe
 
 Menu (Admin): **Eventos** · **Aprovações** (com número de pendências) · **Organizadores** · **Repasses** · **Taxa de serviço**. Secretaria: **Eventos** (com a faixa de pedidos de estorno).
 
 - **Aprovações:** abas "Eventos" (cards com prévia, lista de conferência — inclusive o nome público que vai aparecer como "Produção" —, "Aprovar e publicar" / "Aprovar sem publicar" / "Recusar"), "Mudanças" (pedidos da seção 6.4: a equipe aplica a mudança pelo editor normal e marca "Feito", ou "Recusar" com motivo) e "Exclusões".
-- **Organizadores:** abas "Pedidos do site" (Nova/Convidada/Arquivada; "Gerar convite", "Arquivar"), "Convites" (gerar, copiar, WhatsApp, revogar) e "Contas" (status, eventos, "Suspender", "Redefinir duas etapas", "Link para nova senha", trocas de PIX pendentes com "Confirmar"/"Recusar").
+- **Organizadores:** abas "Pedidos do site" (Nova/Convidada/Arquivada; "Gerar convite", "Arquivar"), "Convites" (gerar, copiar, WhatsApp, revogar) e "Contas" (status, eventos, "Suspender", "Esquecer aparelhos lembrados", "Link para nova senha", trocas de PIX pendentes com "Confirmar"/"Recusar").
 - **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). Tudo o mais igual a hoje.
 - **Repasses** (`/equipe/repasses`): totais "A pagar", "Atrasados", "Pago no período", "A receber de organizadores"; uma linha/card por evento de organizador (organizador, data, sua parte, situação, prazo) e "Marcar como pago" (Admin não desenvolvedor) com a chave PIX completa e o titular (nome e CPF/CNPJ completos) só nessa tela. Eventos com saldo negativo mostram "Desconto pendente", "Devolução pendente até dd/mm" ou "Devolução atrasada", com o botão "Devolução recebida" (Admin não desenvolvedor; valor e data do PIX).
-- **Equipe → Segurança da equipe** (Admin): quem já tem duas etapas; "Redefinir duas etapas" de outra conta.
+- **Equipe → Segurança da equipe** (Admin, fase 2): aparelhos lembrados de cada conta; "Esquecer aparelhos" de outra conta.
 
 ---
 
@@ -824,8 +826,8 @@ Estes termos valem para quem cria e vende ingressos de eventos próprios pelo si
 
 **2. Sua conta**
 
-- A conta é criada só por convite do Espaço Byla. Ela é pessoal: não compartilhe a senha nem o aplicativo de verificação.
-- A verificação em duas etapas é obrigatória. Se perder o celular, fale com o Espaço Byla para redefinir.
+- A conta é criada só por convite do Espaço Byla. Ela é pessoal: não compartilhe a senha nem o acesso ao seu e-mail.
+- A verificação em duas etapas é obrigatória: ao entrar num aparelho novo, enviamos um código ao seu e-mail. Só marque "Lembrar este aparelho" em aparelho seu. Se perder o acesso ao e-mail, fale com o Espaço Byla.
 - No cadastro, confirmamos o seu e-mail com um código. Use um e-mail que você acessa: é por ele que avisamos sobre aprovações, pedidos e repasses.
 - Mantenha seus dados e sua chave PIX corretos. Trocar a chave PIX precisa da confirmação do Espaço Byla antes do próximo repasse.
 - Seu nome público aparece como "Produção: <nome público>" na página do evento e no e-mail do ingresso dos compradores.
@@ -935,6 +937,7 @@ Prioridade continua sendo os ingressos. Os avisos desta spec têm **teto própri
 | Organizador | saldo negativo virou "Devolução pendente" (seção 10.5) | "Devolução pendente: R$ X até dd/mm" |
 | Organizador | troca de chave PIX pedida (para o e-mail da conta) e confirmada | "Sua chave PIX foi alterada" |
 | Organizador | código de confirmação do e-mail no cadastro (decisão 17; fora do teto de 10/dia, limitado a 3 por convite) | "Seu código do Espaço Byla Eventos" (o código vai no corpo, nunca no assunto) |
+| Equipe e organizador | código de acesso ao entrar em aparelho novo (decisão 9; fora do teto de 10/dia; até 5 por hora e 10 por dia por conta, 40 por dia no site) | "Seu código de acesso" (o código vai no corpo, nunca no assunto) |
 | Comprador | e-mail do ingresso já existente | ganha a linha "Produção: <nome público>" em eventos de organizador (decisão 16) |
 | Organizador | conta suspensa | "Sua conta foi suspensa" |
 
@@ -977,10 +980,10 @@ Mudanças no texto de `/privacidade`:
 | Vazamento por colunas (telefone, link do pedido, código do QR) | Organizador não tem leitura direta de `orders`/`tickets`; só funções com colunas fixas (seção 6.6). |
 | Check-in revela outros eventos | `evento_errado` sem nome para organizador. |
 | Roubo ou adivinhação do convite | Token de 256 bits, só o hash no banco, uso único, 7 dias, revogável; token depois do `#` (fora de registros e `Referer`); `Referrer-Policy: no-referrer` na página; 20 tentativas/h por IP; mensagem genérica. |
-| Roubo de conta | Duas etapas obrigatórias; senha mínima de 12; mensagens genéricas no login; limites de tentativa do Supabase Auth; aviso por e-mail em troca de chave PIX. |
+| Roubo de conta | Código por e-mail obrigatório em aparelho novo (só hash com sal no banco, 10 min, 5 tentativas, limites de envio); aparelho lembrado por cookie `httpOnly` com só o hash no banco; senha mínima de 12; mensagens genéricas no login; limites de tentativa do Supabase Auth; aviso por e-mail em troca de chave PIX. |
 | Troca da chave PIX para desviar repasse | Troca precisa de confirmação do Admin; e-mail ao organizador; a tela de repasse mostra "chave alterada em dd/mm"; `ORG_PIX_PENDENTE` bloqueia repasse com troca em aberto. |
 | Server Action chamada por POST direto | Cada ação chama o helper dentro dela; teste de inventário (16.3). |
-| Ação de organizador sem duas etapas | Helper exige `aal2` do token verificado; `is_organizer()` exige no banco. |
+| Ação sem o código | Helper chama `is_staff()`/`is_organizer()` com a sessão do usuário, e o banco exige `session_is_verified()`. |
 | Spam no formulário público | Turnstile (falha fechada), `consume_rate_limit` (3/h por IP, 30/dia total), tamanhos máximos, nenhum e-mail para quem pede, aviso à equipe agrupado. |
 | Conteúdo malicioso no evento (XSS, phishing) | React escapa o texto; e-mails escapam HTML; capa só `https` [V]; fotos pelo envio existente; aprovação do Admin e histórico de mudanças depois da aprovação. |
 | Organizador some com o dinheiro / evento falso | Dinheiro fica com o Espaço até depois do evento; aprovação prévia; repasse só depois da última sessão. |
@@ -996,14 +999,14 @@ Mudanças no texto de `/privacidade`:
 - `service_role` só em módulos `server-only` [V]. Criação de conta e troca de senha por link usam a API de administração do Supabase Auth, só no servidor.
 - Erros ao usuário são genéricos (`ActionError` via `runAction`); detalhe só no log, **sem** nome, e-mail, telefone, chave PIX, token ou código do ingresso.
 - Toda entrada validada no servidor: tipos, formatos e tamanhos (seções 5 e 7).
-- Nenhuma dependência nova: TOTP e criação de contas já estão no `@supabase/supabase-js`; QR Code do cadastro de duas etapas vem pronto do Supabase (imagem SVG); hash com `node:crypto`.
-- CSP: nada novo de terceiros (o QR do Supabase vem como `data:`; conferir `img-src` em `src/lib/security/csp.ts`).
+- Nenhuma dependência nova: criação de contas já está no `@supabase/supabase-js`; código e token com `node:crypto`; e-mail pelo serviço já usado.
+- CSP: nada novo de terceiros.
 
 ### 16.3 Testes de segurança obrigatórios
 
 - **Inventário:** teste que lê `src/app/organizador/**/actions.ts`, `src/app/equipe/**/actions.ts` e `route.ts` e falha se alguma função exportada não chamar um helper de acesso (`requireOrganizer`, `requireEventAccess`, `requireStaffUser`, `assertStaff`, `requireFinanceAdmin`).
 - **Matriz no banco:** para cada função nova ou alterada, chamar como anônimo, organizador A, organizador B (dono de outro evento), organizador suspenso, secretaria, Admin desenvolvedor e Admin; conferir aceita/recusa conforme a seção 4.2.
-- **RLS com tokens:** organizador `aal1` não lê nada; organizador `aal2` lê só os próprios eventos/sessões/tipos/fotos e nunca `orders`/`tickets`; equipe `aal1` perde leitura depois de `staff_mfa_enforced`.
+- **RLS com tokens:** organizador com sessão não verificada não lê nada; verificado lê só os próprios eventos/sessões/tipos/fotos e nunca `orders`/`tickets`; equipe com sessão não verificada não lê nada restrito (desde a fase 1).
 - **Cortesia:** organizador chamando `issue_courtesy_ticket` / `cancel_courtesy_ticket` (direto ou por qualquer ação) é recusado; a área do organizador não tem ação de cortesia (o teste de inventário confere).
 
 ---
@@ -1014,7 +1017,7 @@ Mudanças no texto de `/privacidade`:
 2. **Banco** (transação revertida, no padrão de `scripts/db-tests/*.mjs`): estados do evento e gatilho de publicação; dono imutável; convite usado duas vezes ao mesmo tempo; convite vencido/revogado; código do e-mail errado 5 vezes, vencido e reenviado demais; cadastro sem e-mail confirmado ou com CPF/CNPJ inválido; check-in de evento alheio sem nome; pedido de estorno duplicado; `save_event_with_sessions` do dono recusando, em evento aprovado, nome, preço vendido, redução de lugares e troca de horário (e aceitando descrição, fotos e sessão nova); pedido de mudança feito/recusado; exclusão com e sem vendas; repasse com tarifa pendente, troca de PIX pendente, valor mudado, duplo clique, desconto de outro evento; devolução recebida zerando o saldo; envio para aprovação recusado com devolução atrasada; registros imutáveis até para `service_role`; matriz da seção 16.3.
 3. **Servidor:** cada ação e rota recusa anônimo, conta sem duas etapas, organizador de outro evento e (quando couber) secretaria e desenvolvedor, inclusive por POST direto (mesmo estilo de `tests/api/check-in-route.test.ts`).
 4. **Teste do banco de pagamento** (fase 3, credenciais de teste): seção 9, item 1.
-5. **Telas (local, dados falsos):** cadastro completo no celular (com código do e-mail e CPF/CNPJ), duas etapas, criar → enviar → aprovar → "Produção" na página do evento → vender (pagamento de teste) → cortesia emitida pela equipe aparece na lista do organizador → pedir mudança → pedir estorno → estornar → painel financeiro → marcar repasse → estorno depois do repasse vira desconto pendente.
+5. **Telas (local, dados falsos):** cadastro completo no celular (com código do e-mail e CPF/CNPJ), código de acesso e aparelho lembrado, criar → enviar → aprovar → "Produção" na página do evento → vender (pagamento de teste) → cortesia emitida pela equipe aparece na lista do organizador → pedir mudança → pedir estorno → estornar → painel financeiro → marcar repasse → estorno depois do repasse vira desconto pendente.
 6. **Produção (só leitura, depois de cada publicação):** com a área desligada, nada muda para compradores e equipe; depois de ligar, o dono faz um convite de teste para uma conta própria, cria um evento de teste, aprova, confere que aparece, e exclui em seguida.
 
 ---
@@ -1023,8 +1026,8 @@ Mudanças no texto de `/privacidade`:
 
 Cada fase tem plano próprio em `docs/superpowers/plans/`, migration aditiva com "pode" do dono (projeto Espaço Byla Eventos, fingerprint conferido) e deploy com "pode".
 
-**Fase 1 — Duas etapas para a equipe** (≈1,5–2 dias)
-Helper `getActor` com `aal2`; telas de cadastro/código/minha segurança; "Segurança da equipe" e "Redefinir duas etapas"; `organizer_settings` (só a chave `staff_mfa_enforced`); `is_staff()`/`is_admin()` com `aal2` atrás da chave; check-in exigindo `aal2`. Ligar a trava só depois de todas as contas cadastradas (seção 11.4). Independe do resto e já melhora a segurança de hoje.
+**Fase 1 — Código por e-mail para a equipe** (≈1–1,5 dia; plano `2026-10-14-codigo-email-equipe.md`)
+Tabelas `login_email_codes`, `verified_sessions`, `trusted_devices`; tela `/equipe/verificar`; e-mail do código; aparelho lembrado por 30 dias; `is_staff()`/`is_admin()` exigindo sessão verificada (migration separada, aplicada depois do deploy, seção 11.4); `/api/check-in` passando a usar `is_staff()`; limpeza diária no cron `keep-alive`. "Meus aparelhos" e "Segurança da equipe" ficam para a fase 2. Independe do resto e já melhora a segurança de hoje.
 
 **Fase 2 — Contas de organizador, eventos e aprovação** (≈5–7 dias; pode ser dividida em 2a e 2b)
 - 2a: "Quero fazer meu evento", convites, cadastro (código do e-mail, CPF/CNPJ do titular), área do organizador, eventos próprios, aprovação, regras de mudança depois da aprovação e "Pedir mudança", `organizer_id` e mudanças de RLS/funções, "Produção" na página do evento e no e-mail do ingresso, Termos do organizador, nova Política de Privacidade e Termos de compra, e-mails de aprovação.
@@ -1064,6 +1067,7 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 6. **Confiança no administrador do banco** (estrutural, igual à taxa de serviço): mitigada com histórico imutável e e-mails, não eliminada.
 7. **Devolução que não chega:** quando o organizador não devolve no prazo (seção 10.5), o sistema só bloqueia novos envios para aprovação; cobrar fica com o Espaço, fora do site.
 8. **Mais dados pessoais guardados:** CPF/CNPJ do titular passa a existir no banco (decisão 14); mitigado com máscara, acesso mínimo e prazo de guarda na Política de Privacidade.
+9. **Dependência do e-mail para entrar (decisão 9):** se o serviço de e-mail falhar ou o limite diário acabar, ninguém entra em aparelho novo (aparelhos lembrados continuam entrando). Mitigação: códigos têm prioridade sobre avisos, volume pequeno, e procedimento de emergência pelo SQL Editor (seção 11.4). Código por e-mail é mais fraco que aplicativo (quem invadir o e-mail passa das duas etapas); o dono aceitou em troca da simplicidade.
 
 ---
 
