@@ -1,6 +1,6 @@
 # Eventos passados na página inicial — design
 
-Data: 2026-10-13 · Status: decisões aprovadas em conversa (1A, 2A, 3A, 4A, 5A), aguardando revisão deste documento.
+Data: 2026-10-13 · Status: aprovado pelo dono em 2026-10-13 (decisões 1A, 2A, 3A, 4A, 5A).
 
 ## 1. Objetivo
 
@@ -61,13 +61,14 @@ Migração nova `past_events`:
   - `event_images_public_read` e `event_sessions_public_read`: mesma troca (`e.sales_open = true OR public.event_is_past(e.id)`).
   - `ticket_types` e `session_ticket_types` **não** mudam: preços de evento passado continuam fechados ao público.
 - `event_is_past`: `revoke all ... from public, anon, authenticated` e `grant execute` só para `anon` e `authenticated` (necessário para a política funcionar); não expõe nada além de verdadeiro/falso.
+- Função `public.public_past_events(p_limit integer)` (`stable`, `security definer`, `search_path = ''`): devolve os eventos passados já ordenados pela última sessão (mais recente primeiro), só com campos públicos (id, slug, nome, local, capa, inícios das sessões ativas, fim da última sessão). Limite entre 1 e 121 (a página pede um a mais para saber se há "Ver mais"). Mesmo `revoke`/`grant` de `event_is_past`.
 - Escrita de `hidden_from_past`: pela política de equipe que já existe em `events` (só equipe escreve).
 - Sem dados existentes a migrar (o banco está vazio hoje); mesmo assim o gatilho trata eventos antigos: se `sales_open = true` na migração, `published_at = created_at`.
 
 ## 6. Código
 
 - `src/lib/domain/past-events.ts`: rótulo de data do card (um dia, dois dias, intervalo) e cálculo do limite de "Ver mais" a partir de `?passados=` (padrão 12, passo 12, máximo 120, valor inválido vira 12). Funções puras, testadas.
-- `src/app/page.tsx`: busca os próximos como hoje; busca os passados (eventos visíveis pela política com `event_is_past`) ordenados pela última sessão, do mais recente; monta as duas partes. `HomeSingleEvent` passa a aceitar a parte de passados abaixo da capa grande.
+- `src/app/page.tsx`: busca os próximos como hoje; busca os passados pela função `public_past_events` (já ordenados pela última sessão, do mais recente); monta as duas partes. `HomeSingleEvent` passa a aceitar a parte de passados abaixo da capa grande.
 - `src/components/public/PastEventsSection.tsx`: grade de cards + "Ver mais".
 - `src/app/eventos/[slug]/page.tsx`: estado "encerrado" quando o evento é passado: troca a caixa de ingressos pelo aviso e não carrega preços.
 - Painel: interruptor `PastVisibilityToggle` (Server Action com `assertStaff`, validação do id, `runAction`) e selo "Encerrado" na lista.
