@@ -313,11 +313,30 @@ describe("EventForm do organizador", () => {
     await click(buttons("Enviar pedido")[0]);
 
     expect(mocks.requestEventChange).toHaveBeenCalledWith(EVENT_ID, {
+      topic: "Local",
       what: "Local: Salão 2 do Espaço Byla",
       reason: "O palco do salão 2 é maior.",
     });
     expect(mocks.updateOrganizerEvent).not.toHaveBeenCalled();
     expect(pageText()).toContain("Pedido enviado.");
+  });
+
+  it("só o assunto preenchido (“Local: ”) não conta como descrição da mudança", async () => {
+    await render({
+      area: "organizador",
+      lockedFields: ["nome", "local"],
+      event: event([session(SESSION_A, { liveOrders: false, sold: 0, lockedFields: ["nome", "local"] })]),
+    });
+    await click(buttons("Pedir mudança")[1]);
+    const what = container.querySelector<HTMLTextAreaElement>('textarea[name="what"]')!;
+    await type(container.querySelector<HTMLTextAreaElement>('textarea[name="reason"]')!, "O palco do salão 2 é maior.");
+    await click(buttons("Enviar pedido")[0]);
+    expect(pageText()).toContain("Descreva a mudança (de 5 a 500 caracteres).");
+
+    await type(what, "Local: abc");
+    await click(buttons("Enviar pedido")[0]);
+    expect(pageText()).toContain("Descreva a mudança (de 5 a 500 caracteres).");
+    expect(mocks.requestEventChange).not.toHaveBeenCalled();
   });
 
   it("pedido recusado pelo servidor mostra a mensagem na caixa", async () => {
@@ -328,6 +347,7 @@ describe("EventForm do organizador", () => {
       event: event([session(SESSION_A, { liveOrders: false, sold: 0, lockedFields: ["nome", "local"] })]),
     });
     await click(buttons("Pedir mudança")[0]);
+    await type(container.querySelector<HTMLTextAreaElement>('textarea[name="what"]')!, "Nome do evento: Peça Y 2");
     await type(container.querySelector<HTMLTextAreaElement>('textarea[name="reason"]')!, "curto");
     await click(buttons("Enviar pedido")[0]);
     expect(pageText()).toContain("Escreva o motivo (de 5 a 500 caracteres).");

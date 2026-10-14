@@ -18,14 +18,15 @@ import { assertCoverNotShared, assertCoverUploaded, removeReplacedCover } from "
 import { isGalleryPathForEvent } from "@/lib/media/paths";
 import { removeMediaObjects } from "@/lib/media/storage";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
-import { notifyTeam, organizerNoticeLink } from "@/lib/organizer/notify";
-import { parseReason } from "@/lib/organizer/validation";
+import { notifyTeam, notifyTeamEventSubmitted, organizerNoticeLink } from "@/lib/organizer/notify";
+import { parseChangeWhat, parseReason } from "@/lib/organizer/validation";
 import { consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-export type EventChangeRequestInput = { what: string; reason: string };
+/** `topic`: assunto com que a caixa abriu ("Local"); o texto dele não conta como descrição. */
+export type EventChangeRequestInput = { topic?: string; what: string; reason: string };
 
 /** O banco recusa slug maior que 200; o endereço fica curto e legível. */
 const SLUG_BASE_MAX = 80;
@@ -230,25 +231,32 @@ async function updateOrganizerEventOrThrow(id: string, input: EventInput): Promi
   revalidatePublicSurfaces(previous?.slug);
 }
 
+/** Enviar e voltar para rascunho dividem o mesmo limite por conta. */
+async function assertSubmitLimit(admin: Admin, userId: string) {
+  if (!(await consumeRateLimit(admin, RATE_LIMITS.organizerSubmitPerUser, userId))) {
+    throw new ActionError(RATE_LIMIT_MESSAGE);
+  }
+}
+
 async function submitEventForApprovalOrThrow(id: string): Promise<undefined> {
   assertEventId(id);
   const { userId } = await requireOwnEvent(id);
   const admin = createAdminClient();
+  await assertSubmitLimit(admin, userId);
   const { error } = await admin.rpc("submit_event_for_approval", { p_actor: userId, p_event_id: id });
   if (error) throw dbError(error, "Não foi possível enviar o evento.", "enviar para aprovação");
 
   const event = await loadEvent(admin, id);
-  await notifyTeam("equipe_evento_enviado", {
-    eventName: event?.name,
-    link: organizerNoticeLink("/equipe/aprovacoes"),
-  });
+  await notifyTeamEventSubmitted(admin, id, event?.name);
   revalidateOrganizerSurfaces(id);
 }
 
 async function withdrawEventSubmissionOrThrow(id: string): Promise<undefined> {
   assertEventId(id);
   const { userId } = await requireOwnEvent(id);
-  const { error } = await createAdminClient().rpc("withdraw_event_submission", {
+  const admin = createAdminClient();
+  await assertSubmitLimit(admin, userId);
+  const { error } = await admin.rpc("withdraw_event_submission", {
     p_actor: userId,
     p_event_id: id,
   });
@@ -315,7 +323,7 @@ async function requestEventChangeOrThrow(id: string, input: EventChangeRequestIn
   assertEventId(id);
   const { userId } = await requireOwnEvent(id);
   const body = input && typeof input === "object" ? input : null;
-  const what = parseReason(body?.what);
+  const what = parseChangeWhat(body?.what, body?.topic);
   if (!what.ok) throw new ActionError(CHANGE_WHAT_MESSAGE);
   const reason = parseReason(body?.reason);
   if (!reason.ok) throw new ActionError(reason.error);

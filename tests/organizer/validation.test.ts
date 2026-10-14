@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseEmail, parseOrganizerProfile, parsePassword, parseReason, parseSignupRequest } from "@/lib/organizer/validation";
+import {
+  parseChangeWhat,
+  parseEmail,
+  parseOrganizerProfile,
+  parsePassword,
+  parseReason,
+  parseSignupRequest,
+} from "@/lib/organizer/validation";
 
 const profile = {
   fullName: "Fulana de Tal",
@@ -100,6 +107,17 @@ describe("validação", () => {
     expect(parseReason("  motivo certo  ")).toEqual({ ok: true, value: "motivo certo" });
     expect(parseReason("x".repeat(501)).ok).toBe(false);
     expect(parseReason(null).ok).toBe(false);
+  });
+  it("o que mudar: o assunto já preenchido não conta como conteúdo", () => {
+    const error = { ok: false, error: "Descreva a mudança (de 5 a 500 caracteres)." };
+    expect(parseChangeWhat("Local: ", "Local")).toEqual(error);
+    expect(parseChangeWhat("Local: abcd", "Local")).toEqual(error);
+    expect(parseChangeWhat("  Local: Salão 2 ", "Local")).toEqual({ ok: true, value: "Local: Salão 2" });
+    expect(parseChangeWhat("Mudar o local", "Local")).toEqual({ ok: true, value: "Mudar o local" });
+    expect(parseChangeWhat("Mudar o local", undefined)).toEqual({ ok: true, value: "Mudar o local" });
+    expect(parseChangeWhat("Local:", undefined)).toEqual({ ok: true, value: "Local:" });
+    expect(parseChangeWhat(`Local: ${"x".repeat(494)}`, "Local")).toEqual(error);
+    expect(parseChangeWhat(null, "Local")).toEqual(error);
   });
   it("e-mail: apara, minúsculas e o mesmo formato que o banco aceita", () => {
     expect(parseEmail("  Fulana@Exemplo.COM ")).toEqual({ ok: true, value: "fulana@exemplo.com" });

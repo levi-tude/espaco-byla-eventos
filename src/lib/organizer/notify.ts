@@ -72,6 +72,51 @@ export async function notifyOrganizer(
 }
 
 /**
+ * Evento enviado para aprovação: no máximo 1 aviso por evento a cada 6 h (enviar e
+ * voltar várias vezes não gasta a cota de avisos). Se o banco não confirma o intervalo,
+ * não envia (o painel mostra tudo); se o envio não sai, libera o intervalo. Nunca lança.
+ */
+export async function notifyTeamEventSubmitted(
+  admin: AdminClient,
+  eventId: string,
+  eventName: string | null | undefined,
+): Promise<SendOrganizerNoticeResult> {
+  const rule = RATE_LIMITS.organizerSubmitNotice;
+  const key = `evento:${eventId}`;
+  try {
+    const to = teamEmail();
+    if (!to) {
+      console.warn("[aviso-organizador] ALERT_EMAIL não configurado; evento enviado só no painel.");
+      return "skipped";
+    }
+    if (!isUuid(eventId)) return "skipped";
+
+    const slot = await tryConsumeRateLimit(admin, rule, key);
+    if (slot === "limited") return "skipped";
+    if (slot === "error") {
+      console.error("[aviso-organizador] Não foi possível conferir o intervalo de 6 h; aviso não enviado.");
+      return "failed";
+    }
+
+    const result = await sendOrganizerNotice(
+      to,
+      buildOrganizerNotice("equipe_evento_enviado", {
+        eventName: eventName ?? undefined,
+        link: organizerNoticeLink("/equipe/aprovacoes"),
+      }),
+      admin,
+    );
+    if (result === "failed" || result === "skipped") {
+      await releaseRateLimit(admin, rule, key);
+    }
+    return result;
+  } catch (error) {
+    console.error(`[aviso-organizador] Falha no aviso de evento enviado (${errorKind(error)}).`);
+    return "failed";
+  }
+}
+
+/**
  * Pedidos "nova" do site, pela mesma função do menu da equipe (a tabela só é lida por
  * funções do banco). `null` se não der para contar: o aviso sai sem número.
  */

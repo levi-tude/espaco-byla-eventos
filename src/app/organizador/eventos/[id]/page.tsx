@@ -97,7 +97,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   if (access?.access !== "dono") notFound();
 
   const supabase = await createServerClient();
-  const [{ data: event }, { data: ticketTypes }, { data: sessionRows }] = await Promise.all([
+  const [{ data: event }, typesResult, sessionsResult] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -122,7 +122,8 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   ]);
   if (!event || event.organizer_id !== actor.userId || event.deleted_at) notFound();
 
-  const sessions = sessionRows ?? [];
+  const ticketTypes = typesResult.data;
+  const sessions = sessionsResult.data ?? [];
   const activeSessions = sessions.filter((session) => session.status === "ativa");
   const sessionIds = sessions.map((session) => session.id);
 
@@ -130,8 +131,8 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   const admin = createAdminClient();
   const [
     gallery,
-    { data: sessionPrices },
-    { data: orderRows },
+    pricesResult,
+    ordersResult,
     availabilities,
     summary,
     buyerOrders,
@@ -143,7 +144,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
           .from("session_ticket_types")
           .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
           .in("session_id", sessionIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     admin.from("orders").select("session_id, status, expires_at").eq("event_id", event.id),
     Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
     loadEventSessions(admin, event.id),
@@ -152,6 +153,13 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   ]);
   if (buyerOrders.error) console.error("[organizador] Falha ao ler os pedidos do evento.", buyerOrders.error.code);
   if (opsRequests.error) console.error("[organizador] Falha ao ler os pedidos à equipe.", opsRequests.error.code);
+  const sessionPrices = pricesResult.data;
+  const orderRows = ordersResult.data;
+  // Sem algum desses dados, as travas da tela ficariam mais soltas que a regra do banco.
+  const editorLoadFailed = Boolean(
+    typesResult.error || sessionsResult.error || pricesResult.error || ordersResult.error,
+  );
+  if (editorLoadFailed) console.error("[organizador] Falha ao ler os dados do evento para edição.");
 
   const orders: OrganizerOrder[] = (buyerOrders.data ?? []).flatMap((row) => {
     const status = oneOf(ORDER_STATUSES, row.status);
@@ -284,11 +292,13 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
     salesOpen: event.sales_open,
     lastSessionAt: lastSession ? (lastSession.ends_at ?? lastSession.starts_at) : null,
   });
-  const hasSales = (orderRows ?? []).some(
-    (order) =>
-      SOLD_STATUSES.has(order.status) ||
-      (order.status === "pendente" && order.expires_at !== null && Date.parse(order.expires_at) > now),
-  );
+  const hasSales =
+    Boolean(ordersResult.error) ||
+    (orderRows ?? []).some(
+      (order) =>
+        SOLD_STATUSES.has(order.status) ||
+        (order.status === "pendente" && order.expires_at !== null && Date.parse(order.expires_at) > now),
+    );
   const deletionPending = requests.some((request) => request.kind === "exclusao" && request.status === "pendente");
 
   const tab: TabId = TABS.some((item) => item.id === query.aba) ? (query.aba as TabId) : "evento";
@@ -351,20 +361,24 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
             Evento
           </h2>
           <div className="mt-3 grid gap-6">
-            <EventForm
-              area="organizador"
-              event={{
-                id: event.id,
-                name: event.name,
-                venue: event.venue,
-                description: event.description,
-                ticketTypes: editorTypes,
-                sessions: editorSessions,
-                coverImageUrl: event.cover_image_url,
-              }}
-              inReview={inReview}
-              lockedFields={lockedFieldsFor(event.approval_status, false)}
-            />
+            {editorLoadFailed ? (
+              <Notice tone="danger">Não foi possível carregar os dados do evento. Atualize a página.</Notice>
+            ) : (
+              <EventForm
+                area="organizador"
+                event={{
+                  id: event.id,
+                  name: event.name,
+                  venue: event.venue,
+                  description: event.description,
+                  ticketTypes: editorTypes,
+                  sessions: editorSessions,
+                  coverImageUrl: event.cover_image_url,
+                }}
+                inReview={inReview}
+                lockedFields={lockedFieldsFor(event.approval_status, false)}
+              />
+            )}
             <fieldset className="min-w-0" disabled={inReview}>
               <EventGalleryManager eventId={event.id} images={gallery} />
             </fieldset>

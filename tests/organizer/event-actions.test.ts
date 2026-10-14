@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   adminTables: {} as Record<string, (calls: Calls) => Result>,
   revalidatePath: vi.fn(),
   notifyTeam: vi.fn(),
+  notifyTeamEventSubmitted: vi.fn(),
   mediaObjectExists: vi.fn(),
   removeMediaObjects: vi.fn(),
 }));
@@ -61,6 +62,7 @@ vi.mock("@/lib/media/storage", () => ({
 }));
 vi.mock("@/lib/organizer/notify", () => ({
   notifyTeam: mocks.notifyTeam,
+  notifyTeamEventSubmitted: mocks.notifyTeamEventSubmitted,
   organizerNoticeLink: (path: string) => `https://ingressos.exemplo.com${path}`,
 }));
 
@@ -177,6 +179,7 @@ beforeEach(() => {
   };
   mocks.mediaObjectExists.mockResolvedValue(true);
   mocks.notifyTeam.mockResolvedValue("sent");
+  mocks.notifyTeamEventSubmitted.mockResolvedValue("sent");
 });
 
 const actions: [string, () => Promise<unknown>][] = [
@@ -425,16 +428,30 @@ describe("updateOrganizerEvent", () => {
 });
 
 describe("enviar e voltar para rascunho", () => {
-  it("enviar chama o banco e avisa a equipe só no sucesso", async () => {
+  it("enviar chama o banco e avisa a equipe (uma vez por evento) só no sucesso", async () => {
     expect(await submitEventForApproval(EVENT_ID)).toEqual({ ok: true, data: undefined });
     expect(adminCalls("submit_event_for_approval")).toEqual([{ p_actor: USER_ID, p_event_id: EVENT_ID }]);
-    expect(mocks.notifyTeam).toHaveBeenCalledWith("equipe_evento_enviado", {
-      eventName: "Peça Y",
-      link: "https://ingressos.exemplo.com/equipe/aprovacoes",
-    });
+    expect(mocks.notifyTeamEventSubmitted).toHaveBeenCalledWith(expect.anything(), EVENT_ID, "Peça Y");
+    expect(mocks.notifyTeam).not.toHaveBeenCalled();
     expect(revalidated()).toEqual(
       expect.arrayContaining(["/organizador", `/organizador/eventos/${EVENT_ID}`, "/equipe/aprovacoes"]),
     );
+  });
+
+  it.each([
+    ["enviar", () => submitEventForApproval(EVENT_ID), "submit_event_for_approval"],
+    ["voltar para rascunho", () => withdrawEventSubmission(EVENT_ID), "withdraw_event_submission"],
+  ])("%s tem limite por conta (sem a conta em claro)", async (_name, run, rpc) => {
+    expect(await run()).toEqual({ ok: true, data: undefined });
+    const limit = adminCalls("consume_rate_limit")[0] as Record<string, unknown>;
+    expect(limit).toMatchObject({ p_bucket: "org-submit:user", p_limit: 10, p_window_seconds: 3600 });
+    expect(JSON.stringify(limit)).not.toContain(USER_ID);
+
+    vi.clearAllMocks();
+    state.rateAllowed = false;
+    expect(await run()).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
+    expect(adminCalls(rpc)).toEqual([]);
+    expect(mocks.notifyTeamEventSubmitted).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -445,7 +462,7 @@ describe("enviar e voltar para rascunho", () => {
   ])("recusa %s sem avisar a equipe", async (message, expected) => {
     state.rpcResults.submit_event_for_approval = { data: null, error: { message } };
     expect(await submitEventForApproval(EVENT_ID)).toEqual({ ok: false, error: expected });
-    expect(mocks.notifyTeam).not.toHaveBeenCalled();
+    expect(mocks.notifyTeamEventSubmitted).not.toHaveBeenCalled();
   });
 
   it("voltar para rascunho", async () => {
@@ -548,6 +565,39 @@ describe("requestEventChange", () => {
     });
     expect(adminCalls("request_event_change")).toEqual([]);
     expect(mocks.notifyTeam).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Local", "Local: "],
+    ["Local", "Local:"],
+    ["Local", "  Local:   abc  "],
+    ["Horário da Sessão 1", "Horário da Sessão 1: x"],
+  ])("assunto %s sem conteúdo depois dele é recusado (%#)", async (topic, what) => {
+    expect(await requestEventChange(EVENT_ID, { topic, what, reason: "O palco é maior." })).toEqual({
+      ok: false,
+      error: "Descreva a mudança (de 5 a 500 caracteres).",
+    });
+    expect(adminCalls("request_event_change")).toEqual([]);
+    expect(mocks.notifyTeam).not.toHaveBeenCalled();
+  });
+
+  it("assunto seguido de conteúdo é enviado inteiro", async () => {
+    expect(
+      await requestEventChange(EVENT_ID, { topic: "Local", what: "Local: Salão 2", reason: "O palco é maior." }),
+    ).toEqual({ ok: true, data: undefined });
+    expect(adminCalls("request_event_change")).toEqual([
+      { p_actor: USER_ID, p_event_id: EVENT_ID, p_what: "Local: Salão 2", p_reason: "O palco é maior." },
+    ]);
+  });
+
+  it("assunto inválido é ignorado e vale o texto inteiro", async () => {
+    expect(
+      await requestEventChange(EVENT_ID, {
+        topic: 42 as unknown as string,
+        what: "Mudar o local para o salão 2",
+        reason: "O palco é maior.",
+      }),
+    ).toEqual({ ok: true, data: undefined });
   });
 
   it("evento ainda não aprovado: manda editar direto, sem aviso", async () => {

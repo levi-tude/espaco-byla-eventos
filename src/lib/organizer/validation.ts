@@ -59,6 +59,19 @@ export function parseReason(value: unknown): FieldResult<string> {
   return text(value, 5, 500, "Escreva o motivo (de 5 a 500 caracteres).");
 }
 
+/**
+ * "O que mudar" do pedido de mudança. A caixa já abre com o assunto ("Local: "),
+ * que não conta como descrição: depois dele, pelo menos 5 caracteres.
+ */
+export function parseChangeWhat(value: unknown, topic: unknown): FieldResult<string> {
+  const error = "Descreva a mudança (de 5 a 500 caracteres).";
+  const full = text(value, 5, 500, error);
+  if (!full.ok) return full;
+  const prefix = typeof topic === "string" && topic.trim() ? `${topic.trim()}:` : null;
+  const content = prefix && full.value.startsWith(prefix) ? full.value.slice(prefix.length).trim() : full.value;
+  return content.length >= 5 ? full : fail(error);
+}
+
 export function parseSignupRequest(input: unknown): FieldResult<SignupRequestInput> {
   const data = record(input);
   if (!data) return fail("Confira os dados e tente de novo.");

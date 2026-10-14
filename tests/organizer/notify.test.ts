@@ -22,6 +22,7 @@ import { buildOrganizerNotice } from "@/lib/email/organizer-notice-template";
 import {
   notifyOrganizer,
   notifyTeam,
+  notifyTeamEventSubmitted,
   notifyTeamSignupRequest,
   organizerNoticeLink,
 } from "@/lib/organizer/notify";
@@ -265,6 +266,69 @@ describe("notifyOrganizer", () => {
     fetchMock.mockRejectedValue(new Error(`falhou ${ORGANIZER_EMAIL}`));
     mocks.getUserById.mockResolvedValue({ data: { user: { email: ORGANIZER_EMAIL } }, error: null });
     await expect(notifyOrganizer(ORGANIZER_ID, "org_evento_aprovado", data)).resolves.toBe("failed");
+    expectNoAddressInLogs();
+  });
+});
+
+describe("notifyTeamEventSubmitted", () => {
+  it("regras: 10 envios por hora por conta e 1 aviso por evento a cada 6 h", () => {
+    expect(RATE_LIMITS.organizerSubmitPerUser).toEqual({ bucket: "org-submit:user", limit: 10, windowSeconds: 3600 });
+    expect(RATE_LIMITS.organizerSubmitNotice).toEqual({
+      bucket: "org-notice:submit",
+      limit: 1,
+      windowSeconds: 21_600,
+    });
+  });
+
+  it("avisa a equipe uma vez, com chave só do evento", async () => {
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("sent");
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      admin,
+      RATE_LIMITS.organizerSubmitNotice,
+      `evento:${EVENT_ID}`,
+    );
+    const body = sentBody();
+    expect(body.to).toEqual([TEAM_EMAIL]);
+    expect(body.subject).toBe("Evento para aprovar: Festa");
+    expect(body.text).toContain("https://site.example/equipe/aprovacoes");
+  });
+
+  it("dentro das 6 h do mesmo evento não envia de novo", async () => {
+    mocks.tryConsumeRateLimit.mockImplementation(async (_admin, rule) =>
+      rule.bucket === "org-notice:submit" ? "limited" : "allowed",
+    );
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("skipped");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("se o banco falha no limite de 6 h, não envia", async () => {
+    mocks.tryConsumeRateLimit.mockResolvedValue("error");
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("failed");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("se o envio falha, libera as 6 h do evento", async () => {
+    fetchMock.mockResolvedValue(new Response("erro", { status: 500 }));
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("failed");
+    expect(mocks.releaseRateLimit).toHaveBeenCalledWith(
+      admin,
+      RATE_LIMITS.organizerSubmitNotice,
+      `evento:${EVENT_ID}`,
+    );
+  });
+
+  it("sem ALERT_EMAIL ou com evento inválido, não consome as 6 h", async () => {
+    vi.stubEnv("ALERT_EMAIL", "");
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("skipped");
+    vi.stubEnv("ALERT_EMAIL", TEAM_EMAIL);
+    await expect(notifyTeamEventSubmitted(admin as never, "nao-e-uuid", "Festa")).resolves.toBe("skipped");
+    expect(mocks.tryConsumeRateLimit).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("nunca lança", async () => {
+    mocks.tryConsumeRateLimit.mockRejectedValue(new Error("boom"));
+    await expect(notifyTeamEventSubmitted(admin as never, EVENT_ID, "Festa")).resolves.toBe("failed");
     expectNoAddressInLogs();
   });
 });

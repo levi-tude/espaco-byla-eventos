@@ -6,6 +6,7 @@ import { requestEventChange } from "@/app/organizador/eventos/actions";
 import { Button } from "@/components/ui/Button";
 import { TextAreaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { parseChangeWhat } from "@/lib/organizer/validation";
 
 const MIN_LENGTH = 5;
 const MAX_LENGTH = 500;
@@ -46,12 +47,13 @@ export function RequestChangeDialog({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!validLength(what)) return setError("Descreva a mudança (de 5 a 500 caracteres).");
+    const parsedWhat = parseChangeWhat(what, topic);
+    if (!parsedWhat.ok) return setError(parsedWhat.error);
     if (!validLength(reason)) return setError("Escreva o motivo (de 5 a 500 caracteres).");
 
     startTransition(async () => {
       try {
-        const result = await requestEventChange(eventId, { what, reason });
+        const result = await requestEventChange(eventId, { topic, what, reason });
         if (!result.ok) return setError(result.error);
         onSent();
       } catch {
