@@ -18,6 +18,11 @@ import { TERMS_PATH } from "@/lib/legal/terms";
 
 const REQUEST_PATH = "/quero-fazer-meu-evento";
 
+/** O cliente devolve um construtor de consulta; a chave da área é lida com prazo (abortSignal). */
+const client = {
+  rpc: (...args: unknown[]) => ({ abortSignal: () => mocks.rpc(...args) }),
+};
+
 function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }
@@ -28,7 +33,7 @@ describe("organizerAreaEnabled", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "chave-de-servico");
-    mocks.createClient.mockReturnValue({ rpc: mocks.rpc });
+    mocks.createClient.mockReturnValue(client);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -74,7 +79,7 @@ describe("rodapé", () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
-    mocks.createClient.mockReturnValue({ rpc: mocks.rpc });
+    mocks.createClient.mockReturnValue(client);
   });
   afterEach(() => vi.unstubAllEnvs());
 
