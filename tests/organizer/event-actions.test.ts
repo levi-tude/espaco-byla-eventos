@@ -73,7 +73,7 @@ import {
   updateOrganizerEvent,
   withdrawEventSubmission,
 } from "@/app/organizador/eventos/actions";
-import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
+import { COVER_IN_USE_MESSAGE, COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
 import { RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
 const USER_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -110,7 +110,19 @@ const state = {
   access: "dono" as string | null,
   rateAllowed: true,
   rpcResults: {} as Record<string, Result>,
+  /** Resposta da busca "outro evento usa este arquivo de capa?", pelo padrão consultado. */
+  coverUsers: (() => ({ data: [], error: null })) as (pattern: string) => Result,
+  previousCover: null as string | null,
 };
+
+function coverPattern(calls: Calls): string | undefined {
+  const like = calls.find(([method, args]) => method === "like" && args[0] === "cover_image_url");
+  return like?.[1][1] as string | undefined;
+}
+
+function coverQueries() {
+  return mocks.adminQueries.filter((q) => q.table === "events" && coverPattern(q.calls) !== undefined);
+}
 
 function as(kind: Kind, access: string | null = kind === "organizador" ? "dono" : kind === "equipe" ? "equipe" : null) {
   state.kind = kind;
@@ -132,6 +144,8 @@ beforeEach(() => {
   as("organizador");
   state.rateAllowed = true;
   state.rpcResults = {};
+  state.coverUsers = () => ({ data: [], error: null });
+  state.previousCover = null;
   mocks.getUser.mockImplementation(async () => ({
     data: { user: state.kind === "anonimo" ? null : { id: USER_ID } },
     error: null,
@@ -152,10 +166,13 @@ beforeEach(() => {
     return state.rpcResults[name] ?? { data: null, error: null };
   });
   mocks.adminTables = {
-    events: (calls) =>
-      calls.some(([method]) => method === "like")
+    events: (calls) => {
+      const pattern = coverPattern(calls);
+      if (pattern !== undefined) return state.coverUsers(pattern);
+      return calls.some(([method]) => method === "like")
         ? { data: [{ slug: "peca-y" }], error: null }
-        : { data: { slug: "peca-y", name: "Peça Y", cover_image_url: null }, error: null },
+        : { data: { slug: "peca-y", name: "Peça Y", cover_image_url: state.previousCover }, error: null };
+    },
     event_sessions: () => ({ data: { event_id: EVENT_ID }, error: null }),
   };
   mocks.mediaObjectExists.mockResolvedValue(true);
@@ -236,7 +253,9 @@ describe("createOrganizerEvent", () => {
 
     // O slug é buscado com a chave do servidor: a RLS esconderia eventos de outros.
     expect(mocks.serverFrom).not.toHaveBeenCalled();
-    const slugQuery = mocks.adminQueries.find((q) => q.table === "events");
+    const slugQuery = mocks.adminQueries.find(
+      (q) => q.table === "events" && q.calls.some(([method, args]) => method === "like" && args[0] === "slug"),
+    );
     expect(slugQuery?.calls).toContainEqual(["like", ["slug", "peca-y%"]]);
 
     const [args] = adminCalls("create_organizer_event") as Record<string, unknown>[];
@@ -266,6 +285,30 @@ describe("createOrganizerEvent", () => {
     mocks.mediaObjectExists.mockResolvedValue(false);
     expect(await createOrganizerEvent(input)).toEqual({ ok: false, error: COVER_NOT_FOUND_MESSAGE });
     expect(adminCalls("create_organizer_event")).toEqual([]);
+  });
+
+  it("capa que já é de outro evento é recusada (inclusive evento apagado)", async () => {
+    state.coverUsers = () => ({ data: [{ id: EVENT_ID }], error: null });
+    expect(await createOrganizerEvent(input)).toEqual({ ok: false, error: COVER_IN_USE_MESSAGE });
+    expect(adminCalls("create_organizer_event")).toEqual([]);
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+
+    const [query] = coverQueries();
+    expect(coverPattern(query.calls)).toBe("%covers/11111111-1111-4111-8111-111111111111.webp%");
+    expect(query.calls.some(([method]) => method === "is")).toBe(false);
+  });
+
+  it("falha ao conferir se a capa é de outro evento: recusa", async () => {
+    state.coverUsers = () => ({ data: null, error: { message: "falhou" } });
+    expect(await createOrganizerEvent(input)).toEqual({ ok: false, error: COVER_IN_USE_MESSAGE });
+    expect(adminCalls("create_organizer_event")).toEqual([]);
+  });
+
+  it("capa por link externo não consulta outros eventos", async () => {
+    expect(await createOrganizerEvent({ ...input, coverImageUrl: "https://exemplo.com/capa.jpg" })).toMatchObject({
+      ok: true,
+    });
+    expect(coverQueries()).toEqual([]);
   });
 
   it("dados inválidos não chegam ao banco", async () => {
@@ -324,14 +367,60 @@ describe("updateOrganizerEvent", () => {
     });
   });
 
+  const OLD_COVER = `${MEDIA}/covers/22222222-2222-4222-8222-222222222222.webp`;
+  const OLD_PATTERN = "%covers/22222222-2222-4222-8222-222222222222.webp%";
+
   it("troca de capa enviada apaga a antiga", async () => {
-    const oldCover = `${MEDIA}/covers/22222222-2222-4222-8222-222222222222.webp`;
-    mocks.adminTables.events = () => ({
-      data: { slug: "peca-y", name: "Peça Y", cover_image_url: oldCover },
-      error: null,
-    });
-    await updateOrganizerEvent(EVENT_ID, input);
+    state.previousCover = OLD_COVER;
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: true, data: undefined });
     expect(mocks.removeMediaObjects).toHaveBeenCalledWith(["covers/22222222-2222-4222-8222-222222222222.webp"]);
+
+    // As duas buscas (capa nova e capa antiga) ignoram o próprio evento.
+    const queries = coverQueries();
+    expect(queries.map((q) => coverPattern(q.calls))).toEqual(
+      expect.arrayContaining(["%covers/11111111-1111-4111-8111-111111111111.webp%", OLD_PATTERN]),
+    );
+    for (const query of queries) expect(query.calls).toContainEqual(["neq", ["id", EVENT_ID]]);
+  });
+
+  it("capa que já é de outro evento é recusada sem gravar nem apagar nada", async () => {
+    state.previousCover = OLD_COVER;
+    state.coverUsers = (pattern) =>
+      pattern === OLD_PATTERN ? { data: [], error: null } : { data: [{ id: NEW_EVENT_ID }], error: null };
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: false, error: COVER_IN_USE_MESSAGE });
+    expect(adminCalls("save_event_with_sessions")).toEqual([]);
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("manter a própria capa não é recusado nem apaga nada", async () => {
+    state.previousCover = input.coverImageUrl;
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: true, data: undefined });
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("capa antiga ainda usada por outro evento não é apagada", async () => {
+    state.previousCover = OLD_COVER;
+    state.coverUsers = (pattern) =>
+      pattern === OLD_PATTERN ? { data: [{ id: NEW_EVENT_ID }], error: null } : { data: [], error: null };
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: true, data: undefined });
+    expect(adminCalls("save_event_with_sessions")).toHaveLength(1);
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("falha ao conferir a capa antiga: mantém o arquivo", async () => {
+    state.previousCover = OLD_COVER;
+    state.coverUsers = (pattern) =>
+      pattern === OLD_PATTERN ? { data: null, error: { message: "falhou" } } : { data: [], error: null };
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: true, data: undefined });
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("erro desconhecido ao salvar fica no log (só o código)", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    state.rpcResults.save_event_with_sessions = { data: null, error: { code: "XX000", message: "erro interno" } };
+    expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: false, error: "Não foi possível salvar o evento." });
+    expect(log).toHaveBeenCalledWith("[organizador] Falha ao salvar o evento.", "XX000");
+    log.mockRestore();
   });
 });
 

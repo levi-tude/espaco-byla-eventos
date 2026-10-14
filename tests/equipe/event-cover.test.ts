@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   adminRpc: vi.fn(),
   previousCover: { value: null as string | null },
+  otherCoverUsers: { value: { data: [] as unknown, error: null as unknown } },
+  coverQueries: [] as [string, unknown[]][][],
   mediaObjectExists: vi.fn(),
   removeMediaObjects: vi.fn(),
 }));
@@ -31,13 +33,26 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: mocks.adminRpc,
     from: () => {
+      const calls: [string, unknown[]][] = [];
+      mocks.coverQueries.push(calls);
+      const record =
+        (method: string) =>
+        (...args: unknown[]) => {
+          calls.push([method, args]);
+          return chain;
+        };
       const chain = {
-        select: () => chain,
-        eq: () => chain,
+        select: record("select"),
+        eq: record("eq"),
+        neq: record("neq"),
+        like: record("like"),
+        limit: record("limit"),
         maybeSingle: async () => ({
           data: { cover_image_url: mocks.previousCover.value },
           error: null,
         }),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve(mocks.otherCoverUsers.value).then(resolve, reject),
       };
       return chain;
     },
@@ -81,6 +96,8 @@ beforeEach(() => {
   mocks.adminRpc.mockResolvedValue({ error: null });
   mocks.mediaObjectExists.mockResolvedValue(true);
   mocks.previousCover.value = null;
+  mocks.otherCoverUsers.value = { data: [], error: null };
+  mocks.coverQueries = [];
 });
 
 describe("capa do evento", () => {
@@ -120,6 +137,32 @@ describe("capa do evento", () => {
     expect(mocks.removeMediaObjects).toHaveBeenCalledWith([
       "covers/11111111-1111-4111-8111-111111111111.webp",
     ]);
+    const usage = mocks.coverQueries.find((calls) => calls.some(([method]) => method === "like"));
+    expect(usage).toContainEqual([
+      "like",
+      ["cover_image_url", "%covers/11111111-1111-4111-8111-111111111111.webp%"],
+    ]);
+    expect(usage).toContainEqual(["neq", ["id", eventId]]);
+  });
+
+  it("capa antiga ainda usada por outro evento não é apagada", async () => {
+    mocks.previousCover.value = ownCover;
+    mocks.otherCoverUsers.value = { data: [{ id: "00000000-0000-4000-8000-000000000002" }], error: null };
+    expect(await updateEvent(eventId, { ...input, coverImageUrl: newOwnCover })).toEqual({
+      ok: true,
+      data: undefined,
+    });
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("falha ao conferir a capa antiga: mantém o arquivo", async () => {
+    mocks.previousCover.value = ownCover;
+    mocks.otherCoverUsers.value = { data: null, error: { message: "falhou" } };
+    expect(await updateEvent(eventId, { ...input, coverImageUrl: newOwnCover })).toEqual({
+      ok: true,
+      data: undefined,
+    });
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
   });
 
   it("remover capa enviada apaga o arquivo", async () => {

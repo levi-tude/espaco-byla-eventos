@@ -15,9 +15,7 @@ import {
   sessionLabels,
   UUID_PATTERN,
 } from "@/lib/events/event-input";
-import { assertCoverUploaded } from "@/lib/media/cover-check";
-import { coverPathFromUrl } from "@/lib/media/paths";
-import { removeMediaObjects } from "@/lib/media/storage";
+import { assertCoverUploaded, removeReplacedCover } from "@/lib/media/cover-check";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -73,10 +71,6 @@ function revalidateEventSurfaces(id: string, slug: string) {
   revalidatePath("/equipe");
   revalidatePath(`/equipe/eventos/${id}`);
   revalidatePath(`/eventos/${slug}`);
-}
-
-function supabaseUrl(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL!;
 }
 
 export async function createEvent(
@@ -212,10 +206,7 @@ async function updateEventOrThrow(id: string, input: EventInput): Promise<undefi
     );
   }
 
-  const previousCoverPath = coverPathFromUrl(supabaseUrl(), previous?.cover_image_url);
-  if (previousCoverPath && previous?.cover_image_url !== normalized.coverImageUrl) {
-    await removeMediaObjects([previousCoverPath]);
-  }
+  await removeReplacedCover(admin, id, previous?.cover_image_url, normalized.coverImageUrl);
 
   const slug = await getEventSlug(id);
   revalidateEventSurfaces(id, slug);

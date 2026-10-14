@@ -19,6 +19,7 @@ export const IMAGE_TOO_LARGE_MESSAGE = "A imagem ficou grande demais. Tente outr
 export const GALLERY_FULL_MESSAGE = `A galeria já tem ${MAX_GALLERY_IMAGES} fotos. Remova uma para adicionar outra.`;
 export const UPLOAD_FAILED_MESSAGE = "Não foi possível enviar esta foto. Tente de novo.";
 export const COVER_NOT_FOUND_MESSAGE = "A capa enviada não foi encontrada. Envie a imagem de novo.";
+export const COVER_IN_USE_MESSAGE = "Não foi possível usar esta capa. Envie a imagem de novo.";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

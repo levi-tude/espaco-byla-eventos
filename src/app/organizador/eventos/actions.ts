@@ -13,9 +13,7 @@ import {
   sessionLabels,
   UUID_PATTERN,
 } from "@/lib/events/event-input";
-import { assertCoverUploaded } from "@/lib/media/cover-check";
-import { coverPathFromUrl } from "@/lib/media/paths";
-import { removeMediaObjects } from "@/lib/media/storage";
+import { assertCoverNotShared, assertCoverUploaded, removeReplacedCover } from "@/lib/media/cover-check";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
 import { notifyTeam, organizerNoticeLink } from "@/lib/organizer/notify";
 import { parseReason } from "@/lib/organizer/validation";
@@ -31,13 +29,14 @@ const SLUG_BASE_MAX = 80;
 const SESSION_UNAVAILABLE_MESSAGE = "Esta sessão não está mais disponível. Recarregue a página.";
 const CHANGE_WHAT_MESSAGE = "Descreva a mudança (de 5 a 500 caracteres).";
 const CHANGE_BEFORE_APPROVAL_MESSAGE = "Antes da aprovação, você mesmo edita o evento no formulário e salva.";
+const SAVE_FALLBACK_MESSAGE = "Não foi possível salvar o evento.";
 
 export async function createOrganizerEvent(input: EventInput): Promise<ActionResult<{ id: string }>> {
   return runAction(() => createOrganizerEventOrThrow(input), "Não foi possível criar o evento.");
 }
 
 export async function updateOrganizerEvent(id: string, input: EventInput): Promise<ActionResult> {
-  return runAction(() => updateOrganizerEventOrThrow(id, input), "Não foi possível salvar o evento.");
+  return runAction(() => updateOrganizerEventOrThrow(id, input), SAVE_FALLBACK_MESSAGE);
 }
 
 export async function submitEventForApproval(id: string): Promise<ActionResult> {
@@ -143,6 +142,7 @@ async function createOrganizerEventOrThrow(input: EventInput): Promise<{ id: str
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
   await assertCoverUploaded(normalized.coverImageUrl);
+  await assertCoverNotShared(admin, normalized.coverImageUrl);
   const slug = await uniqueSlug(admin, normalized.name);
 
   // Nasce rascunho e com vendas fechadas: quem decide é a função do banco.
@@ -174,6 +174,7 @@ async function updateOrganizerEventOrThrow(id: string, input: EventInput): Promi
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
   await assertCoverUploaded(normalized.coverImageUrl);
+  await assertCoverNotShared(admin, normalized.coverImageUrl, id);
   const previous = await loadEvent(admin, id);
 
   const { error } = await admin.rpc("save_event_with_sessions", {
@@ -190,14 +191,14 @@ async function updateOrganizerEventOrThrow(id: string, input: EventInput): Promi
     const removed = error.message.includes("SESSAO_COM_VENDAS")
       ? await currentSessionLabels(admin, id)
       : undefined;
-    throw new ActionError(saveErrorMessage(error.message, sessionLabels(normalized.sessions), removed));
+    const message = saveErrorMessage(error.message, sessionLabels(normalized.sessions), removed);
+    if (message === SAVE_FALLBACK_MESSAGE) {
+      console.error("[organizador] Falha ao salvar o evento.", error.code ?? "sem-codigo");
+    }
+    throw new ActionError(message);
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const previousCoverPath = coverPathFromUrl(supabaseUrl, previous?.cover_image_url);
-  if (previousCoverPath && previous?.cover_image_url !== normalized.coverImageUrl) {
-    await removeMediaObjects([previousCoverPath]);
-  }
+  await removeReplacedCover(admin, id, previous?.cover_image_url, normalized.coverImageUrl);
 
   revalidateOrganizerSurfaces(id);
   revalidatePublicSurfaces(previous?.slug);
