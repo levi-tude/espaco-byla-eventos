@@ -23,7 +23,7 @@ export default async function EquipeLayout({
     return children;
   }
 
-  const state = await readLoginState(await createServerClient());
+  const state = await readLoginState(await createServerClient(), "equipe");
   if (state.status === "pendente") redirect(STAFF_VERIFY_PATH);
   if (state.status !== "verificado") redirect(STAFF_LOGIN_PATH);
 

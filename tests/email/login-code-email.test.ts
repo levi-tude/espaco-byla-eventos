@@ -8,7 +8,7 @@ import { sendLoginCodeEmail } from "@/lib/email/send-login-code";
 const VENDORS = /resend|supabase|mercado ?pago|google|cloud run|vercel/i;
 
 describe("buildLoginCodeEmail", () => {
-  const email = buildLoginCodeEmail({ code: "042917" });
+  const email = buildLoginCodeEmail({ code: "042917", purpose: "equipe" });
 
   it("assunto sem o código", () => {
     expect(email.subject).toBe("Seu código de acesso - Espaço Byla Eventos");
@@ -23,10 +23,48 @@ describe("buildLoginCodeEmail", () => {
       expect(body).toMatch(/troque sua senha/);
       expect(body).not.toMatch(VENDORS);
     }
+    expect(email.html).toContain("Use este código para entrar no painel da equipe:");
   });
 
   it("não aceita nada além de 6 números (nada de HTML no e-mail)", () => {
-    expect(() => buildLoginCodeEmail({ code: "<b>1</b>" })).toThrow();
+    expect(() => buildLoginCodeEmail({ code: "<b>1</b>", purpose: "equipe" })).toThrow();
+  });
+
+  it("organizador: fala da área do organizador", () => {
+    const org = buildLoginCodeEmail({ code: "042917", purpose: "organizador" });
+    expect(org.subject).toBe("Seu código de acesso - Espaço Byla Eventos");
+    expect(org.subject).not.toContain("042917");
+    for (const body of [org.html, org.text]) {
+      expect(body).toContain("042917");
+      expect(body).toMatch(/área do organizador/);
+      expect(body).not.toMatch(/painel da equipe/);
+      expect(body).toContain("10 minutos");
+      expect(body).toMatch(/Se não foi você/);
+      expect(body).not.toMatch(VENDORS);
+    }
+    expect(org.html).toContain("Use este código para entrar na área do organizador:");
+  });
+
+  it("cadastro: confirma o e-mail e vale 15 minutos", () => {
+    const signup = buildLoginCodeEmail({ code: "042917", purpose: "cadastro" });
+    expect(signup.subject).toBe("Seu código do Espaço Byla Eventos");
+    expect(signup.subject).not.toContain("042917");
+    for (const body of [signup.html, signup.text]) {
+      expect(body).toContain("042917");
+      expect(body).toContain("Confirme seu e-mail");
+      expect(body).toContain("15 minutos");
+      expect(body).not.toContain("10 minutos");
+      expect(body).toMatch(/cadastro de organizador/);
+      expect(body).not.toMatch(/troque sua senha/);
+      expect(body).not.toMatch(VENDORS);
+    }
+    expect(signup.html).toContain(
+      "Use este código para confirmar o seu e-mail no cadastro de organizador:",
+    );
+  });
+
+  it("finalidade desconhecida é recusada", () => {
+    expect(() => buildLoginCodeEmail({ code: "042917", purpose: "admin" as never })).toThrow();
   });
 });
 
@@ -53,7 +91,7 @@ describe("sendLoginCodeEmail", () => {
 
   it("envia para o e-mail da conta, sem o código no assunto", async () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("sent");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("sent");
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
     const body = JSON.parse(init.body);
@@ -63,10 +101,18 @@ describe("sendLoginCodeEmail", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("usa o texto da finalidade pedida", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "cadastro" });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toBe("Seu código do Espaço Byla Eventos");
+    expect(body.text).toContain("15 minutos");
+  });
+
   it("sem configuração não envia", async () => {
     const read = logs();
     vi.stubEnv("RESEND_API_KEY", "");
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("skipped");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("skipped");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(read()).not.toContain("pessoa@exemplo.com");
   });
@@ -76,16 +122,16 @@ describe("sendLoginCodeEmail", () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ name: "daily_quota_exceeded" }), { status: 429 }),
     );
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("quota");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("quota");
     expect(read()).not.toMatch(/123456|pessoa@exemplo\.com/);
   });
 
   it("recusa ou falha de rede vira 'failed' sem vazar código ou e-mail no log", async () => {
     const read = logs();
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 422 }));
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("failed");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("failed");
     fetchMock.mockRejectedValueOnce(new Error("fora do ar pessoa@exemplo.com 123456"));
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("failed");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("failed");
     expect(read()).not.toMatch(/123456|pessoa@exemplo\.com/);
   });
 
@@ -94,7 +140,7 @@ describe("sendLoginCodeEmail", () => {
     fetchMock.mockResolvedValue(
       new Response("{}", { status: 200, headers: { "x-resend-daily-quota": "93" } }),
     );
-    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456" })).toBe("sent");
+    expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("sent");
     expect(read()).toMatch(/93/);
   });
 });

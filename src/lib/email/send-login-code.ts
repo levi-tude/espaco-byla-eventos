@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildLoginCodeEmail } from "@/lib/email/login-code-template";
+import { buildLoginCodeEmail, type LoginCodePurpose } from "@/lib/email/login-code-template";
 import { parseDailyQuota } from "@/lib/notices/rules";
 
 export type SendLoginCodeResult = "sent" | "quota" | "failed" | "skipped";
@@ -26,9 +26,11 @@ async function isDailyQuotaError(response: Response): Promise<boolean> {
 export async function sendLoginCodeEmail({
   to,
   code,
+  purpose,
 }: {
   to: string;
   code: string;
+  purpose: LoginCodePurpose;
 }): Promise<SendLoginCodeResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -38,7 +40,7 @@ export async function sendLoginCodeEmail({
   }
 
   try {
-    const { subject, html, text } = buildLoginCodeEmail({ code });
+    const { subject, html, text } = buildLoginCodeEmail({ code, purpose });
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

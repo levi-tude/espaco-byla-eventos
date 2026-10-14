@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export default async function VerifyLoginPage() {
   const supabase = await createServerClient();
-  const state = await readLoginState(supabase);
+  const state = await readLoginState(supabase, "equipe");
   if (state.status === "fora") redirect(STAFF_LOGIN_PATH);
   if (state.status === "verificado") redirect(STAFF_HOME_PATH);
 

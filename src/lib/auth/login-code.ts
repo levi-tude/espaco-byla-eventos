@@ -2,9 +2,10 @@ import { randomBytes, randomInt } from "node:crypto";
 
 /** Código vale 10 minutos (conferido no banco); aqui só para os textos. */
 export const LOGIN_CODE_TTL_MINUTES = 10;
+/** Código do cadastro de organizador (convite) vale 15 minutos, também conferido no banco. */
+export const SIGNUP_CODE_TTL_MINUTES = 15;
 export const LOGIN_CODE_RESEND_SECONDS = 60;
-export const DEVICE_COOKIE_NAME = "byla_equipe_aparelho";
-export const DEVICE_COOKIE_PATH = "/equipe";
+/** Nome e caminho do cookie do aparelho lembrado ficam em `AREAS` (`@/lib/auth/area`). */
 export const DEVICE_REMEMBER_DAYS = 30;
 
 const MAX_INPUT_LENGTH = 40;

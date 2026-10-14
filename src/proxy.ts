@@ -2,10 +2,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
-  staffRedirectFor,
-  toStaffLoginStatus,
-  type StaffLoginStatus,
-} from "@/lib/auth/staff-gate";
+  areaForPath,
+  areaRedirectFor,
+  toAreaStatus,
+  type LoginArea,
+} from "@/lib/auth/area";
+import type { StaffLoginStatus } from "@/lib/auth/staff-gate";
 import { buildContentSecurityPolicy, createNonce } from "@/lib/security/csp";
 import type { Database } from "@/types/database";
 
@@ -23,15 +25,16 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const response = request.nextUrl.pathname.startsWith("/equipe")
-    ? await protectStaffArea(request, requestHeaders)
+  const area = areaForPath(request.nextUrl.pathname);
+  const response = area
+    ? await protectArea(request, requestHeaders, area)
     : NextResponse.next({ request: { headers: requestHeaders } });
 
   response.headers.set("Content-Security-Policy", csp);
   return response;
 }
 
-async function protectStaffArea(request: NextRequest, requestHeaders: Headers) {
+async function protectArea(request: NextRequest, requestHeaders: Headers, area: LoginArea) {
   let response = NextResponse.next({
     request: {
       headers: requestHeaders,
@@ -67,14 +70,20 @@ async function protectStaffArea(request: NextRequest, requestHeaders: Headers) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // "pendente" = senha certa, falta o código do e-mail. Erro na consulta conta como "fora".
+  // "pendente" = senha certa, falta o código do e-mail. Conta de outra área ou erro em
+  // qualquer consulta conta como "fora".
   let status: StaffLoginStatus = "fora";
   if (user) {
-    const { data, error } = await supabase.rpc("login_session_state");
-    if (!error && Array.isArray(data)) status = toStaffLoginStatus(data[0]?.status);
+    const [state, kind] = await Promise.all([
+      supabase.rpc("login_session_state"),
+      supabase.rpc("my_account_kind"),
+    ]);
+    if (!state.error && !kind.error && Array.isArray(state.data)) {
+      status = toAreaStatus(state.data[0]?.status, kind.data, area);
+    }
   }
 
-  const target = staffRedirectFor(request.nextUrl.pathname, status);
+  const target = areaRedirectFor(area, request.nextUrl.pathname, status);
   return target ? redirectWithCookies(request, response, target) : response;
 }
 

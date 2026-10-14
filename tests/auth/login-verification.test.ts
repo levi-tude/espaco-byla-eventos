@@ -59,8 +59,16 @@ function state(status: string, extra: Record<string, unknown> = {}) {
   };
 }
 
+/** Sem `my_account_kind` no mapa, a conta é da equipe (como as contas de hoje). */
 function rpcReturns(map: Record<string, unknown>) {
-  mocks.rpc.mockImplementation(async (name: string) => map[name] ?? { data: null, error: null });
+  const answers: Record<string, unknown> = { my_account_kind: { data: "equipe", error: null }, ...map };
+  mocks.rpc.mockImplementation(async (name: string) => answers[name] ?? { data: null, error: null });
+}
+
+function verifyCallArgs() {
+  const call = mocks.rpc.mock.calls.find(([name]) => name === "verify_login_code");
+  expect(call).toBeDefined();
+  return call![1];
 }
 
 async function expectActionError(promise: Promise<unknown>, message: RegExp) {
@@ -87,6 +95,118 @@ describe("readLoginState", () => {
   it("status desconhecido também é 'fora'", async () => {
     rpcReturns({ login_session_state: state("qualquer") });
     expect((await readLoginState(await createServerClient())).status).toBe("fora");
+  });
+
+  it("sem área não consulta o tipo de conta (como antes)", async () => {
+    rpcReturns({ login_session_state: state("verificado") });
+    expect((await readLoginState(await createServerClient())).status).toBe("verificado");
+    expect(mocks.rpc).not.toHaveBeenCalledWith("my_account_kind");
+  });
+
+  it("com área: só vale se o tipo de conta for o da área", async () => {
+    rpcReturns({ login_session_state: state("verificado"), my_account_kind: { data: "organizador", error: null } });
+    const supabase = await createServerClient();
+    expect((await readLoginState(supabase, "organizador")).status).toBe("verificado");
+    expect((await readLoginState(supabase, "equipe")).status).toBe("fora");
+    expect(mocks.rpc).toHaveBeenCalledWith("my_account_kind");
+  });
+
+  it("com área: erro no tipo de conta é 'fora'", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    rpcReturns({ login_session_state: state("verificado"), my_account_kind: { data: null, error: { message: "x" } } });
+    expect((await readLoginState(await createServerClient(), "equipe")).status).toBe("fora");
+  });
+});
+
+describe("área do organizador", () => {
+  const organizer = { my_account_kind: { data: "organizador", error: null } };
+
+  it("verificado vai para /organizador", async () => {
+    rpcReturns({ ...organizer, login_session_state: state("verificado") });
+    expect(await startLoginVerification("organizador")).toEqual({ next: "/organizador" });
+  });
+
+  it("lê o cookie do aparelho do organizador e entra direto", async () => {
+    mocks.cookieGet.mockImplementation((name: string) =>
+      name === "byla_org_aparelho" ? { value: deviceToken } : undefined,
+    );
+    rpcReturns({
+      ...organizer,
+      login_session_state: state("pendente"),
+      verify_session_with_device: { data: true, error: null },
+    });
+    expect(await startLoginVerification("organizador")).toEqual({ next: "/organizador" });
+    expect(mocks.cookieGet).toHaveBeenCalledWith("byla_org_aparelho");
+    expect(mocks.cookieGet).not.toHaveBeenCalledWith("byla_equipe_aparelho");
+  });
+
+  it("sem aparelho: manda o código do organizador e vai para /organizador/verificar", async () => {
+    rpcReturns({ ...organizer, login_session_state: state("pendente") });
+    expect(await startLoginVerification("organizador")).toEqual({ next: "/organizador/verificar" });
+    const code = mocks.adminRpc.mock.calls[0][1].p_code;
+    expect(mocks.sendLoginCodeEmail).toHaveBeenCalledWith({
+      to: "pessoa@exemplo.com",
+      code,
+      purpose: "organizador",
+    });
+  });
+
+  it("conta da equipe na área do organizador: erro genérico e nada enviado", async () => {
+    rpcReturns({ login_session_state: state("pendente") });
+    await expectActionError(startLoginVerification("organizador"), /^Não foi possível entrar\.$/);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+    expect(mocks.sendLoginCodeEmail).not.toHaveBeenCalled();
+  });
+
+  it("organizador na área da equipe: erro genérico", async () => {
+    rpcReturns({ ...organizer, login_session_state: state("verificado") });
+    await expectActionError(startLoginVerification(), /^Não foi possível entrar\.$/);
+  });
+
+  it("reenviar com conta da equipe na área do organizador: sessão terminou", async () => {
+    rpcReturns({ login_session_state: state("pendente") });
+    await expectActionError(resendLoginCode("organizador"), /Sua sessão terminou/);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("código certo com 'lembrar' grava o cookie do organizador em /organizador", async () => {
+    rpcReturns({ ...organizer, verify_login_code: { data: "ok", error: null } });
+    expect(await submitLoginCode({ code: "123456", remember: true, area: "organizador" })).toEqual({
+      next: "/organizador",
+    });
+    const args = verifyCallArgs();
+    expect(mocks.cookieSet).toHaveBeenCalledWith("byla_org_aparelho", args.p_device_token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      path: "/organizador",
+      maxAge: 30 * 24 * 60 * 60,
+    });
+  });
+
+  it("conta da equipe enviando código na área do organizador: erro genérico, sem conferir nem cookie", async () => {
+    rpcReturns({ verify_login_code: { data: "ok", error: null } });
+    await expectActionError(
+      submitLoginCode({ code: "123456", remember: true, area: "organizador" }),
+      /^Não foi possível entrar\.$/,
+    );
+    expect(mocks.rpc).not.toHaveBeenCalledWith("verify_login_code", expect.anything());
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("organizador enviando código na área da equipe: erro genérico", async () => {
+    rpcReturns({ ...organizer, verify_login_code: { data: "ok", error: null } });
+    await expectActionError(submitLoginCode({ code: "123456", remember: true }), /^Não foi possível entrar\.$/);
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("área desconhecida é recusada", async () => {
+    rpcReturns({ login_session_state: state("verificado") });
+    await expectActionError(
+      submitLoginCode({ code: "123456", remember: true, area: "admin" as never }),
+      /^Não foi possível entrar\.$/,
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -125,7 +245,11 @@ describe("startLoginVerification (logo depois da senha)", () => {
     expect(mocks.adminRpc.mock.calls[0][0]).toBe("issue_login_code");
     expect(args).toMatchObject({ p_user_id: userId, p_session_id: sessionId });
     expect(args.p_code).toMatch(/^\d{6}$/);
-    expect(mocks.sendLoginCodeEmail).toHaveBeenCalledWith({ to: "pessoa@exemplo.com", code: args.p_code });
+    expect(mocks.sendLoginCodeEmail).toHaveBeenCalledWith({
+      to: "pessoa@exemplo.com",
+      code: args.p_code,
+      purpose: "equipe",
+    });
   });
 
   it("cookie fora do formato nem chega ao banco", async () => {
@@ -204,8 +328,7 @@ describe("submitLoginCode", () => {
   it("código certo com 'lembrar': grava o aparelho e o cookie httpOnly de 30 dias", async () => {
     rpcReturns({ verify_login_code: { data: "ok", error: null } });
     expect(await submitLoginCode({ code: " 123 456 ", remember: true })).toEqual({ next: "/equipe" });
-    const [name, args] = mocks.rpc.mock.calls[0];
-    expect(name).toBe("verify_login_code");
+    const args = verifyCallArgs();
     expect(args.p_code).toBe("123456");
     expect(args.p_device_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(args.p_device_label).toBe("Chrome no Android");
@@ -221,7 +344,7 @@ describe("submitLoginCode", () => {
   it("código certo sem 'lembrar': nenhum aparelho nem cookie", async () => {
     rpcReturns({ verify_login_code: { data: "ok", error: null } });
     await submitLoginCode({ code: "123456", remember: false });
-    expect(mocks.rpc.mock.calls[0][1].p_device_token).toBeNull();
+    expect(verifyCallArgs().p_device_token).toBeNull();
     expect(mocks.cookieSet).not.toHaveBeenCalled();
   });
 

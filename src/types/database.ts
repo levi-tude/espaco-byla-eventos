@@ -26,56 +26,112 @@ export type Database = {
       };
       events: {
         Row: {
+          approval_decided_at: string | null;
+          approval_decided_by: string | null;
+          approval_note: string | null;
+          approval_status: string;
           capacity: number;
           cover_image_url: string | null;
           created_at: string;
+          deleted_at: string | null;
+          deleted_by: string | null;
           description: string;
           hidden_from_past: boolean;
           id: string;
           inteira_quota: number | null;
           meia_quota: number | null;
           name: string;
+          organizer_id: string | null;
           published_at: string | null;
           sales_open: boolean;
           slug: string;
           starts_at: string;
+          submitted_at: string | null;
           updated_at: string;
           venue: string;
         };
         Insert: {
+          approval_decided_at?: string | null;
+          approval_decided_by?: string | null;
+          approval_note?: string | null;
+          approval_status?: string;
           capacity: number;
           cover_image_url?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
           description?: string;
           hidden_from_past?: boolean;
           id?: string;
           inteira_quota?: number | null;
           meia_quota?: number | null;
           name: string;
+          organizer_id?: string | null;
           published_at?: string | null;
           sales_open?: boolean;
           slug: string;
           starts_at: string;
+          submitted_at?: string | null;
           updated_at?: string;
           venue: string;
         };
         Update: {
+          approval_decided_at?: string | null;
+          approval_decided_by?: string | null;
+          approval_note?: string | null;
+          approval_status?: string;
           capacity?: number;
           cover_image_url?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
           description?: string;
           hidden_from_past?: boolean;
           id?: string;
           inteira_quota?: number | null;
           meia_quota?: number | null;
           name?: string;
+          organizer_id?: string | null;
           published_at?: string | null;
           sales_open?: boolean;
           slug?: string;
           starts_at?: string;
+          submitted_at?: string | null;
           updated_at?: string;
           venue?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "events_organizer_id_fkey";
+            columns: ["organizer_id"];
+            isOneToOne: false;
+            referencedRelation: "organizer_profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
+      /** Só leitura do próprio perfil (organizador verificado); escrita só pelas funções do banco. */
+      organizer_profiles: {
+        Row: {
+          created_at: string;
+          full_name: string;
+          invite_id: string;
+          phone: string;
+          pix_holder_document: string;
+          pix_holder_name: string;
+          pix_key: string;
+          pix_key_changed_at: string | null;
+          pix_key_type: string;
+          public_name: string;
+          status: string;
+          status_reason: string | null;
+          terms_accepted_at: string;
+          terms_version: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       event_images: {
@@ -740,37 +796,26 @@ export type Database = {
         Args: { p_event_id: string; p_staff_user_id: string; p_ticket_id: string };
         Returns: string;
       };
-      check_in_ticket:
-        | {
-            Args: {
-              p_code: string;
-              p_event_id: string;
-              p_session_id: string;
-              p_staff_user_id: string;
-            };
-            Returns: {
-              buyer_name: string | null;
-              event_name: string | null;
-              other_event_name: string | null;
-              other_session_name: string | null;
-              other_session_starts_at: string | null;
-              outcome: string;
-              session_name: string | null;
-              session_starts_at: string | null;
-              ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
-              type_name: string | null;
-            }[];
-          }
-        | {
-            Args: { p_code: string; p_event_id: string; p_staff_user_id: string };
-            Returns: {
-              buyer_name: string | null;
-              other_event_name: string | null;
-              outcome: string;
-              ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
-              type_name: string | null;
-            }[];
-          };
+      check_in_ticket: {
+        Args: {
+          p_code: string;
+          p_event_id: string;
+          p_session_id: string;
+          p_staff_user_id: string;
+        };
+        Returns: {
+          buyer_name: string | null;
+          event_name: string | null;
+          other_event_name: string | null;
+          other_session_name: string | null;
+          other_session_starts_at: string | null;
+          outcome: string;
+          session_name: string | null;
+          session_starts_at: string | null;
+          ticket_kind: Database["public"]["Enums"]["ticket_kind"] | null;
+          type_name: string | null;
+        }[];
+      };
       consume_rate_limit: {
         Args: {
           p_bucket: string;
@@ -890,6 +935,10 @@ export type Database = {
           p_ticket_types: Json;
           p_venue: string;
         };
+        Returns: undefined;
+      };
+      save_event_sessions: {
+        Args: { p_event_id: string; p_sessions: Json; p_staff_user_id: string };
         Returns: undefined;
       };
       set_session_sales_open: {
@@ -1120,6 +1169,340 @@ export type Database = {
       retry_session_refund_failures: {
         Args: { p_batch_id: string; p_staff_user_id: string };
         Returns: number;
+      };
+      // Contas de organizador (migrations 20261018100000 e 20261018110000).
+      organizer_area_enabled: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+      my_account_kind: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      is_organizer: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+      owns_event: {
+        Args: { p_event_id: string };
+        Returns: boolean;
+      };
+      actor_event_access: {
+        Args: { p_actor_user_id: string; p_event_id: string };
+        Returns: string | null;
+      };
+      organizer_max_capacity: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      event_deletion_pending: {
+        Args: { p_event_id: string };
+        Returns: boolean;
+      };
+      log_audit: {
+        Args: {
+          p_action: string;
+          p_actor: string | null;
+          p_details: Json;
+          p_event_id: string | null;
+          p_order_id: string | null;
+          p_organizer_id: string | null;
+        };
+        Returns: undefined;
+      };
+      valid_tax_document: {
+        Args: { p_doc: string };
+        Returns: boolean;
+      };
+      create_organizer_invite: {
+        Args: {
+          p_admin: string;
+          p_kind: string;
+          p_label: string | null;
+          p_request_id: string | null;
+          p_target_user_id: string | null;
+          p_token_hash: string;
+        };
+        Returns: string;
+      };
+      revoke_organizer_invite: {
+        Args: { p_admin: string; p_invite_id: string };
+        Returns: boolean;
+      };
+      list_organizer_invites: {
+        Args: { p_admin: string };
+        Returns: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          kind: string;
+          label: string | null;
+          status: string;
+          used_at: string | null;
+          used_by_public_name: string | null;
+        }[];
+      };
+      check_organizer_invite: {
+        Args: { p_token_hash: string };
+        Returns: string;
+      };
+      start_invite_email_code: {
+        Args: { p_code: string; p_email: string; p_token_hash: string };
+        Returns: string;
+      };
+      verify_invite_email_code: {
+        Args: { p_code: string; p_token_hash: string };
+        Returns: string;
+      };
+      invite_verified_email: {
+        Args: { p_token_hash: string };
+        Returns: string | null;
+      };
+      accept_organizer_invite: {
+        Args: {
+          p_full_name: string;
+          p_phone: string;
+          p_pix_holder_document: string;
+          p_pix_holder_name: string;
+          p_pix_key: string;
+          p_pix_key_type: string;
+          p_public_name: string;
+          p_terms_version: string;
+          p_token_hash: string;
+          p_user_id: string;
+        };
+        Returns: undefined;
+      };
+      use_password_reset_invite: {
+        Args: { p_token_hash: string };
+        Returns: string;
+      };
+      submit_signup_request: {
+        Args: {
+          p_approx_date: string | null;
+          p_contact: string;
+          p_idea: string;
+          p_name: string;
+          p_privacy_version: string;
+        };
+        Returns: string;
+      };
+      list_signup_requests: {
+        Args: { p_admin: string; p_status: string };
+        Returns: {
+          approx_date: string | null;
+          contact: string;
+          created_at: string;
+          handled_at: string | null;
+          id: string;
+          idea: string;
+          name: string;
+          status: string;
+        }[];
+      };
+      archive_signup_request: {
+        Args: { p_admin: string; p_id: string };
+        Returns: boolean;
+      };
+      list_organizers: {
+        Args: { p_admin: string };
+        Returns: {
+          created_at: string;
+          devices_count: number;
+          email: string | null;
+          events_count: number;
+          full_name: string;
+          phone: string;
+          pix_holder_document_masked: string;
+          pix_holder_name: string;
+          pix_key_masked: string;
+          pix_key_type: string;
+          public_name: string;
+          status: string;
+          user_id: string;
+        }[];
+      };
+      set_organizer_status: {
+        Args: { p_admin: string; p_reason: string | null; p_status: string; p_user_id: string };
+        Returns: undefined;
+      };
+      list_my_devices: {
+        Args: { p_current_token: string | null };
+        Returns: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          is_current: boolean;
+          label: string;
+          last_used_at: string | null;
+        }[];
+      };
+      forget_my_device: {
+        Args: { p_device_id: string };
+        Returns: boolean;
+      };
+      admin_forget_devices: {
+        Args: { p_admin: string; p_user_id: string };
+        Returns: number;
+      };
+      staff_security_overview: {
+        Args: { p_admin: string };
+        Returns: {
+          devices_count: number;
+          display_name: string;
+          is_developer: boolean;
+          last_used_at: string | null;
+          role: string;
+          user_id: string;
+        }[];
+      };
+      organizer_change_violations: {
+        Args: { p_event_id: string; p_name: string; p_sessions: Json; p_venue: string };
+        Returns: string[];
+      };
+      create_organizer_event: {
+        Args: {
+          p_actor: string;
+          p_cover_image_url: string | null;
+          p_description: string | null;
+          p_name: string;
+          p_sessions: Json;
+          p_slug: string;
+          p_ticket_types: Json;
+          p_venue: string;
+        };
+        Returns: string;
+      };
+      submit_event_for_approval: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: undefined;
+      };
+      withdraw_event_submission: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: undefined;
+      };
+      decide_event_approval: {
+        Args: {
+          p_admin: string;
+          p_decision: string;
+          p_event_id: string;
+          p_note: string | null;
+          p_publish: boolean;
+        };
+        Returns: undefined;
+      };
+      public_event_producer: {
+        Args: { p_event_id: string };
+        Returns: string | null;
+      };
+      event_producer_names: {
+        Args: { p_event_ids: string[] };
+        Returns: { event_id: string; public_name: string }[];
+      };
+      purge_organizer_records: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      organizer_event_orders: {
+        Args: { p_actor: string; p_event_id: string; p_session_id?: string | null };
+        Returns: {
+          buyer_email: string;
+          buyer_name: string;
+          created_at: string;
+          is_courtesy: boolean;
+          items: Json;
+          order_id: string;
+          refund_request_reason: string | null;
+          refund_request_status: string | null;
+          session_id: string;
+          session_name: string | null;
+          session_starts_at: string;
+          status: string;
+          tickets_checked_in: number;
+          tickets_subtotal_cents: number;
+          tickets_total: number;
+        }[];
+      };
+      request_order_refund: {
+        Args: { p_actor: string; p_order_id: string; p_reason: string };
+        Returns: string;
+      };
+      request_event_change: {
+        Args: { p_actor: string; p_event_id: string; p_reason: string; p_what: string };
+        Returns: string;
+      };
+      request_event_deletion: {
+        Args: { p_actor: string; p_event_id: string; p_reason: string };
+        Returns: string;
+      };
+      cancel_ops_request: {
+        Args: { p_actor: string; p_request_id: string };
+        Returns: boolean;
+      };
+      decline_ops_request: {
+        Args: { p_note: string | null; p_request_id: string; p_staff: string };
+        Returns: undefined;
+      };
+      finish_event_change: {
+        Args: { p_admin: string; p_request_id: string };
+        Returns: undefined;
+      };
+      finish_event_deletion: {
+        Args: { p_admin: string; p_request_id: string };
+        Returns: undefined;
+      };
+      delete_own_event: {
+        Args: { p_actor: string; p_confirm_name: string; p_event_id: string };
+        Returns: string;
+      };
+      set_event_sales_open: {
+        Args: { p_actor: string; p_event_id: string; p_open: boolean };
+        Returns: boolean;
+      };
+      list_ops_requests: {
+        Args: { p_event_id?: string | null; p_staff: string; p_status: string };
+        Returns: {
+          created_at: string;
+          decided_at: string | null;
+          decision_note: string | null;
+          details: Json;
+          event_id: string;
+          event_name: string;
+          id: string;
+          kind: string;
+          order_id: string | null;
+          organizer_public_name: string | null;
+          reason: string;
+          status: string;
+        }[];
+      };
+      organizer_event_requests: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: {
+          created_at: string;
+          decided_at: string | null;
+          decision_note: string | null;
+          details: Json;
+          id: string;
+          kind: string;
+          order_id: string | null;
+          reason: string;
+          status: string;
+        }[];
+      };
+      organizer_event_history: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: { action: string; actor_kind: string; created_at: string }[];
+      };
+      team_pending_counts: {
+        Args: { p_staff: string };
+        Returns: {
+          approvals: number;
+          changes: number;
+          deletions: number;
+          refunds: number;
+          signup_requests: number;
+        }[];
       };
     };
     Enums: {

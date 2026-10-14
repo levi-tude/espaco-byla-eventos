@@ -1,4 +1,4 @@
-import { LOGIN_CODE_TTL_MINUTES } from "@/lib/auth/login-code";
+import { LOGIN_CODE_TTL_MINUTES, SIGNUP_CODE_TTL_MINUTES } from "@/lib/auth/login-code";
 
 export type LoginCodeEmailContent = {
   subject: string;
@@ -6,14 +6,61 @@ export type LoginCodeEmailContent = {
   text: string;
 };
 
-/** O código vai só no corpo (pré-visualizações de notificação mostram o assunto). */
-export function buildLoginCodeEmail({ code }: { code: string }): LoginCodeEmailContent {
-  if (!/^[0-9]{6}$/.test(code)) throw new Error("Código de acesso inválido.");
+export type LoginCodePurpose = "equipe" | "organizador" | "cadastro";
 
-  const subject = "Seu código de acesso - Espaço Byla Eventos";
-  const validity = `Ele vale por ${LOGIN_CODE_TTL_MINUTES} minutos e só funciona uma vez.`;
-  const warning =
-    "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe do Espaço Byla.";
+type PurposeCopy = {
+  subject: string;
+  title: string;
+  usage: string;
+  textIntro: string;
+  minutes: number;
+  warning: string;
+};
+
+const LOGIN_WARNING =
+  "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe do Espaço Byla.";
+
+const COPY: Record<LoginCodePurpose, PurposeCopy> = {
+  equipe: {
+    subject: "Seu código de acesso - Espaço Byla Eventos",
+    title: "Seu código de acesso",
+    usage: "Use este código para entrar no painel da equipe:",
+    textIntro: "Seu código de acesso ao painel da equipe do Espaço Byla Eventos:",
+    minutes: LOGIN_CODE_TTL_MINUTES,
+    warning: LOGIN_WARNING,
+  },
+  organizador: {
+    subject: "Seu código de acesso - Espaço Byla Eventos",
+    title: "Seu código de acesso",
+    usage: "Use este código para entrar na área do organizador:",
+    textIntro: "Seu código de acesso à área do organizador do Espaço Byla Eventos:",
+    minutes: LOGIN_CODE_TTL_MINUTES,
+    warning: LOGIN_WARNING,
+  },
+  cadastro: {
+    subject: "Seu código do Espaço Byla Eventos",
+    title: "Confirme seu e-mail",
+    usage: "Use este código para confirmar o seu e-mail no cadastro de organizador:",
+    textIntro: "Confirme seu e-mail no cadastro de organizador do Espaço Byla Eventos. Seu código:",
+    minutes: SIGNUP_CODE_TTL_MINUTES,
+    warning:
+      "Se não foi você que pediu este código, não passe ele para ninguém e ignore este e-mail: nenhuma conta será criada sem ele.",
+  },
+};
+
+/** O código vai só no corpo (pré-visualizações de notificação mostram o assunto). */
+export function buildLoginCodeEmail({
+  code,
+  purpose,
+}: {
+  code: string;
+  purpose: LoginCodePurpose;
+}): LoginCodeEmailContent {
+  if (!/^[0-9]{6}$/.test(code)) throw new Error("Código de acesso inválido.");
+  if (!Object.hasOwn(COPY, purpose)) throw new Error("Finalidade do código inválida.");
+
+  const { subject, title, usage, textIntro, minutes, warning } = COPY[purpose];
+  const validity = `Ele vale por ${minutes} minutos e só funciona uma vez.`;
 
   const html = `<!doctype html>
 <html lang="pt-BR">
@@ -27,8 +74,8 @@ export function buildLoginCodeEmail({ code }: { code: string }): LoginCodeEmailC
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
-                <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">Seu código de acesso</h1>
-                <p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#333333;">Use este código para entrar no painel da equipe:</p>
+                <h1 style="margin:0 0 12px;font-size:22px;line-height:28px;color:#111111;">${title}</h1>
+                <p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#333333;">${usage}</p>
                 <p style="margin:0 0 16px;font-size:34px;line-height:40px;font-weight:bold;letter-spacing:8px;color:#111111;">${code}</p>
                 <p style="margin:0 0 12px;font-size:15px;line-height:22px;color:#333333;">${validity}</p>
               </td>
@@ -45,15 +92,7 @@ export function buildLoginCodeEmail({ code }: { code: string }): LoginCodeEmailC
   </body>
 </html>`;
 
-  const text = [
-    "Seu código de acesso ao painel da equipe do Espaço Byla Eventos:",
-    "",
-    code,
-    "",
-    validity,
-    "",
-    warning,
-  ].join("\n");
+  const text = [textIntro, "", code, "", validity, "", warning].join("\n");
 
   return { subject, html, text };
 }

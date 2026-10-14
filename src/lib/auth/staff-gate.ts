@@ -1,3 +1,5 @@
+import { areaRedirectFor } from "@/lib/auth/area";
+
 export type StaffLoginStatus = "fora" | "pendente" | "verificado";
 
 export const STAFF_LOGIN_PATH = "/equipe/login";
@@ -10,17 +12,5 @@ export function toStaffLoginStatus(value: unknown): StaffLoginStatus {
 
 /** Para onde mandar quem abre uma página da equipe; null = pode abrir. */
 export function staffRedirectFor(pathname: string, status: StaffLoginStatus): string | null {
-  if (pathname === STAFF_LOGIN_PATH) {
-    if (status === "verificado") return STAFF_HOME_PATH;
-    if (status === "pendente") return STAFF_VERIFY_PATH;
-    return null;
-  }
-  if (pathname === STAFF_VERIFY_PATH) {
-    if (status === "verificado") return STAFF_HOME_PATH;
-    if (status === "fora") return STAFF_LOGIN_PATH;
-    return null;
-  }
-  if (status === "fora") return STAFF_LOGIN_PATH;
-  if (status === "pendente") return STAFF_VERIFY_PATH;
-  return null;
+  return areaRedirectFor("equipe", pathname, status);
 }
