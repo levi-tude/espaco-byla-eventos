@@ -87,6 +87,12 @@ describe("página Política de Privacidade", () => {
     );
   });
 
+  it("cookies: explica a sessão de login e o lembrar este aparelho de quem tem conta", () => {
+    expect(page()).toContain(
+      "Para quem entra com login (conta da equipe ou de organizador), o site também guarda a sessão de acesso e, se a pessoa escolher, o cookie de “lembrar este aparelho” por 30 dias.",
+    );
+  });
+
   it("identifica o responsável com os dados da empresa", () => {
     const content = page();
     expect(content).toContain(COMPANY.legalName);

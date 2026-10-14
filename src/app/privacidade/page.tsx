@@ -176,7 +176,10 @@ export default function PrivacyPage() {
         <Section title="Cookies e armazenamento no navegador">
           <p>
             Não usamos cookies de propaganda nem de rastreamento. O site guarda
-            no seu navegador apenas a preferência de tema (claro ou escuro). O
+            no seu navegador apenas a preferência de tema (claro ou escuro).
+            Para quem entra com login (conta da equipe ou de organizador), o
+            site também guarda a sessão de acesso e, se a pessoa escolher, o
+            cookie de &ldquo;lembrar este aparelho&rdquo; por 30 dias. O
             formulário de pagamento do banco e a proteção contra robôs podem
             usar recursos próprios para prevenir fraudes.
           </p>

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { OrganizerRequestForm } from "@/components/public/OrganizerRequestForm";
 import { BackLink } from "@/components/ui/BackLink";
+import { ORGANIZER_TERMS_PATH } from "@/lib/legal/organizer-terms";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
@@ -33,7 +34,7 @@ export default async function OrganizerRequestPage() {
         <p className="mt-6 text-base">
           <Link
             className="inline-flex min-h-11 items-center font-medium text-byla-link underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
-            href="/termos-organizador"
+            href={ORGANIZER_TERMS_PATH}
           >
             Veja como funciona para organizadores
           </Link>

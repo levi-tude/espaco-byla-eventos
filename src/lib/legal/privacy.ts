@@ -1,3 +1,5 @@
+import { legalVersionLabel } from "./version-label";
+
 export const COMPANY = {
   brand: "Espaço Byla",
   legalName: "Academia Cultural de Desenvolvimento Humano LTDA",
@@ -8,6 +10,6 @@ export const COMPANY = {
 /** Data da versão em vigor; muda sempre que o texto da política mudar. */
 export const PRIVACY_POLICY_VERSION = "2026-10-14";
 
-export const PRIVACY_POLICY_UPDATED_LABEL = "14 de outubro de 2026";
+export const PRIVACY_POLICY_UPDATED_LABEL = legalVersionLabel(PRIVACY_POLICY_VERSION);
 
 export const DATA_RETENTION_YEARS = 5;
