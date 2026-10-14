@@ -69,7 +69,7 @@ function useActionRunner() {
     });
   }
 
-  return { error, isPending, run };
+  return { error, isPending, run, clearError: () => setError("") };
 }
 
 export function CreateInviteForm() {
@@ -180,7 +180,7 @@ export function AccountActions({
   devicesCount: number;
 }) {
   const showLink = useContext(ShowLinkContext);
-  const { error, isPending, run } = useActionRunner();
+  const { error, isPending, run, clearError } = useActionRunner();
   const [dialog, setDialog] = useState<"" | "suspender" | "reativar">("");
   const [confirmForget, setConfirmForget] = useState(false);
   const [done, setDone] = useState("");
@@ -263,7 +263,10 @@ export function AccountActions({
           error={error}
           isPending={isPending}
           mode={dialog}
-          onClose={() => setDialog("")}
+          onClose={() => {
+            setDialog("");
+            clearError();
+          }}
           onSubmit={(reason) =>
             run(
               () => setOrganizerStatus(userId, dialog === "suspender" ? "suspenso" : "ativo", reason),

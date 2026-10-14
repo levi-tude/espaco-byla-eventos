@@ -154,7 +154,21 @@ export async function setOrganizerStatus(
       }
     }
 
-    const { error } = await createAdminClient().rpc("set_organizer_status", {
+    const client = createAdminClient();
+    // Conta já suspensa: o banco não muda nada nem grava o motivo novo, então não há aviso a mandar.
+    let alreadySuspended = false;
+    if (status === "suspenso") {
+      const { data: accounts, error: listError } = await client.rpc("list_organizers", { p_admin: admin.userId });
+      if (listError) {
+        logRpcError("list_organizers", listError);
+        throw new ActionError(fallback);
+      }
+      const current = (accounts ?? []).find((account) => account.user_id === userId);
+      if (!current) throw new ActionError(ACCOUNT_NOT_FOUND);
+      alreadySuspended = current.status === "suspenso";
+    }
+
+    const { error } = await client.rpc("set_organizer_status", {
       p_admin: admin.userId,
       p_user_id: userId,
       p_status: status,
@@ -165,7 +179,7 @@ export async function setOrganizerStatus(
       throw new ActionError(fallback);
     }
 
-    if (status === "suspenso" && cleanReason) {
+    if (status === "suspenso" && cleanReason && !alreadySuspended) {
       await notifyOrganizer(userId, "org_conta_suspensa", {
         note: cleanReason,
         link: organizerNoticeLink("/organizador"),

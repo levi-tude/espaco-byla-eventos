@@ -121,6 +121,21 @@ describe("migration organizer_accounts", () => {
     );
   });
 
+  it("lista de organizadores: chave PIX CPF/CNPJ mostra só os dígitos que a máscara do documento já mostra", () => {
+    const list = (functionBodies(accounts).find((fn) => fn.name === "list_organizers")?.text ?? "").replace(/\s+/g, " ");
+    expect(list).toContain(
+      "when op.pix_key_type = 'cpf' then '•••.' || substr(op.pix_key, 4, 3) || '.' || substr(op.pix_key, 7, 3) || '-••'",
+    );
+    expect(list).toContain(
+      "when op.pix_key_type = 'cnpj' then '••.•••.' || substr(op.pix_key, 6, 3) || '/' || substr(op.pix_key, 9, 4) || '-••'",
+    );
+    expect(list).toContain(
+      "'•••.' || substr(op.pix_holder_document, 4, 3) || '.' || substr(op.pix_holder_document, 7, 3) || '-••'",
+    );
+    expect(list).toContain("when op.pix_key_type = 'email' then '•••@' || split_part(op.pix_key, '@', 2)");
+    expect(list.indexOf("when op.pix_key_type = 'cnpj'")).toBeLessThan(list.indexOf("else '•••• ' || right(op.pix_key, 4)"));
+  });
+
   it("histórico é imutável", () => {
     expect(accounts).toMatch(/create trigger audit_log_immutable\s+before update or delete on public\.audit_log/);
     expect(accounts).toMatch(/create trigger audit_log_no_truncate\s+before truncate on public\.audit_log/);

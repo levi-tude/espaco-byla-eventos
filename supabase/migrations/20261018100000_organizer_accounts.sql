@@ -850,8 +850,14 @@ begin
     op.phone,
     op.status,
     op.pix_key_type,
+    -- Chave CPF/CNPJ é o próprio documento do titular: mostrar outros dígitos que os da
+    -- máscara do documento revelaria o documento quase inteiro.
     case
       when op.pix_key_type = 'email' then '•••@' || split_part(op.pix_key, '@', 2)
+      when op.pix_key_type = 'cpf' then
+        '•••.' || substr(op.pix_key, 4, 3) || '.' || substr(op.pix_key, 7, 3) || '-••'
+      when op.pix_key_type = 'cnpj' then
+        '••.•••.' || substr(op.pix_key, 6, 3) || '/' || substr(op.pix_key, 9, 4) || '-••'
       else '•••• ' || right(op.pix_key, 4)
     end,
     op.pix_holder_name,

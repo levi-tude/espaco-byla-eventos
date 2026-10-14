@@ -452,6 +452,15 @@ try {
   await accept(h3, orgDId, { type: "cnpj", key: "11222333000181", doc: "11222333000181" });
   check("4. aceite com CNPJ 11222333000181: perfil criado",
     (await one("select pix_key_type from public.organizer_profiles where user_id = $1", [orgDId]))?.pix_key_type === "cnpj");
+  const listed = await q("select * from public.list_organizers($1)", [admin.id]);
+  const maskedC = listed.find((row) => row.user_id === orgCId);
+  const maskedD = listed.find((row) => row.user_id === orgDId);
+  check("4. lista do Admin: chave CPF mostra só os dígitos da máscara do documento",
+    maskedC?.pix_key_masked === "•••.982.247-••" && maskedC?.pix_holder_document_masked === "•••.982.247-••",
+    `${maskedC?.pix_key_masked} | ${maskedC?.pix_holder_document_masked}`);
+  check("4. lista do Admin: chave CNPJ mostra só os dígitos da máscara do documento",
+    maskedD?.pix_key_masked === "••.•••.333/0001-••" && maskedD?.pix_holder_document_masked === "••.•••.333/0001-••",
+    `${maskedD?.pix_key_masked} | ${maskedD?.pix_holder_document_masked}`);
   const orgC = { id: orgCId, sid: await newSession(orgCId, true) };
   const orgD = { id: orgDId, sid: await newSession(orgDId, true) };
 

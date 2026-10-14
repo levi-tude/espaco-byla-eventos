@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isValidCnpj, isValidCpf, isValidTaxDocument, maskTaxDocument, onlyDigits } from "@/lib/organizer/documents";
+import {
+  isValidCnpj,
+  isValidCpf,
+  isValidTaxDocument,
+  maskPixKey,
+  maskTaxDocument,
+  onlyDigits,
+} from "@/lib/organizer/documents";
 
 describe("CPF e CNPJ", () => {
   it("aceita dígitos verificadores certos", () => {
@@ -23,5 +30,14 @@ describe("CPF e CNPJ", () => {
     expect(isValidTaxDocument("11222333000181")).toBe(true);
     expect(isValidTaxDocument("123")).toBe(false);
     expect(maskTaxDocument("123")).toBe("•••");
+  });
+  it("chave PIX CPF/CNPJ é o próprio documento: não mostra dígito além da máscara do documento", () => {
+    for (const [type, doc] of [
+      ["cpf", "52998224725"],
+      ["cnpj", "11222333000181"],
+    ] as const) {
+      expect(maskPixKey(type, doc)).toBe(maskTaxDocument(doc));
+      expect(maskPixKey(type, doc).endsWith(doc.slice(-2))).toBe(false);
+    }
   });
 });

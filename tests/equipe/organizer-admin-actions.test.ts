@@ -65,6 +65,9 @@ function as(role: Role, results: Record<string, RpcResult> = {}) {
   });
   mocks.adminRpc.mockImplementation(async (fn: string) => {
     if (fn === "staff_finance_role") return { data: role, error: null };
+    if (fn === "list_organizers" && !results.list_organizers) {
+      return { data: [{ user_id: ORGANIZER_ID, status: "ativo" }], error: null };
+    }
     const result = results[fn];
     return { data: result?.data ?? null, error: result?.error ?? null };
   });
@@ -322,6 +325,38 @@ describe("setOrganizerStatus", () => {
   it("reativar não exige motivo e não manda aviso de suspensão", async () => {
     expect(await setOrganizerStatus(ORGANIZER_ID, "ativo", "")).toEqual({ ok: true, data: undefined });
     expect(serviceCalls("set_organizer_status")[0][1]).toMatchObject({ p_status: "ativo", p_reason: null });
+    expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+  });
+
+  it("conta que já estava suspensa → não manda o aviso de novo", async () => {
+    as("admin", { list_organizers: { data: [{ user_id: ORGANIZER_ID, status: "suspenso" }] } });
+    expect(await setOrganizerStatus(ORGANIZER_ID, "suspenso", "Outro motivo qualquer")).toEqual({
+      ok: true,
+      data: undefined,
+    });
+    expect(serviceCalls("list_organizers")).toEqual([["list_organizers", { p_admin: ADMIN_ID }]]);
+    expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+  });
+
+  it("falha ao ler a situação atual → nada muda, nenhum aviso e só o código no registro", async () => {
+    as("admin", { list_organizers: { error: { message: "falha qualquer", code: "XX000" } } });
+    expect(await setOrganizerStatus(ORGANIZER_ID, "suspenso", "Motivo suficiente")).toEqual({
+      ok: false,
+      error: "Não foi possível mudar a situação da conta. Tente de novo.",
+    });
+    expect(serviceCalls("set_organizer_status")).toHaveLength(0);
+    expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+    expect(everythingLogged()).toContain("XX000");
+    expect(everythingLogged()).not.toContain(ORGANIZER_ID);
+  });
+
+  it("conta fora da lista → conta não encontrada, sem mudar nada", async () => {
+    as("admin", { list_organizers: { data: [] } });
+    expect(await setOrganizerStatus(ORGANIZER_ID, "suspenso", "Motivo suficiente")).toEqual({
+      ok: false,
+      error: "Conta não encontrada.",
+    });
+    expect(serviceCalls("set_organizer_status")).toHaveLength(0);
     expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
   });
 
