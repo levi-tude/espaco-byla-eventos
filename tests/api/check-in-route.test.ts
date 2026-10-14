@@ -220,6 +220,63 @@ describe("POST /api/check-in", () => {
     expect(response.status).toBe(403);
   });
 
+  describe("organizador (portaria dos próprios eventos)", () => {
+    const organizerId = "00000000-0000-4000-8000-0000000000aa";
+
+    beforeEach(() => {
+      mocks.getUser.mockResolvedValue({ data: { user: { id: organizerId } } });
+      mocks.loginState.mockResolvedValue({
+        data: [{ status: "verificado", user_id: organizerId, session_id: sessionId, code_expires_at: null, resend_at: null }],
+        error: null,
+      });
+    });
+
+    it("verificado no próprio evento libera a entrada (o banco decide o dono)", async () => {
+      rpcReturns({
+        outcome: "ok",
+        buyer_name: "Comprador Teste",
+        ticket_kind: "inteira",
+        type_name: null,
+        session_name: null,
+        session_starts_at: "2026-10-10T22:00:00.000Z",
+        event_name: "Peça Y",
+      });
+      const response = await post({ eventId, sessionId, code });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ ok: true, buyerName: "Comprador Teste" });
+      expect(mocks.adminRpc).toHaveBeenCalledWith("check_in_ticket", {
+        p_event_id: eventId,
+        p_session_id: sessionId,
+        p_code: code,
+        p_staff_user_id: organizerId,
+      });
+    });
+
+    it("ingresso de outro evento não revela o nome do outro evento", async () => {
+      rpcReturns({ ...rejected, outcome: "evento_errado", other_event_name: null });
+      const response = await post({ eventId, sessionId, code });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: false, message: "Ingresso de outro evento" });
+    });
+
+    it("evento de outro organizador responde 403", async () => {
+      rpcReturns(null, { message: "CHECKIN_EQUIPE: Acesso restrito à equipe.", code: "P0001" });
+      const response = await post({ eventId, sessionId, code });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ ok: false, message: "Acesso não autorizado" });
+    });
+
+    it("sem o código do e-mail confirmado não chega ao banco", async () => {
+      mocks.loginState.mockResolvedValue({
+        data: [{ status: "pendente", user_id: organizerId, session_id: sessionId, code_expires_at: null, resend_at: null }],
+        error: null,
+      });
+      const response = await post({ eventId, sessionId, code });
+      expect(response.status).toBe(403);
+      expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    });
+  });
+
   it("erro inesperado responde mensagem genérica, sem detalhes internos", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     rpcReturns(null, { message: "connection refused 10.0.0.1:5432", code: "08006" });

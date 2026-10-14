@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { EVENT_NOT_FOUND_MESSAGE, requireEventAccess, requireOrganizer } from "@/lib/auth/actor";
@@ -14,6 +15,8 @@ import {
   UUID_PATTERN,
 } from "@/lib/events/event-input";
 import { assertCoverNotShared, assertCoverUploaded, removeReplacedCover } from "@/lib/media/cover-check";
+import { isGalleryPathForEvent } from "@/lib/media/paths";
+import { removeMediaObjects } from "@/lib/media/storage";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
 import { notifyTeam, organizerNoticeLink } from "@/lib/organizer/notify";
 import { parseReason } from "@/lib/organizer/validation";
@@ -30,6 +33,11 @@ const SESSION_UNAVAILABLE_MESSAGE = "Esta sessão não está mais disponível. R
 const CHANGE_WHAT_MESSAGE = "Descreva a mudança (de 5 a 500 caracteres).";
 const CHANGE_BEFORE_APPROVAL_MESSAGE = "Antes da aprovação, você mesmo edita o evento no formulário e salva.";
 const SAVE_FALLBACK_MESSAGE = "Não foi possível salvar o evento.";
+const DELETE_FALLBACK_MESSAGE = "Não foi possível excluir o evento.";
+const CONFIRM_NAME_MESSAGE = "Digite o nome do evento para confirmar.";
+const CONFIRM_NAME_MAX = 200;
+
+type DeleteMode = "apagado" | "excluido";
 
 export async function createOrganizerEvent(input: EventInput): Promise<ActionResult<{ id: string }>> {
   return runAction(() => createOrganizerEventOrThrow(input), "Não foi possível criar o evento.");
@@ -60,6 +68,24 @@ export async function setOrganizerSessionSales(sessionId: string, open: boolean)
 
 export async function requestEventChange(id: string, input: EventChangeRequestInput): Promise<ActionResult> {
   return runAction(() => requestEventChangeOrThrow(id, input), "Não foi possível enviar o pedido.");
+}
+
+/**
+ * "Excluir evento" (sem vendas). Sem nenhum pedido, apaga de vez (e os arquivos);
+ * com pedidos expirados/cancelados, só some das telas. Deu certo: volta para Meus eventos.
+ */
+export async function deleteOwnEvent(
+  eventId: string,
+  confirmName: string,
+): Promise<ActionResult<{ mode: DeleteMode }>> {
+  const result = await runAction(() => deleteOwnEventOrThrow(eventId, confirmName), DELETE_FALLBACK_MESSAGE);
+  if (result.ok) redirect("/organizador");
+  return result;
+}
+
+/** "Pedir exclusão" (evento com vendas): as vendas pausam e o Espaço Byla decide. */
+export async function requestEventDeletion(eventId: string, reason: string): Promise<ActionResult> {
+  return runAction(() => requestEventDeletionOrThrow(eventId, reason), "Não foi possível enviar o pedido.");
 }
 
 function assertEventId(id: unknown): asserts id is string {
@@ -316,4 +342,68 @@ async function requestEventChangeOrThrow(id: string, input: EventChangeRequestIn
     link: organizerNoticeLink("/equipe/aprovacoes"),
   });
   revalidateOrganizerSurfaces(id);
+}
+
+/** Fotos da galeria do evento; `null` se não deu para ler (aí nenhum arquivo é apagado). */
+async function galleryPaths(admin: Admin, eventId: string): Promise<string[] | null> {
+  const { data, error } = await admin.from("event_images").select("storage_path").eq("event_id", eventId);
+  if (error || !Array.isArray(data)) return null;
+  return data.map(({ storage_path }) => storage_path).filter((path) => isGalleryPathForEvent(path, eventId));
+}
+
+async function deleteOwnEventOrThrow(id: string, confirmName: unknown): Promise<{ mode: DeleteMode }> {
+  assertEventId(id);
+  const { userId } = await requireOwnEvent(id);
+  const name = typeof confirmName === "string" ? confirmName.trim() : "";
+  if (!name || name.length > CONFIRM_NAME_MAX) throw new ActionError(CONFIRM_NAME_MESSAGE);
+  const admin = createAdminClient();
+
+  // Lidos antes: depois de apagado, o evento e as fotos já não existem no banco.
+  const [event, photos] = await Promise.all([loadEvent(admin, id), galleryPaths(admin, id)]);
+
+  const { data, error } = await admin.rpc("delete_own_event", {
+    p_actor: userId,
+    p_event_id: id,
+    p_confirm_name: name,
+  });
+  if (error) throw dbError(error, DELETE_FALLBACK_MESSAGE, "excluir evento");
+  if (data !== "apagado" && data !== "excluido") {
+    console.error("[organizador] Resposta inesperada ao excluir o evento.");
+    throw new ActionError(DELETE_FALLBACK_MESSAGE);
+  }
+
+  if (data === "apagado") {
+    if (photos) await removeMediaObjects(photos);
+    else console.error("[organizador] Fotos do evento apagado não foram lidas; arquivos mantidos.");
+    await removeReplacedCover(admin, id, event?.cover_image_url, null);
+  }
+
+  revalidateOrganizerSurfaces(id);
+  revalidatePublicSurfaces(event?.slug);
+  return { mode: data };
+}
+
+async function requestEventDeletionOrThrow(id: string, reason: unknown): Promise<undefined> {
+  assertEventId(id);
+  const { userId } = await requireOwnEvent(id);
+  const parsed = parseReason(reason);
+  if (!parsed.ok) throw new ActionError(parsed.error);
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("request_event_deletion", {
+    p_actor: userId,
+    p_event_id: id,
+    p_reason: parsed.value,
+  });
+  if (error) throw dbError(error, "Não foi possível enviar o pedido.", "pedir exclusão");
+
+  const event = await loadEvent(admin, id);
+  await notifyTeam("equipe_pedido_organizador", {
+    eventName: event?.name,
+    requestKind: "exclusao",
+    note: parsed.value,
+    link: organizerNoticeLink("/equipe/aprovacoes"),
+  });
+  revalidateOrganizerSurfaces(id);
+  revalidatePublicSurfaces(event?.slug);
 }

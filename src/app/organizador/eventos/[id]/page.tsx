@@ -7,23 +7,29 @@ import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { type EditorSession, savedTypeKey } from "@/components/equipe/session-drafts";
 import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
 import { ApprovalBanner } from "@/components/organizer/ApprovalBanner";
+import { DeleteEventSection } from "@/components/organizer/DeleteEventSection";
+import { OpsRequestList, type OrganizerOpsRequest } from "@/components/organizer/OpsRequestList";
 import { organizerEventStatus } from "@/components/organizer/OrganizerEventCard";
 import { OrganizerNoAccess } from "@/components/organizer/OrganizerNoAccess";
+import { type OrganizerOrder, OrganizerOrderList } from "@/components/organizer/OrganizerOrderList";
 import { OrganizerSalesPanel, type OrganizerSalesSession } from "@/components/organizer/OrganizerSalesPanel";
 import { BackLink } from "@/components/ui/BackLink";
+import { ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
+import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getActor, requireEventAccess } from "@/lib/auth/actor";
-import { formatSessionLabel } from "@/lib/datetime";
+import { eventDateFormatter, formatSessionLabel } from "@/lib/datetime";
 import type { EventAvailabilityWithTypes } from "@/lib/domain/availability";
 import { loadEventSessions, loadSessionAvailability } from "@/lib/domain/event-availability";
 import { orderStatsFor, sessionOrderStats, sumAvailability } from "@/lib/domain/session-panel";
-import { sessionSalesClosesAt } from "@/lib/domain/sessions";
+import { orderNumber, sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { lockedFieldsFor } from "@/lib/organizer/post-approval";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
+import type { Json } from "@/types/database";
 
 export const metadata: Metadata = {
   title: "Meu evento",
@@ -36,8 +42,37 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const TABS = [
   { id: "evento", label: "Evento" },
   { id: "vendas", label: "Vendas" },
+  { id: "pedidos", label: "Pedidos" },
+  { id: "portaria", label: "Portaria" },
+  { id: "pedidos-equipe", label: "Pedidos à equipe" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
+
+const ORDER_STATUSES = ["pago", "estornado", "aguardando_decisao"] as const;
+const REQUEST_KINDS = ["estorno", "exclusao", "mudanca"] as const;
+const REQUEST_STATUSES = ["pendente", "atendido", "recusado", "cancelado"] as const;
+const SOLD_STATUSES = new Set(["pago", "estornado", "aguardando_decisao"]);
+
+const createdFormatter = eventDateFormatter({ dateStyle: "short" });
+
+function oneOf<T extends string>(options: readonly T[], value: unknown): T | null {
+  return options.find((option) => option === value) ?? null;
+}
+
+function parseItems(value: Json): OrganizerOrder["items"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) =>
+    item && typeof item === "object" && !Array.isArray(item) &&
+    typeof item.name === "string" && typeof item.quantity === "number"
+      ? [{ name: item.name, quantity: item.quantity }]
+      : [],
+  );
+}
+
+function changeWhat(details: Json): string | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  return typeof details.o_que === "string" ? details.o_que : null;
+}
 
 const tabClass =
   "inline-flex min-h-11 items-center whitespace-nowrap rounded-lg border px-4 text-base font-medium no-underline transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
@@ -93,19 +128,67 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
 
   // Pedidos e lotação só com service_role: o acesso de dono já foi conferido acima.
   const admin = createAdminClient();
-  const [gallery, { data: sessionPrices }, { data: orderRows }, availabilities, summary] =
-    await Promise.all([
-      loadEventGallery(supabase, event.id),
-      sessionIds.length
-        ? supabase
-            .from("session_ticket_types")
-            .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
-            .in("session_id", sessionIds)
-        : Promise.resolve({ data: [] }),
-      admin.from("orders").select("session_id, status, expires_at").eq("event_id", event.id),
-      Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
-      loadEventSessions(admin, event.id),
-    ]);
+  const [
+    gallery,
+    { data: sessionPrices },
+    { data: orderRows },
+    availabilities,
+    summary,
+    buyerOrders,
+    opsRequests,
+  ] = await Promise.all([
+    loadEventGallery(supabase, event.id),
+    sessionIds.length
+      ? supabase
+          .from("session_ticket_types")
+          .select("session_id, ticket_type_id, price_cents, max_units, on_sale")
+          .in("session_id", sessionIds)
+      : Promise.resolve({ data: [] }),
+    admin.from("orders").select("session_id, status, expires_at").eq("event_id", event.id),
+    Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id))),
+    loadEventSessions(admin, event.id),
+    admin.rpc("organizer_event_orders", { p_actor: actor.userId, p_event_id: event.id }),
+    admin.rpc("organizer_event_requests", { p_actor: actor.userId, p_event_id: event.id }),
+  ]);
+  if (buyerOrders.error) console.error("[organizador] Falha ao ler os pedidos do evento.", buyerOrders.error.code);
+  if (opsRequests.error) console.error("[organizador] Falha ao ler os pedidos à equipe.", opsRequests.error.code);
+
+  const orders: OrganizerOrder[] = (buyerOrders.data ?? []).flatMap((row) => {
+    const status = oneOf(ORDER_STATUSES, row.status);
+    if (!status) return [];
+    return [
+      {
+        orderId: row.order_id,
+        orderNumber: orderNumber(row.order_id),
+        buyerName: row.buyer_name,
+        buyerEmail: row.buyer_email,
+        sessionLabel: formatSessionLabel(row.session_name, row.session_starts_at),
+        items: parseItems(row.items),
+        status,
+        isCourtesy: row.is_courtesy,
+        ticketsTotal: row.tickets_total,
+        ticketsCheckedIn: row.tickets_checked_in,
+        refundRequest: oneOf(REQUEST_STATUSES, row.refund_request_status),
+      },
+    ];
+  });
+  const requests: OrganizerOpsRequest[] = (opsRequests.data ?? []).flatMap((row) => {
+    const kind = oneOf(REQUEST_KINDS, row.kind);
+    const status = oneOf(REQUEST_STATUSES, row.status);
+    if (!kind || !status) return [];
+    return [
+      {
+        id: row.id,
+        kind,
+        orderNumber: row.order_id ? orderNumber(row.order_id) : null,
+        what: kind === "mudanca" ? changeWhat(row.details) : null,
+        reason: row.reason,
+        status,
+        decisionNote: row.decision_note,
+        createdLabel: createdFormatter.format(new Date(row.created_at)),
+      },
+    ];
+  });
   const availabilityBySession = new Map<string, EventAvailabilityWithTypes | null>(
     sessions.map((session, index) => [session.id, availabilities[index]]),
   );
@@ -201,6 +284,13 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
     salesOpen: event.sales_open,
     lastSessionAt: lastSession ? (lastSession.ends_at ?? lastSession.starts_at) : null,
   });
+  const hasSales = (orderRows ?? []).some(
+    (order) =>
+      SOLD_STATUSES.has(order.status) ||
+      (order.status === "pendente" && order.expires_at !== null && Date.parse(order.expires_at) > now),
+  );
+  const deletionPending = requests.some((request) => request.kind === "exclusao" && request.status === "pendente");
+
   const tab: TabId = TABS.some((item) => item.id === query.aba) ? (query.aba as TabId) : "evento";
   const shownOnMobile = (section: TabId) => (tab === section ? "" : "hidden lg:block");
 
@@ -281,19 +371,78 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
           </div>
         </section>
 
-        <section aria-labelledby="vendas-titulo" className={shownOnMobile("vendas")}>
-          <h2 className="text-xl font-semibold text-foreground" id="vendas-titulo">
-            Vendas
-          </h2>
-          <div className="mt-3">
-            <OrganizerSalesPanel
-              approved={approved}
-              eventId={event.id}
-              eventSalesOpen={event.sales_open}
-              sessions={salesSessions}
-            />
-          </div>
-        </section>
+        <div className={cx("grid min-w-0 gap-10", tab === "evento" ? "hidden lg:grid" : "")}>
+          <section aria-labelledby="vendas-titulo" className={shownOnMobile("vendas")}>
+            <h2 className="text-xl font-semibold text-foreground" id="vendas-titulo">
+              Vendas
+            </h2>
+            <div className="mt-3">
+              <OrganizerSalesPanel
+                approved={approved}
+                eventId={event.id}
+                eventSalesOpen={event.sales_open}
+                sessions={salesSessions}
+              />
+            </div>
+          </section>
+
+          <section aria-labelledby="portaria-titulo" className={shownOnMobile("portaria")}>
+            <h2 className="text-xl font-semibold text-foreground" id="portaria-titulo">
+              Portaria
+            </h2>
+            <div className="mt-3 grid gap-3">
+              {approved ? (
+                <>
+                  <p className="text-base text-byla-muted">
+                    Na entrada, leia o QR Code de cada ingresso com a câmera do celular.
+                  </p>
+                  <ButtonLink fullWidth href={`/organizador/eventos/${event.id}/portaria`} size="lg">
+                    Abrir leitor de QR Code
+                  </ButtonLink>
+                </>
+              ) : (
+                <p className="text-base text-byla-muted">
+                  A portaria fica disponível depois que o Espaço Byla aprovar o evento.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="pedidos-equipe-titulo" className={shownOnMobile("pedidos-equipe")}>
+            <h2 className="text-xl font-semibold text-foreground" id="pedidos-equipe-titulo">
+              Pedidos à equipe
+            </h2>
+            <div className="mt-3">
+              {opsRequests.error ? (
+                <Notice tone="danger">Não foi possível carregar os pedidos à equipe. Atualize a página.</Notice>
+              ) : (
+                <OpsRequestList requests={requests} />
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="pedidos-titulo" className={shownOnMobile("pedidos")}>
+            <h2 className="text-xl font-semibold text-foreground" id="pedidos-titulo">
+              Pedidos
+            </h2>
+            <div className="mt-3">
+              {buyerOrders.error ? (
+                <Notice tone="danger">Não foi possível carregar os pedidos. Atualize a página.</Notice>
+              ) : (
+                <OrganizerOrderList orders={orders} />
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className={cx("mt-10", shownOnMobile("evento"))}>
+        <DeleteEventSection
+          deletionPending={deletionPending}
+          eventId={event.id}
+          eventName={event.name}
+          hasSales={hasSales}
+        />
       </div>
     </main>
   );

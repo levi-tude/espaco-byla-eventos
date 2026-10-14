@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Equipe com o código do e-mail confirmado nesta sessão; o check-in usa service_role,
-  // então a RLS não faria essa checagem por nós.
+  // Equipe ou organizador com o código do e-mail confirmado nesta sessão; o check-in usa
+  // service_role, então a RLS não faria essa checagem por nós. Quem pode registrar entrada
+  // em qual evento (equipe em todos, organizador só nos próprios) a função do banco decide.
   const loginState = await readLoginState(supabase);
   if (loginState.status !== "verificado" || loginState.userId !== user.id) {
     return NextResponse.json(
