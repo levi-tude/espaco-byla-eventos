@@ -410,6 +410,10 @@ begin
       end if;
     end if;
   elsif p_target_user_id is null or not exists (
+    select 1 from public.organizer_profiles op where op.user_id = p_target_user_id
+  ) then
+    raise exception 'ORG_ACESSO: Link de senha só para conta de organizador.';
+  elsif not exists (
     select 1 from public.organizer_profiles op
     where op.user_id = p_target_user_id and op.status = 'ativo'
   ) then
