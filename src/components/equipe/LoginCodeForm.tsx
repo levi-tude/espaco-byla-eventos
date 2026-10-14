@@ -12,6 +12,19 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import type { ActionResult } from "@/lib/action-result";
+
+export type LoginCodeActions = {
+  submit: (code: string, remember: boolean) => Promise<ActionResult<{ next: string }>>;
+  resend: () => Promise<ActionResult<{ verified: boolean }>>;
+  signOut: () => Promise<void>;
+};
+
+const TEAM_ACTIONS: LoginCodeActions = {
+  submit: submitLoginCodeAction,
+  resend: resendLoginCodeAction,
+  signOut: signOutTeamAction,
+};
 
 type LoginCodeFormProps = {
   maskedEmail: string;
@@ -20,6 +33,10 @@ type LoginCodeFormProps = {
   resendCooldownSeconds: number;
   codeMinutes: number;
   rememberDays: number;
+  /** Ações da área (padrão: equipe). */
+  actions?: LoginCodeActions;
+  /** Para onde ir quando a sessão já está verificada (padrão: equipe). */
+  homePath?: string;
 };
 
 function formatWait(seconds: number): string {
@@ -34,6 +51,8 @@ export function LoginCodeForm({
   resendCooldownSeconds,
   codeMinutes,
   rememberDays,
+  actions = TEAM_ACTIONS,
+  homePath = "/equipe",
 }: LoginCodeFormProps) {
   const router = useRouter();
   const [hasCode, setHasCode] = useState(initialHasCode);
@@ -61,7 +80,7 @@ export function LoginCodeForm({
     setError("");
     setInfo("");
     startSubmit(async () => {
-      const result = await submitLoginCodeAction(code, remember);
+      const result = await actions.submit(code, remember);
       if (result.ok) {
         goTo(result.data.next);
         return;
@@ -74,13 +93,13 @@ export function LoginCodeForm({
     setError("");
     setInfo("");
     startSend(async () => {
-      const result = await resendLoginCodeAction();
+      const result = await actions.resend();
       if (!result.ok) {
         setError(result.error);
         return;
       }
       if (result.data.verified) {
-        goTo("/equipe");
+        goTo(homePath);
         return;
       }
       setHasCode(true);
@@ -176,7 +195,7 @@ export function LoginCodeForm({
         </div>
       )}
 
-      <form action={signOutTeamAction}>
+      <form action={actions.signOut}>
         <Button fullWidth type="submit" variant="ghost">
           Sair
         </Button>

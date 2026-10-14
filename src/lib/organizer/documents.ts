@@ -40,3 +40,21 @@ export function maskTaxDocument(digits: string): string {
   if (digits.length === 14) return `••.•••.${digits.slice(5, 8)}/${digits.slice(8, 12)}-••`;
   return "•••";
 }
+
+/** Chave PIX nas telas: só o suficiente para a pessoa reconhecer a própria chave. */
+export function maskPixKey(type: string, key: string): string {
+  if (type === "cpf" || type === "cnpj") return maskTaxDocument(onlyDigits(key));
+  if (type === "email") {
+    const tld = /@[^@\s]+\.([a-z0-9-]+)$/i.exec(key.trim())?.[1];
+    return tld ? `•••@•••.${tld.toLowerCase()}` : "•••";
+  }
+  if (type === "telefone") {
+    const digits = onlyDigits(key);
+    return digits.length >= 10 ? `(••) •••••-${digits.slice(-4)}` : "•••";
+  }
+  if (type === "aleatoria") {
+    const value = key.trim();
+    return value.length === 36 ? `••••••••-••••-••••-••••-••••••••${value.slice(-4)}` : "•••";
+  }
+  return "•••";
+}
