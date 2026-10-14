@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: "Política de Privacidade · Espaço Byla Eventos",
   description:
-    "Como o Espaço Byla trata os dados de quem compra ingressos pelo site.",
+    "Como o Espaço Byla trata os dados de quem compra ingressos e de quem organiza eventos pelo site.",
 };
 
 export default function PrivacyPage() {
@@ -30,8 +30,9 @@ export default function PrivacyPage() {
         </h1>
         <p className="mt-4 text-base leading-relaxed text-byla-muted">
           Esta página explica, de forma simples, quais dados pessoais o{" "}
-          {COMPANY.brand} recebe quando você compra ingressos por este site, para
-          que eles são usados e quais são os seus direitos, conforme a Lei Geral
+          {COMPANY.brand} recebe quando você compra ingressos por este site, pede
+          para fazer um evento ou usa uma conta de organizador, para que eles são
+          usados e quais são os seus direitos, conforme a Lei Geral
           de Proteção de Dados (LGPD — Lei nº 13.709/2018).
         </p>
 
@@ -61,6 +62,20 @@ export default function PrivacyPage() {
               registramos quando cada ingresso foi usado (leitura do QR Code).
             </li>
             <li>
+              <strong className="text-foreground">
+                No pedido para fazer um evento:
+              </strong>{" "}
+              nome, contato (WhatsApp ou e-mail) e a ideia do evento.
+            </li>
+            <li>
+              <strong className="text-foreground">Na conta de organizador:</strong>{" "}
+              nome, nome público, e-mail (confirmado por código), telefone, chave
+              PIX, nome e CPF ou CNPJ do titular da chave e registros de acesso,
+              usados para a conta, a segurança, o pagamento do organizador e
+              obrigações fiscais e contábeis. O nome público aparece na página dos
+              eventos do organizador.
+            </li>
+            <li>
               <strong className="text-foreground">Para segurança:</strong>{" "}
               dados técnicos da conexão, como o endereço IP, usados para
               bloquear robôs e tentativas de fraude. Guardamos apenas uma versão
@@ -81,11 +96,16 @@ export default function PrivacyPage() {
               nenhum.
             </li>
             <li>Conferir os ingressos na entrada do evento.</li>
+            <li>
+              Analisar pedidos para fazer eventos e administrar as contas de
+              organizadores, inclusive o pagamento da parte deles.
+            </li>
             <li>Dar suporte, resolver problemas e prevenir fraudes.</li>
             <li>Cumprir obrigações legais, fiscais e contábeis.</li>
           </ul>
           <p>
-            Esses usos se baseiam na execução do contrato de compra, no
+            Esses usos se baseiam na execução do contrato de compra (e, para
+            organizadores, dos Termos do organizador), no
             cumprimento de obrigação legal e no legítimo interesse de manter o
             site seguro e de lembrar uma compra não concluída (art. 7º da LGPD).{" "}
             <strong className="text-foreground">
@@ -95,9 +115,21 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="Com quem compartilhamos">
-          <p>Somente com os serviços necessários para o site funcionar:</p>
+          <p>Somente com quem precisa deles para o site e os eventos funcionarem:</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>o banco responsável por processar o pagamento;</li>
+            <li>
+              <strong className="text-foreground">o organizador do evento</strong>,
+              quando o evento for produzido por um organizador parceiro (indicado
+              como &ldquo;Produção&rdquo; na página do evento e no e-mail do
+              ingresso): apenas o seu nome, o seu e-mail e a situação do seu pedido
+              e dos ingressos (inclusive se já foram usados na entrada), para a
+              operação daquele evento — por exemplo, conferir a entrada ou avisar
+              sobre mudanças. O organizador é obrigado, por contrato, a usar esses
+              dados só para isso, a não enviar propaganda e a apagá-los depois do
+              evento. Telefone, CPF e dados de pagamento nunca são compartilhados
+              com o organizador.
+            </li>
             <li>o serviço que envia os e-mails com os ingressos;</li>
             <li>o serviço que guarda os pedidos e ingressos com segurança;</li>
             <li>o serviço que hospeda o site.</li>
@@ -114,6 +146,12 @@ export default function PrivacyPage() {
             Os dados do pedido ficam guardados por até {DATA_RETENTION_YEARS}{" "}
             anos depois do evento, para suporte e para cumprir obrigações fiscais
             e contábeis. Depois disso, são apagados ou anonimizados.
+          </p>
+          <p>
+            Pedidos para fazer evento são apagados até 6 meses depois de
+            respondidos. Dados da conta de organizador ficam guardados por até{" "}
+            {DATA_RETENTION_YEARS} anos depois do fim da parceria, para obrigações
+            fiscais e contábeis.
           </p>
         </Section>
 
@@ -147,7 +185,9 @@ export default function PrivacyPage() {
         <Section title="Segurança">
           <p>
             O site usa conexão criptografada (HTTPS), acesso restrito à equipe
-            do {COMPANY.brand} e proteções contra robôs e fraudes. O link do seu
+            do {COMPANY.brand} e, para os próprios eventos, aos organizadores
+            parceiros, sempre com verificação em duas etapas, e proteções contra
+            robôs e fraudes. O link do seu
             pedido funciona como uma senha de acesso aos ingressos: não o
             compartilhe com quem não deve entrar no evento.
           </p>

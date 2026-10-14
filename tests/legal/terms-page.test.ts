@@ -60,7 +60,6 @@ describe("página Termos de compra", () => {
   });
 
   it("aplica as decisões do dono de 2026-10-07", () => {
-    expect(TERMS_VERSION).toBe("2026-10-07");
     const page = text(renderToStaticMarkup(TermsPage()));
     expect(page).toContain(
       "até 7 dias corridos depois de comprar, desde que o pedido de desistência seja feito com pelo menos 48 horas de antecedência do início da sessão",
@@ -77,6 +76,17 @@ describe("página Termos de compra", () => {
     expect(page).toContain("pode passar o ingresso para outra pessoa");
   });
 
+  it("versão nova: Quem vende explica os eventos de organizadores parceiros", () => {
+    expect(TERMS_VERSION > "2026-10-07").toBe(true);
+    const page = text(renderToStaticMarkup(TermsPage()));
+    const seller = page.indexOf("Quem vende");
+    const partners = page.indexOf(
+      "Alguns eventos são produzidos por organizadores parceiros, indicados como “Produção” na página do evento e no e-mail do ingresso. Mesmo nesses casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo Espaço Byla, conforme estes termos.",
+    );
+    expect(partners).toBeGreaterThan(seller);
+    expect(partners).toBeLessThan(page.indexOf("Compra e pagamento"));
+  });
+
   it("identifica quem vende com os mesmos dados da Política de Privacidade", () => {
     const page = text(renderToStaticMarkup(TermsPage()));
     expect(page).toContain(COMPANY.legalName);
@@ -85,7 +95,7 @@ describe("página Termos de compra", () => {
 
   it("não cita fornecedores nem deixa marcações de rascunho", () => {
     const page = text(renderToStaticMarkup(TermsPage())).toLowerCase();
-    for (const word of ["mercado pago", "mercadopago", "supabase", "vercel", "resend", "todo:", "xxx", "a definir", "pendente"]) {
+    for (const word of ["mercado pago", "mercadopago", "supabase", "vercel", "resend", "google", "cloudflare", "todo:", "xxx", "a definir", "pendente"]) {
       expect(page).not.toContain(word);
     }
   });

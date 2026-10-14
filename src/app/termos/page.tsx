@@ -73,6 +73,12 @@ export default function TermsPage() {
             {COMPANY.brand} — {COMPANY.legalName}, CNPJ {COMPANY.cnpj},{" "}
             {COMPANY.address}.
           </p>
+          <p>
+            Alguns eventos são produzidos por organizadores parceiros, indicados como
+            &ldquo;Produção&rdquo; na página do evento e no e-mail do ingresso. Mesmo nesses
+            casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo{" "}
+            {COMPANY.brand}, conforme estes termos.
+          </p>
         </Section>
 
         <Section title="Compra e pagamento">

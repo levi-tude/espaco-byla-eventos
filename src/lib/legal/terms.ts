@@ -1,7 +1,7 @@
 /** Data da versão em vigor; muda sempre que o texto dos termos mudar. */
-export const TERMS_VERSION = "2026-10-07";
+export const TERMS_VERSION = "2026-10-14";
 
-export const TERMS_UPDATED_LABEL = "7 de outubro de 2026";
+export const TERMS_UPDATED_LABEL = "14 de outubro de 2026";
 
 export const TERMS_PATH = "/termos";
 
