@@ -2,24 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
-  staffProfile: vi.fn(),
+  loginState: vi.fn(),
   adminRpc: vi.fn(),
   maybeSingle: vi.fn(),
   createAdminClient: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: vi.fn(), set: vi.fn() }),
+  headers: async () => new Headers(),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({
     auth: { getUser: mocks.getUser },
-    from: () => {
-      const chain = {
-        select: () => chain,
-        eq: () => chain,
-        maybeSingle: mocks.staffProfile,
-      };
-      return chain;
-    },
+    rpc: (name: string) =>
+      name === "login_session_state"
+        ? mocks.loginState()
+        : Promise.resolve({ data: null, error: { message: "inesperado" } }),
   }),
 }));
 vi.mock("@/lib/supabase/admin", () => ({
@@ -47,6 +47,15 @@ function rpcReturns(data: unknown, error: unknown = null) {
   mocks.maybeSingle.mockResolvedValue({ data, error });
 }
 
+function loginState(status: string) {
+  return {
+    data: [
+      { status, user_id: staffUserId, session_id: sessionId, code_expires_at: null, resend_at: null },
+    ],
+    error: null,
+  };
+}
+
 const rejected = {
   buyer_name: null,
   ticket_kind: null,
@@ -58,7 +67,7 @@ describe("POST /api/check-in", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } } });
-    mocks.staffProfile.mockResolvedValue({ data: { user_id: staffUserId } });
+    mocks.loginState.mockResolvedValue(loginState("verificado"));
     mocks.adminRpc.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.createAdminClient.mockReturnValue({ rpc: mocks.adminRpc });
   });
@@ -71,7 +80,22 @@ describe("POST /api/check-in", () => {
   });
 
   it("logado fora da equipe responde 403 sem chamar o banco", async () => {
-    mocks.staffProfile.mockResolvedValue({ data: null });
+    mocks.loginState.mockResolvedValue(loginState("fora"));
+    const response = await post({ eventId, sessionId, code });
+    expect(response.status).toBe(403);
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("equipe sem o código do e-mail confirmado responde 403 sem registrar nada", async () => {
+    mocks.loginState.mockResolvedValue(loginState("pendente"));
+    const response = await post({ eventId, sessionId, code });
+    expect(response.status).toBe(403);
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("falha ao ler o estado do login também nega (403)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.loginState.mockResolvedValue({ data: null, error: { message: "x" } });
     const response = await post({ eventId, sessionId, code });
     expect(response.status).toBe(403);
     expect(mocks.createAdminClient).not.toHaveBeenCalled();

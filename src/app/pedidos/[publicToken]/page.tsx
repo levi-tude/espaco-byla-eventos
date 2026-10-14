@@ -42,13 +42,9 @@ async function resolveStaffBackNav(eventId: string, eventSlug: string) {
     };
   }
 
-  const { data: profile } = await supabase
-    .from("staff_profiles")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: isStaff } = await supabase.rpc("is_staff");
 
-  if (profile) {
+  if (isStaff === true) {
     return {
       backHref: `/equipe/eventos/${eventId}`,
       backLabel: "Voltar ao gerenciamento",

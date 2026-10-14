@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { startLoginVerificationAction } from "@/app/equipe/verificar/actions";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { Button } from "@/components/ui/Button";
@@ -35,25 +36,16 @@ export default function LoginPage() {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const { data: profile } = user
-      ? await supabase
-          .from("staff_profiles")
-          .select("user_id")
-          .eq("user_id", user.id)
-          .maybeSingle()
-      : { data: null };
-
-    if (!profile) {
+    // Aparelho lembrado entra direto; senão o servidor manda o código por e-mail.
+    const result = await startLoginVerificationAction().catch(() => null);
+    if (!result?.ok) {
       await supabase.auth.signOut();
       setError("Não foi possível entrar");
       setIsSubmitting(false);
       return;
     }
 
-    router.replace("/equipe");
+    router.replace(result.data.next);
     router.refresh();
   }
 

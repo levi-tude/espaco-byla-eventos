@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  staffRedirectFor,
+  toStaffLoginStatus,
+  type StaffLoginStatus,
+} from "@/lib/auth/staff-gate";
 import { buildContentSecurityPolicy, createNonce } from "@/lib/security/csp";
 import type { Database } from "@/types/database";
 
@@ -62,32 +67,15 @@ async function protectStaffArea(request: NextRequest, requestHeaders: Headers) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname === "/equipe/login";
-  let isStaff = false;
-
+  // "pendente" = senha certa, falta o código do e-mail. Erro na consulta conta como "fora".
+  let status: StaffLoginStatus = "fora";
   if (user) {
-    const { data: profile } = await supabase
-      .from("staff_profiles")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    isStaff = Boolean(profile);
+    const { data, error } = await supabase.rpc("login_session_state");
+    if (!error && Array.isArray(data)) status = toStaffLoginStatus(data[0]?.status);
   }
 
-  if (isLoginPage) {
-    if (isStaff) {
-      return redirectWithCookies(request, response, "/equipe");
-    }
-
-    return response;
-  }
-
-  if (!user || !isStaff) {
-    return redirectWithCookies(request, response, "/equipe/login");
-  }
-
-  return response;
+  const target = staffRedirectFor(request.nextUrl.pathname, status);
+  return target ? redirectWithCookies(request, response, target) : response;
 }
 
 function redirectWithCookies(

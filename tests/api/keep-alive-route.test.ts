@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ runSessionNotices: vi.fn(), queryError: null as unknown }));
+const mocks = vi.hoisted(() => ({
+  runSessionNotices: vi.fn(),
+  queryError: null as unknown,
+  purgeError: null as unknown,
+  rpcNames: [] as string[],
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNotices }));
@@ -8,7 +13,14 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     const result = () => Promise.resolve({ data: [], error: mocks.queryError });
     const chain = { select: () => chain, limit: result, then: (resolve: (v: unknown) => unknown) => result().then(resolve) };
-    return { from: () => chain, rpc: result };
+    const rpc = (name: string) => {
+      mocks.rpcNames.push(name);
+      if (name === "purge_login_verification") {
+        return Promise.resolve({ data: 0, error: mocks.purgeError });
+      }
+      return result();
+    };
+    return { from: () => chain, rpc };
   },
 }));
 
@@ -22,6 +34,8 @@ describe("GET /api/cron/keep-alive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.queryError = null;
+    mocks.purgeError = null;
+    mocks.rpcNames = [];
     vi.stubEnv("CRON_SECRET", secret);
     mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 2, sent: 2, failed: 0, pausedUntil: null });
   });
@@ -52,6 +66,19 @@ describe("GET /api/cron/keep-alive", () => {
     const response = await GET(request(`Bearer ${secret}`));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, notices: 0 });
+  });
+
+  it("limpa códigos de acesso e aparelhos vencidos", async () => {
+    await GET(request(`Bearer ${secret}`));
+    expect(mocks.rpcNames).toContain("purge_login_verification");
+  });
+
+  it("falha na limpeza dos códigos não derruba o keep-alive", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.purgeError = { message: "fora" };
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    expect(mocks.runSessionNotices).toHaveBeenCalled();
   });
 
   it("falha do banco responde 500 sem enviar avisos", async () => {

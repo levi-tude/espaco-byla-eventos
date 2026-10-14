@@ -930,6 +930,40 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
       };
+      session_is_verified: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+      login_session_state: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          status: string;
+          user_id: string | null;
+          session_id: string | null;
+          code_expires_at: string | null;
+          resend_at: string | null;
+        }[];
+      };
+      issue_login_code: {
+        Args: { p_user_id: string; p_session_id: string; p_code: string };
+        Returns: string;
+      };
+      verify_login_code: {
+        Args: { p_code: string; p_device_token?: string | null; p_device_label?: string | null };
+        Returns: string;
+      };
+      verify_session_with_device: {
+        Args: { p_device_token: string };
+        Returns: boolean;
+      };
+      end_login_verification: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
+      };
+      purge_login_verification: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       mark_order_paid_by_external: {
         Args: {
           p_external_id: string;

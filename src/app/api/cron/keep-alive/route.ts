@@ -34,6 +34,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
+  // Limpeza dos códigos de acesso e aparelhos vencidos: falha só vai para o log.
+  try {
+    const { error } = await supabase.rpc("purge_login_verification");
+    if (error) console.error("[keep-alive] falha ao limpar códigos de acesso", error.message);
+  } catch (error) {
+    console.error("[keep-alive] falha ao limpar códigos de acesso", error);
+  }
+
   let notices = 0;
   try {
     const run = await runSessionNotices(supabase, { limit: NOTICE_CRON_LIMIT });

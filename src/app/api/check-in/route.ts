@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readLoginState } from "@/lib/auth/login-verification";
 import {
   checkInMessage,
   checkInSessionLine,
@@ -26,13 +27,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: profile } = await supabase
-    .from("staff_profiles")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile) {
+  // Equipe com o código do e-mail confirmado nesta sessão; o check-in usa service_role,
+  // então a RLS não faria essa checagem por nós.
+  const loginState = await readLoginState(supabase);
+  if (loginState.status !== "verificado" || loginState.userId !== user.id) {
     return NextResponse.json(
       { ok: false, message: "Acesso não autorizado" },
       { status: 403 },

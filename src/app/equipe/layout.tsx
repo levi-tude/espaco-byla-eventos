@@ -3,10 +3,13 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { signOutTeamAction } from "@/app/equipe/verificar/actions";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { buttonClasses } from "@/components/ui/Button";
 import { getFinanceAccess } from "@/lib/auth/finance-admin";
+import { readLoginState } from "@/lib/auth/login-verification";
+import { STAFF_LOGIN_PATH, STAFF_VERIFY_PATH } from "@/lib/auth/staff-gate";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function EquipeLayout({
@@ -16,36 +19,13 @@ export default async function EquipeLayout({
 }) {
   const pathname = (await headers()).get("x-pathname");
 
-  if (pathname === "/equipe/login") {
+  if (pathname === STAFF_LOGIN_PATH || pathname === STAFF_VERIFY_PATH) {
     return children;
   }
 
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/equipe/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("staff_profiles")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile) {
-    redirect("/equipe/login");
-  }
-
-  async function signOut() {
-    "use server";
-
-    const supabase = await createServerClient();
-    await supabase.auth.signOut();
-    redirect("/equipe/login");
-  }
+  const state = await readLoginState(await createServerClient());
+  if (state.status === "pendente") redirect(STAFF_VERIFY_PATH);
+  if (state.status !== "verificado") redirect(STAFF_LOGIN_PATH);
 
   const finance = await getFinanceAccess();
   const links = [
@@ -83,7 +63,7 @@ export default async function EquipeLayout({
 
           <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-2 sm:row-span-2">
             <ThemeToggle />
-            <form action={signOut}>
+            <form action={signOutTeamAction}>
               <button className={buttonClasses({ variant: "secondary" })} type="submit">
                 Sair
               </button>
