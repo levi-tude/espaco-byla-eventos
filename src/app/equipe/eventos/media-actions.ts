@@ -107,9 +107,16 @@ async function requestImageUploadOrThrow(
   }
 
   if (target !== "gallery" || !isUuid(eventId)) throw new ActionError("Evento inválido.");
-  await requireEventAccess(eventId);
+  const { actor } = await requireEventAccess(eventId);
   if (!isImageContentType(contentType)) throw new ActionError(INVALID_IMAGE_TYPE_MESSAGE);
   const admin = createAdminClient();
+  // O limite de 10 fotos conta registros, não arquivos enviados: sem isto, envios órfãos lotam o bucket.
+  if (
+    actor.kind === "organizador" &&
+    !(await consumeRateLimit(admin, RATE_LIMITS.organizerUploadPerUser, actor.userId))
+  ) {
+    throw new ActionError(RATE_LIMIT_MESSAGE);
+  }
   await requireEventSlug(admin, eventId);
   if ((await galleryCount(admin, eventId)) >= MAX_GALLERY_IMAGES) {
     throw new ActionError(GALLERY_FULL_MESSAGE);

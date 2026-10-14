@@ -168,6 +168,50 @@ describe("organizador", () => {
     expect((await requestImageUpload("gallery", "image/webp", eventId)).ok).toBe(true);
     expect((await addEventImage(eventId, galleryPath)).ok).toBe(true);
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/organizador/eventos/${eventId}`);
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "consume_rate_limit",
+      expect.objectContaining({ p_bucket: "org-upload:user", p_limit: 60, p_window_seconds: 3600 }),
+    );
+  });
+
+  it("galeria acima do limite não recebe autorização de envio", async () => {
+    loggedAs("organizador", "dono");
+    useTables({
+      events: table({ data: { slug: "show" } }),
+      event_images: table({ count: 1 }),
+    });
+    const base = mocks.adminRpc.getMockImplementation()!;
+    mocks.adminRpc.mockImplementation(async (name: string, args: unknown) =>
+      name === "consume_rate_limit" ? { data: false, error: null } : base(name, args),
+    );
+    expect(await requestImageUpload("gallery", "image/webp", eventId)).toEqual({
+      ok: false,
+      error: RATE_LIMIT_MESSAGE,
+    });
+    expect(mocks.createUploadToken).not.toHaveBeenCalled();
+  });
+
+  it("galeria com limite indisponível: falha fechada", async () => {
+    loggedAs("organizador", "dono");
+    useTables({
+      events: table({ data: { slug: "show" } }),
+      event_images: table({ count: 1 }),
+    });
+    const base = mocks.adminRpc.getMockImplementation()!;
+    mocks.adminRpc.mockImplementation(async (name: string, args: unknown) =>
+      name === "consume_rate_limit" ? { data: null, error: { message: "falhou" } } : base(name, args),
+    );
+    expect((await requestImageUpload("gallery", "image/webp", eventId)).ok).toBe(false);
+    expect(mocks.createUploadToken).not.toHaveBeenCalled();
+  });
+
+  it("equipe pede envio na galeria sem passar pelo limite do organizador", async () => {
+    useTables({
+      events: table({ data: { slug: "show" } }),
+      event_images: table({ count: 1 }),
+    });
+    expect((await requestImageUpload("gallery", "image/webp", eventId)).ok).toBe(true);
+    expect(mocks.adminRpc).not.toHaveBeenCalledWith("consume_rate_limit", expect.anything());
   });
 
   const otherOwner = {
