@@ -79,7 +79,10 @@ describe("prévia do link do evento", () => {
   it("usa a logo quando não há capa, o endereço é inválido ou a capa é de fora", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     mocks.cover = null;
-    expect((await call("sem-capa")).headers.get("location")).toMatch(/\/brand\/og-espaco-byla\.png$/);
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://ingressos.exemplo");
+    expect((await call("sem-capa")).headers.get("location")).toBe(
+      "https://ingressos.exemplo/brand/og-espaco-byla.png",
+    );
     expect((await call("../segredo")).status).toBe(302);
     mocks.cover = "https://outro-site.exemplo/imagem.jpg";
     expect((await call("capa-externa")).status).toBe(302);
