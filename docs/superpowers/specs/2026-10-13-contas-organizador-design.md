@@ -1,6 +1,6 @@
 # Contas de organizador — design
 
-Data: 2026-10-13 · Status: **aguardando revisão do dono** · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
+Data: 2026-10-13 · Status: **aguardando revisão do dono** (perguntas 1–7 respondidas em 2026-10-13; faltam as perguntas 8 e 9 da seção 21) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -12,8 +12,10 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 - **Cada um no seu quadrado:** o organizador só vê e mexe nos próprios eventos. Não vê eventos de outros, nem o financeiro geral, nem a página da taxa de serviço. Isso é garantido no servidor **e** no banco.
 - **Nada vai ao ar sem o Admin:** o organizador cria o evento como rascunho e envia para aprovação. Só depois do "Aprovar e publicar" o evento aparece no site e vende.
 - **Estorno:** o organizador **pede**; a equipe do Espaço faz, pelo botão "Estornar pedido" que já existe.
-- **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento; o Admin marca "Pago" (registro que não se apaga).
-- **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A Política de Privacidade ganha uma versão nova dizendo isso.
+- **Cortesia:** o organizador **não emite**; pede à equipe do Espaço pelo WhatsApp, e a equipe emite pelo botão de cortesia que já existe.
+- **Mudanças depois de aprovado:** textos, fotos, pausar vendas e sessão nova valem na hora; nome, preço já vendido, menos lugares, troca de horário e cancelamento viram pedido ao Admin.
+- **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento, para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
+- **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A página do evento e o e-mail do ingresso mostram "Produção: <nome do organizador>". A Política de Privacidade ganha uma versão nova dizendo isso.
 - **Portaria:** o organizador faz check-in só de ingressos dos próprios eventos; o banco recusa os outros sem revelar de qual evento são.
 - **Verificação em duas etapas obrigatória** (código de 6 dígitos num aplicativo do celular) para organizadores **e** para a equipe atual, com implantação sem trancar ninguém para fora.
 - **Excluir evento:** sem vendas, o organizador exclui sozinho; com vendas, pede e o Admin decide (na prática, cancelar com reembolso de todos).
@@ -49,7 +51,23 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 10 | Excluir evento | Sem vendas: direto. Com vendas: pedido ao Admin. |
 | 11 | Textos | Textos ao comprador não citam fornecedores. Termos do organizador preferem termos genéricos (seção 13.0). |
 
-Interpretação desta spec para a decisão 5 **[R]**: "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento (inclusive a parte que incide sobre a taxa de serviço). Assim o Espaço fica neutro em eventos de organizador. Para eventos do próprio Espaço continua valendo a decisão 4 da taxa de serviço (tarifa sobre a taxa fica com o Espaço). Se o dono preferir dividir proporcionalmente, muda só a fórmula da seção 10.2.
+### 2.1 Respostas às perguntas da spec (dono, 2026-10-13)
+
+| # | Tema | Resposta | Onde muda |
+| --- | --- | --- | --- |
+| 12 (perg. 1) | Mudanças depois da aprovação | **A** — descrição, fotos/capa, pausar/reabrir vendas e sessão nova valem na hora (ficam no histórico); nome do evento, preço de sessão com venda, redução de lugares, troca de horário e cancelamento de sessão viram pedido ao Admin. | 6.4, 8.3, 12 |
+| 13 (perg. 2) | Cortesias | **C** — o organizador **não emite** cortesias; pede à equipe do Espaço, que emite pelo fluxo atual. | 4.2, 6.5, 8.3, 13, 16 |
+| 14 (perg. 3) | Dados de quem recebe | **A** — nome e CPF/CNPJ do titular da chave PIX, que tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); o Espaço confirma com o contador se precisa de nota ou recibo. | 5.3, 7.2, 13, 15 |
+| 15 (perg. 4) | Estorno/contestação depois do repasse | **A** — desconta do próximo repasse do mesmo organizador; sem outro evento com repasse em até 30 dias, o organizador devolve por PIX em até 10 dias. | 7.7, 8.4, 10.4, 10.5, 12.3, 13, 14 |
+| 16 (perg. 5) | Nome do organizador ao comprador | **A** — "Produção: <nome público>" na página do evento e no e-mail do ingresso. | 12.1, 14, 15 |
+| 17 (perg. 6) | Confirmar e-mail no cadastro | **A** — código de 6 dígitos por e-mail durante o cadastro. | 5.3, 7.3, 14 |
+| 18 (perg. 7) | Portaria do organizador | **A** — sem subcontas nesta entrega; o próprio organizador (ou a equipe do Espaço) faz o check-in. | 19 |
+
+**Cortesia a pedido — escolha desta spec [R]:** o pedido de cortesia vai **pelo WhatsApp**, sem tela nova. Motivo: a cortesia precisa de nome e e-mail do convidado; um formulário no painel guardaria esses dados num pedido intermediário (mais dados pessoais guardados, mais uma tela e mais uma regra), enquanto o botão "Emitir cortesia" que a equipe já usa resolve com uma conversa. O organizador vê as cortesias emitidas no próprio evento (lista de pedidos, valor R$ 0,00) e elas não mexem na parte dele. Se o volume crescer, um "Pedir cortesia" no painel pode entrar depois (fora de escopo).
+
+**Ainda em aberto:** a tarifa do banco sobre a parte da taxa de serviço (pergunta 8) e a cidade dos feriados do prazo do repasse (pergunta 9). Até a resposta, a spec segue a interpretação abaixo e Salvador.
+
+Interpretação desta spec para a decisão 5 **[R]**, a confirmar na pergunta 8: "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento (inclusive a parte que incide sobre a taxa de serviço). Assim o Espaço fica neutro em eventos de organizador. Para eventos do próprio Espaço continua valendo a decisão 4 da taxa de serviço (tarifa sobre a taxa fica com o Espaço). Se o dono escolher dividir proporcionalmente, muda só a fórmula da seção 10.2.
 
 ---
 
@@ -92,7 +110,9 @@ Interpretação desta spec para a decisão 5 **[R]**: "tarifa real de cada pagam
 | Estornar pedido | ✔ | ✔ | ✔ | ✘ (só pedir) |
 | Pedir estorno | — | — | — | ✔ próprios eventos |
 | Decidir "Pago sem vaga" | ✔ | ✔ | ✔ | ✘ (vê o aviso) |
-| Emitir cortesia | ✔ | ✔ | ✔ | conforme pergunta 2 |
+| Emitir / cancelar cortesia | ✔ (inclusive em evento de organizador, a pedido dele) | ✔ | ✔ | ✘ (pede à equipe pelo WhatsApp; vê as cortesias do próprio evento) |
+| Pedir mudança (nome, preço vendido, lugares, horário, cancelar sessão) | — | — | — | ✔ próprios eventos aprovados |
+| Decidir pedido de mudança | ✔ | ✔ | ✘ | ✘ |
 | Trocar horário com venda / cancelar sessão | ✔ | ✔ | ✔ | ✘ (pede; seção 6.4) |
 | Check-in | ✔ todos | ✔ todos | ✔ todos | ✔ só dos próprios eventos |
 | Excluir evento sem vendas | ✔ | ✔ | ✔ | ✔ próprios |
@@ -136,10 +156,10 @@ Tudo que diz ✔ é conferido **duas vezes**: no servidor (helper da seção 11.
 Página `/convite` (celular primeiro), em passos com barra de progresso:
 
 1. **Conferência do convite** — POST do token; o servidor confere hash, validade, uso e revogação. Resposta genérica para qualquer falha: "Este convite não vale mais. Peça um novo ao Espaço Byla." Limite: 20 tentativas por hora por IP.
-2. **Seus dados** — nome completo (para contato), nome público (aparece na página do evento se a pergunta 5 = A), WhatsApp, e-mail.
-3. **Confirmação do e-mail** — código de 6 dígitos enviado ao e-mail (se a pergunta 6 = A; 1 e-mail, vale 15 min, 5 tentativas).
+2. **Seus dados** — nome completo (para contato), nome público (aparece como "Produção: <nome público>" na página do evento e no e-mail do ingresso; pode ser o nome da produtora ou do coletivo), WhatsApp, e-mail.
+3. **Confirmação do e-mail** — código de 6 dígitos enviado ao e-mail (1 e-mail; vale 15 min; 5 tentativas; "Reenviar código" no máximo 2 vezes por convite). Só o hash do código é guardado (seção 7.3). Sem confirmar, o cadastro não continua.
 4. **Senha** — mínimo 12 caracteres, sem outras regras de composição; aviso para não reaproveitar senha de outro site.
-5. **Recebimento** — tipo e chave PIX, nome do titular (e CPF/CNPJ do titular se a pergunta 3 = A). Aviso: "O repasse vai para esta chave. Confira com cuidado."
+5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado."
 6. **Termos** — texto dos "Termos do organizador" com rolagem e caixa "Li e aceito os Termos do organizador e a Política de Privacidade". Versão gravada.
 7. Servidor: confere o token de novo, cria a conta com a chave `service_role` (`auth.admin.createUser`, e-mail já confirmado), chama `accept_organizer_invite` (marca o convite usado e cria o perfil na mesma transação). Se a função falhar, apaga a conta recém-criada (compensação) e mostra erro genérico. Dois envios ao mesmo tempo: só um passa (trava no convite).
 8. **Duas etapas** — já logado, tela "Proteja sua conta": QR Code + código para digitar à mão + campo do código de 6 dígitos. Sugestão de aplicativos gratuitos (Google Authenticator, Microsoft Authenticator). Sem concluir este passo, nenhuma tela do painel abre (seção 11.2).
@@ -166,7 +186,18 @@ Login depois: `/organizador/entrar` (e-mail + senha) → código de 6 dígitos �
 2. Equipe recebe aviso; na página do evento (equipe) aparece a faixa "1 pedido de estorno solicitado pelo organizador", e o pedido ganha o selo "Estorno pedido pelo organizador: <motivo>".
 3. A equipe usa o **"Estornar pedido"** que já existe (mesmas regras: 100%, com taxa, bloqueado depois de check-in, e-mail ao comprador). Quando o pedido vira `estornado`, o pedido de estorno fecha sozinho como "Estornado".
 4. Ou a equipe clica "Recusar pedido de estorno" com motivo (ex.: fora do prazo dos Termos de compra).
-5. Organizador recebe e-mail com o resultado. Estorno feito diminui a parte dele (seção 10).
+5. Organizador recebe e-mail com o resultado. Estorno feito diminui a parte dele (seção 10); se o repasse do evento já foi feito, vira desconto pendente (seção 10.4).
+
+### 5.5.1 Pedido de mudança (evento aprovado)
+
+1. No formulário do evento aprovado, os campos da seção 6.4 que pedem Admin ficam travados com o botão **"Pedir mudança"**: o organizador informa o que quer mudar (ex.: "Sessão de 19h passa para 20h") e o motivo (5–500).
+2. Equipe recebe aviso; o pedido aparece em **Aprovações → Mudanças**.
+3. O Admin aplica a mudança pelos fluxos que já existem na página do evento (editor de sessões, trocar horário com e-mail aos compradores, cancelar sessão com estornos) e marca o pedido como **"Feito"**, ou **"Recusar"** com motivo.
+4. Organizador recebe e-mail com o resultado.
+
+### 5.5.2 Cortesia
+
+O organizador pede pelo WhatsApp ao Espaço (quantas, sessão, nome e e-mail de cada convidado). A equipe emite pelo botão de cortesia que já existe, na página do evento. A cortesia aparece na lista de pedidos do organizador como "Cortesia" (R$ 0,00) e entra na portaria normalmente. O painel do organizador mostra o lembrete: "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
 
 ### 5.6 Exclusão de evento
 
@@ -207,23 +238,25 @@ Gatilho `events_guard_publication`: se `organizer_id` não é nulo e `approval_s
 - `events.organizer_id` é gravado na criação e **não muda** (gatilho recusa alteração). Transferir evento entre organizadores fica fora de escopo.
 - Organizador suspenso: perde o acesso; eventos aprovados continuam vendendo até o Admin decidir (pausar ou cancelar), para não prejudicar compradores.
 
-### 6.4 Mudanças depois da aprovação (proposta = pergunta 1, opção A)
+### 6.4 Mudanças depois da aprovação (decisão 12)
 
 | Mudança | Vale na hora? |
 | --- | --- |
 | Descrição, fotos, capa | Sim (registrada no histórico; Admin vê "alterado depois da aprovação") |
 | Pausar / reabrir vendas | Sim |
 | Nova sessão, preço de sessão ainda sem venda | Sim |
-| Nome do evento, preço de sessão com venda, reduzir lotação | Pedido ao Admin |
+| Nome do evento, preço de sessão com venda, reduzir lotação | Pedido ao Admin (seção 5.5.1) |
 | Trocar horário de sessão com venda, cancelar sessão | Pedido ao Admin (a equipe usa os fluxos atuais, com aviso aos compradores) |
 
-### 6.5 Cortesias
+Antes da aprovação (rascunho ou recusado) tudo é livre. O banco confere a regra (`save_event_with_sessions` compara o que mudou e recusa com `ORG_ESTADO` o que precisa de pedido).
 
-Conforme a pergunta 2. Recomendação: o organizador emite cortesias até 10% da lotação de cada sessão; acima disso, só a equipe. Motivo: cortesia não paga taxa de serviço, e cortesias sem limite permitiriam vender "por fora" e usar o site só para a portaria.
+### 6.5 Cortesias (decisão 13)
+
+O organizador **não emite nem cancela** cortesias: não há botão de cortesia na área dele, e as funções `issue_courtesy_ticket` / `cancel_courtesy_ticket` continuam só da equipe (recusam o organizador porque ele não está em `staff_profiles`). Ele pede pelo WhatsApp (seção 5.5.2). Motivo do dono e da regra: cortesia não paga taxa de serviço, e emissão livre permitiria vender "por fora" e usar o site só para a portaria. Cortesia vale R$ 0,00 e não entra na conta da parte do organizador.
 
 ### 6.6 Dados do comprador que o organizador vê
 
-Por pedido: número do pedido, nome, e-mail, data, sessão, tipos e quantidades, valor dos ingressos, situação (pago, estornado, aguardando decisão…), quantos ingressos já entraram, e o pedido de estorno (se houver). **Nunca**: telefone, link do pedido (`public_token`), código dos ingressos, IDs do banco de pagamento, CPF. Sem planilha de compradores nesta entrega (fora de escopo).
+Por pedido (inclusive cortesias emitidas pela equipe): número do pedido, nome, e-mail, data, sessão, tipos e quantidades, valor dos ingressos, situação (pago, estornado, aguardando decisão, cortesia…), quantos ingressos já entraram, e o pedido de estorno (se houver). **Nunca**: telefone, link do pedido (`public_token`), código dos ingressos, IDs do banco de pagamento, CPF. Sem planilha de compradores nesta entrega (fora de escopo).
 
 ---
 
@@ -239,7 +272,6 @@ create table public.organizer_settings (
   enabled boolean not null default false,              -- área do organizador DESLIGADA ao publicar
   staff_mfa_enforced boolean not null default false,   -- trava de duas etapas no banco (fase 1)
   max_session_capacity integer not null default 100 check (max_session_capacity between 1 and 2000),
-  courtesy_max_bps integer not null default 1000 check (courtesy_max_bps between 0 and 10000),
   updated_at timestamptz not null default now()
 );
 ```
@@ -258,7 +290,7 @@ create table public.organizer_profiles (
   pix_key_type text not null check (pix_key_type in ('cpf','cnpj','email','telefone','aleatoria')),
   pix_key text not null check (char_length(pix_key) between 1 and 77),
   pix_holder_name text not null check (char_length(btrim(pix_holder_name)) between 2 and 120),
-  pix_holder_document text,             -- só se pergunta 3 = A; CPF/CNPJ só dígitos
+  pix_holder_document text not null check (pix_holder_document ~ '^([0-9]{11}|[0-9]{14})$'),  -- CPF/CNPJ do titular, só dígitos
   pix_key_changed_at timestamptz,
   status text not null default 'ativo' check (status in ('ativo','suspenso','encerrado')),
   status_reason text check (status_reason is null or char_length(status_reason) between 5 and 500),
@@ -273,7 +305,8 @@ create table public.organizer_pix_change_requests (
   id uuid primary key default gen_random_uuid(),
   organizer_id uuid not null references public.organizer_profiles (user_id),
   pix_key_type text not null, pix_key text not null,
-  pix_holder_name text not null, pix_holder_document text,
+  pix_holder_name text not null,
+  pix_holder_document text not null check (pix_holder_document ~ '^([0-9]{11}|[0-9]{14})$'),
   status text not null default 'pendente' check (status in ('pendente','confirmada','recusada','cancelada')),
   decided_by uuid references auth.users (id) on delete set null,
   decided_at timestamptz,
@@ -285,6 +318,7 @@ create unique index on public.organizer_pix_change_requests (organizer_id) where
 - Gatilho `forbid_staff_and_organizer`: recusa inserir em `organizer_profiles` quem está em `staff_profiles`, e o inverso.
 - RLS `organizer_profiles`: `select` para `authenticated` quando `user_id = auth.uid() and public.is_organizer()` (o próprio, com duas etapas). Admin lê por função (não por RLS), para a chave PIX não ficar exposta a toda a equipe.
 - Troca de chave PIX: o organizador pede (com duas etapas), recebe e-mail de aviso, e o Admin confirma em **Organizadores → Contas** antes do próximo repasse. Defesa contra quem roubar a conta e trocar a chave.
+- CPF/CNPJ do titular (decisão 14): validado pelos dígitos verificadores no servidor; nas telas aparece mascarado (`•••.456.789-••`), completo só na tela de repasse do Admin não desenvolvedor; nunca em logs, e-mails ou planilhas. O Admin confere, ao confirmar a conta ou a troca de chave, que o titular é o organizador ou a empresa dele.
 
 ### 7.3 Convites e pedidos do site
 
@@ -316,11 +350,18 @@ create table public.organizer_invites (
   used_by uuid references auth.users (id),
   revoked_at timestamptz,
   revoked_by uuid references auth.users (id),
+  email_code_hash bytea,                      -- confirmação do e-mail no cadastro (decisão 17)
+  email_code_email text,                      -- e-mail para o qual o código foi enviado
+  email_code_expires_at timestamptz,          -- +15 min
+  email_code_attempts smallint not null default 0 check (email_code_attempts between 0 and 5),
+  email_code_sends smallint not null default 0 check (email_code_sends between 0 and 3),
+  email_verified_at timestamptz,
   check (used_at is null or revoked_at is null)
 );
 ```
 
 - Ambas **sem políticas** para `authenticated`: leitura e escrita só por funções (`service_role`).
+- Código do e-mail: 6 dígitos de gerador criptográfico, guardado só como hash (com o id do convite no cálculo); 5 tentativas erradas invalidam o código; trocar o e-mail depois de confirmado exige novo código; `accept_organizer_invite` recusa se `email_verified_at` for nulo ou se o e-mail da conta for diferente de `email_code_email`. Os campos do código são apagados quando o convite é usado.
 - Limpeza diária (no cron `keep-alive` já existente): apaga convites vencidos/usados há mais de 30 dias e pedidos tratados há mais de 180 dias.
 
 ### 7.4 Evento
@@ -342,7 +383,9 @@ create index events_organizer_id_idx on public.events (organizer_id) where organ
 - Eventos existentes: `organizer_id` nulo, `aprovado` (nada muda).
 - Gatilhos: `events_guard_publication` (seção 6.2), `events_organizer_immutable` (seção 6.3).
 
-### 7.5 Pedidos de estorno e de exclusão (e de mudança)
+### 7.5 Pedidos de estorno, de exclusão e de mudança
+
+(Cortesia não tem pedido no painel: vai pelo WhatsApp, decisão 13.)
 
 ```sql
 create table public.organizer_ops_requests (
@@ -394,9 +437,9 @@ create table public.order_payment_fees (
 create table public.organizer_payouts (
   id uuid primary key default gen_random_uuid(),
   organizer_id uuid not null references public.organizer_profiles (user_id),
-  kind text not null check (kind in ('repasse','ajuste')),
-  amount_cents integer not null,        -- repasse: > 0; ajuste: <> 0
-  pix_date date,                        -- obrigatório no repasse
+  kind text not null check (kind in ('repasse','ajuste','devolucao')),
+  amount_cents integer not null,        -- repasse: > 0; ajuste: <> 0; devolucao (organizador devolveu): < 0
+  pix_date date,                        -- obrigatório no repasse e na devolução
   pix_key_snapshot text,                -- chave usada (mascarada na tela)
   note text check (note is null or char_length(note) <= 140),
   reason text,                          -- obrigatório no ajuste (5–500)
@@ -450,7 +493,7 @@ create table public.business_holidays (
 
 ## 8. Funções do banco e mudanças no que existe
 
-Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, authenticated`; `grant execute ... to service_role` (exceto as marcadas "RLS", que precisam de `grant execute to authenticated` porque são usadas em políticas e só devolvem verdadeiro/falso). As que escrevem recebem `p_actor_user_id` e reconferem papel, dono e duas etapas **dentro** do banco. Erros com prefixos estáveis: `ORG_ACESSO`, `ORG_DONO`, `ORG_ESTADO`, `ORG_CONVITE`, `ORG_DESLIGADO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`, `ORG_MUDOU`, `ORG_NADA`.
+Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, authenticated`; `grant execute ... to service_role` (exceto as marcadas "RLS", que precisam de `grant execute to authenticated` porque são usadas em políticas e só devolvem verdadeiro/falso). As que escrevem recebem `p_actor_user_id` e reconferem papel, dono e duas etapas **dentro** do banco. Erros com prefixos estáveis: `ORG_ACESSO`, `ORG_DONO`, `ORG_ESTADO`, `ORG_CONVITE`, `ORG_DESLIGADO`, `ORG_TARIFA_PENDENTE`, `ORG_PIX_PENDENTE`, `ORG_MUDOU`, `ORG_NADA`, `ORG_DEVOLUCAO`, `ORG_EMAIL`.
 
 ### 8.1 Novas — identidade e acesso
 
@@ -472,11 +515,13 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 | `create_organizer_invite(p_admin, p_token_hash, p_kind, p_label, p_request_id, p_target_user_id)` | Admin | grava convite (7 dias / 24 h); pedido do site vira "convidada" |
 | `revoke_organizer_invite(p_admin, p_invite_id)` | Admin | revoga se ativo |
 | `check_organizer_invite(p_token_hash)` | público via servidor | devolve só `valido` / `invalido` |
-| `accept_organizer_invite(p_token_hash, p_user_id, perfil..., p_terms_version)` | servidor | trava o convite (`for update`), confere validade, cria perfil, marca usado, histórico |
+| `start_invite_email_code(p_token_hash, p_email, p_code_hash)` | servidor (após limite por IP) | grava hash do código e e-mail; recusa depois de 3 envios |
+| `verify_invite_email_code(p_token_hash, p_code_hash)` | servidor | confere código, validade e tentativas; marca `email_verified_at` |
+| `accept_organizer_invite(p_token_hash, p_user_id, perfil..., p_terms_version)` | servidor | trava o convite (`for update`), confere validade e e-mail confirmado (igual ao da conta), valida CPF/CNPJ do titular, cria perfil, marca usado, apaga os campos do código, histórico |
 | `use_password_reset_invite(p_token_hash)` | servidor | confere e marca usado; devolve o `target_user_id` para o servidor trocar a senha |
 | `submit_signup_request(nome, contato, ideia, data, versão)` | servidor (após anti-robô + limite) | grava pedido do site |
 | `list_signup_requests(p_admin, p_status)` / `archive_signup_request(p_admin, p_id)` | Admin | — |
-| `list_organizers(p_admin)` | Admin | lista; chave PIX só mascarada (`•••• 1234`); completa só para Admin não desenvolvedor na tela de repasse |
+| `list_organizers(p_admin)` | Admin | lista; chave PIX e CPF/CNPJ do titular só mascarados (`•••• 1234`); completos só para Admin não desenvolvedor na tela de repasse |
 | `set_organizer_status(p_admin, p_user_id, p_status, p_reason)` | Admin | suspender/reativar/encerrar |
 | `request_pix_change(p_actor, ...)` / `decide_pix_change(p_admin_nao_dev, p_id, p_ok)` | organizador / Admin | troca de chave PIX |
 
@@ -494,8 +539,10 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 | `delete_own_event(p_actor, p_event_id, p_confirm_name)` | dono; recusa se houve pedido pago ou em andamento; apaga ou exclui logicamente |
 | `request_event_deletion(p_actor, p_event_id, p_reason)` | dono; pausa vendas e cria pedido |
 | `finish_event_deletion(p_admin, p_event_id)` | Admin; só com todas as sessões canceladas; `deleted_at` |
-| `request_event_change(p_actor, p_event_id, p_details, p_reason)` | dono; mudanças da seção 6.4 que pedem Admin |
-| `issue_courtesy_ticket` (nova assinatura com `p_actor`) | equipe sem limite; dono até `courtesy_max_bps` da lotação da sessão (se pergunta 2 = A) |
+| `request_event_change(p_actor, p_event_id, p_details, p_reason)` | dono, evento `aprovado`; mudanças da seção 6.4 que pedem Admin |
+| `finish_event_change(p_admin, p_request_id)` | Admin marca o pedido de mudança como feito, depois de aplicar pelos fluxos existentes |
+
+Cortesia: **nenhuma função nova** (decisão 13). `issue_courtesy_ticket` e `cancel_courtesy_ticket` ficam como estão, só da equipe.
 
 ### 8.4 Novas — dinheiro do organizador (fase 3)
 
@@ -509,6 +556,8 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 | `organizer_payouts_overview(p_admin, p_from, p_to)` | lista para a página "Repasses" |
 | `record_organizer_payout(p_event_id, p_admin_nao_dev, p_expected_amount_cents, p_pix_date, p_note)` | igual a `record_service_fee_payout`: trava, recalcula, confere valor esperado (`ORG_MUDOU`), recusa com tarifa pendente (`ORG_TARIFA_PENDENTE`) ou troca de PIX pendente (`ORG_PIX_PENDENTE`), abate descontos pendentes de outros eventos do mesmo organizador, recusa total ≤ 0 (`ORG_NADA`) |
 | `record_organizer_payout_adjustment(p_event_id, p_admin_nao_dev, p_amount_cents, p_reason)` | correção sem apagar nada |
+| `record_organizer_refund_received(p_event_id, p_admin_nao_dev, p_amount_cents, p_pix_date, p_note)` | "Devolução recebida" (seção 10.5); só com saldo negativo e valor ≤ o saldo devido |
+| `organizer_overdue_refunds(p_organizer_id)` | usada por `submit_event_for_approval` para recusar com `ORG_DEVOLUCAO` |
 
 ### 8.5 Mudanças em funções que já existem
 
@@ -519,7 +568,8 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 | `save_event_with_sessions` | checagem de equipe vira `actor_event_access`; dono só com estado `rascunho`/`recusado`, ou `aprovado` respeitando a seção 6.4 (`ORG_ESTADO`); dono nunca muda `sales_open` por aqui |
 | `set_session_sales_open` | dono permitido só com evento `aprovado` |
 | `event_is_past`, `public_past_events` | ignoram eventos com `deleted_at` |
-| `begin_order_refund`, `accept_paid_order`, `cancel_event_session`, `start_session_refund_batch`, `queue_schedule_change_notice`, `cancel_courtesy_ticket`, finanças da taxa | **sem mudança**: continuam só da equipe (o organizador é recusado porque não está em `staff_profiles`) |
+| `begin_order_refund`, `accept_paid_order`, `cancel_event_session`, `start_session_refund_batch`, `queue_schedule_change_notice`, `issue_courtesy_ticket`, `cancel_courtesy_ticket`, finanças da taxa | **sem mudança**: continuam só da equipe (o organizador é recusado porque não está em `staff_profiles`) |
+| `sendOrderTicketsEmail` (servidor, não é função do banco) | o e-mail do ingresso ganha a linha "Produção: <nome público>" quando o evento tem organizador (decisão 16) |
 
 ### 8.6 Mudanças em políticas (RLS)
 
@@ -532,6 +582,7 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 | `session_audit_log` e demais tabelas de sessão | `is_staff()` | sem mudança |
 | `organizer_profiles` | — | `select` do próprio com `is_organizer()` |
 | demais tabelas novas | — | sem políticas (só funções) |
+| nome público do organizador na página do evento | — | sem política nova: a página lê por função `public_event_producer(p_event_id)` (RLS, SECURITY DEFINER; devolve só o nome público de evento visível ao público), para não abrir `organizer_profiles` |
 | arquivos do bucket `event-media` | escrita só pelo servidor | sem mudança; a ação de upload confere o dono antes |
 
 ---
@@ -558,26 +609,26 @@ Padrão para todas: `set search_path = ''`; `revoke all ... from public, anon, a
 
 - **Comprador** paga: preço do ingresso + taxa de serviço (quando ligada).
 - **Taxa de serviço** é do desenvolvedor; **não entra nem sai** da parte do organizador.
-- **Tarifa do banco** (cobrada sobre o pagamento inteiro) sai da parte do organizador (decisão 5; interpretação na seção 2).
+- **Tarifa do banco** (cobrada sobre o pagamento inteiro) sai da parte do organizador (decisão 5; interpretação na seção 2, ainda em aberto na pergunta 8).
 - **Espaço** não cobra comissão.
 
 ### 10.2 Contas do evento
 
-- **Pedidos que contam:** pedidos do evento que chegaram a ser pagos (`pago`, `estornado`). `aguardando_decisao` fica fora até ser aceito. Cortesias valem 0.
+- **Pedidos que contam:** pedidos do evento que chegaram a ser pagos (`pago`, `estornado`). `aguardando_decisao` fica fora até ser aceito. Cortesias (emitidas só pela equipe) valem 0 e não mexem em nada.
 - **Vendido** = soma de `tickets_subtotal_cents` desses pedidos (só ingressos, sem a taxa de serviço).
 - **Estornos** = soma de `tickets_subtotal_cents` dos estornados.
 - **Contestações** = soma de `tickets_subtotal_cents` dos pagos contestados (registro manual já existente, `order_chargebacks`).
 - **Tarifa do banco** = soma de `order_payment_fees.fee_cents` dos pedidos que contam (com o valor atualizado depois de estornos).
 - **Sua parte** = vendido − estornos − contestações − tarifa do banco.
-- **Já repassado** = soma de `organizer_payout_items` do evento.
-- **Saldo** = sua parte − já repassado. Negativo = desconto pendente (pergunta 4).
+- **Já repassado** = soma de `organizer_payout_items` do evento (devoluções do organizador entram negativas).
+- **Saldo** = sua parte − já repassado. Negativo = desconto pendente (decisão 15, seção 10.5).
 
 Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inteiras de R$ 50,00 com taxa de 5% ligada. Vendido R$ 500,00. Compradores pagaram R$ 525,00. Cada pedido de 1 Inteira paga R$ 52,50. Tarifa do banco: 6 pagamentos PIX (~0,99% = R$ 0,52 cada) + 4 no cartão (~4,98% = R$ 2,61 cada) = R$ 3,12 + R$ 10,44 = R$ 13,56. Um pedido de cartão foi estornado (R$ 50,00 de ingresso; o banco devolveu a tarifa de R$ 2,61), então a tarifa do evento fica R$ 10,95. Sua parte = 500,00 − 50,00 − 0 − 10,95 = **R$ 439,05**.
 
 ### 10.3 Prazo do repasse
 
 - "A pagar" começa no **dia seguinte à última sessão ativa** (mesma data de `event_fee_due_date`, horário de Brasília).
-- **Prazo** = 5º dia útil contado a partir desse dia (ele mesmo conta, se for dia útil). Dia útil = segunda a sexta, fora de `business_holidays`.
+- **Prazo** = 5º dia útil contado a partir desse dia (ele mesmo conta, se for dia útil). Dia útil = segunda a sexta, fora de `business_holidays` (feriados nacionais + da cidade; Salvador por suposição, a confirmar na pergunta 9).
 - Exemplos: última sessão sexta 23/10/2026 → começa sábado 24/10 → dias úteis 26, 27, 28, 29, 30 → **prazo 30/10**. Última sessão sábado 14/11/2026 → começa domingo 15/11 (feriado) → 16, 17, 18, 19 e (20/11 é feriado) 23 → **prazo 23/11**.
 - Ponto de atenção para o Espaço **[S]:** o dinheiro de cartão pode demorar a ficar disponível na conta do banco de pagamento (depende do prazo de recebimento escolhido na conta). O repasse em 5 dias úteis pode sair antes de o Espaço ter recebido as vendas no cartão.
 
@@ -591,7 +642,16 @@ Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inte
 | Atrasado | passou do prazo, saldo > 0 | "Previsto até dd/mm — o Espaço foi avisado" |
 | Pago em dd/mm | saldo = 0 e há repasse | "Pago em dd/mm · R$ X" |
 | Sem valor a repassar | saldo = 0 sem repasse | "Sem valor a repassar" |
-| Desconto pendente | saldo < 0 | "−R$ X será descontado do próximo repasse" (pergunta 4) |
+| Desconto pendente | saldo < 0, até 30 dias | "−R$ X será descontado do próximo repasse" |
+| Devolução pendente | saldo < 0 há mais de 30 dias sem repasse que o abata | "Devolva R$ X por PIX ao Espaço Byla até dd/mm" (prazo de 10 dias; seção 10.5) |
+
+### 10.5 Estorno ou contestação depois do repasse (decisão 15)
+
+1. O evento fica com saldo negativo e aparece "Desconto pendente" para o organizador e o Admin, com o motivo (estorno do pedido Nº … ou contestação).
+2. No próximo repasse do **mesmo organizador**, `record_organizer_payout` abate o valor automaticamente (linha negativa do evento antigo).
+3. Se em **30 dias** (contados do dia em que o saldo ficou negativo) não houver repasse que abata tudo, a situação vira "Devolução pendente": o organizador recebe e-mail e vê no painel o valor, a chave PIX do Espaço (`ORGANIZER_REFUND_PIX_KEY` no ambiente do servidor; nunca no Git) e o prazo de **10 dias**.
+4. Quando o PIX chega, o Admin (não desenvolvedor) registra **"Devolução recebida"** (valor e data), lançamento imutável que zera o saldo.
+5. Passado o prazo, o Admin vê "Devolução atrasada" e decide fora do sistema (conversa, suspensão da conta). O organizador não consegue enviar evento novo para aprovação enquanto houver devolução atrasada (`ORG_DEVOLUCAO`).
 
 ---
 
@@ -637,7 +697,7 @@ Supabase Auth com fator TOTP (aplicativo autenticador; incluso no plano gratuito
 - **Página inicial:** no fim, bloco discreto "Quer fazer seu evento no Espaço Byla? → Fale com a gente".
 - **`/quero-fazer-meu-evento`:** formulário da seção 5.1; link para `/termos-organizador` ("Veja como funciona para organizadores").
 - **`/termos-organizador`:** texto da seção 13 (público, para ler antes de aceitar).
-- **Página do evento:** "Produção: <nome público>" abaixo do local, se a pergunta 5 = A.
+- **Página do evento:** "Produção: <nome público>" abaixo do local, nos eventos de organizador (decisão 16). Eventos do próprio Espaço não mostram a linha. O e-mail do ingresso traz a mesma linha.
 
 ### 12.2 Área do organizador (`/organizador`)
 
@@ -658,9 +718,9 @@ Selos: Rascunho · Em análise · Recusado (ver motivo) · À venda · Vendas pa
 
 **Página do evento** (abas no celular, colunas no computador):
 
-- **Evento** — formulário (travado em "Em análise"); faixa de estado: "Em análise: o Espaço Byla vai conferir e responder em breve." / "Recusado: <motivo>. Ajuste e envie de novo." / "Aprovado e à venda."
+- **Evento** — formulário (travado em "Em análise"; depois de aprovado, os campos da seção 6.4 que pedem Admin ficam travados com o botão "Pedir mudança"); faixa de estado: "Em análise: o Espaço Byla vai conferir e responder em breve." / "Recusado: <motivo>. Ajuste e envie de novo." / "Aprovado e à venda."
 - **Vendas** — por sessão: vendidos, disponíveis, "Pausar vendas" / "Reabrir vendas".
-- **Pedidos** — busca por nome ou número; cada pedido: Nº, nome, e-mail, sessão, itens, situação, "2 de 3 já entraram", botão "Pedir estorno". Aviso no topo: "Use estes dados só para a operação deste evento (Termos do organizador, item 9)."
+- **Pedidos** — busca por nome ou número; cada pedido: Nº, nome, e-mail, sessão, itens, situação, "2 de 3 já entraram", botão "Pedir estorno" (não aparece em cortesia). Cortesias emitidas pela equipe aparecem com o selo "Cortesia". Aviso no topo: "Use estes dados só para a operação deste evento (Termos do organizador, item 9)." Lembrete: "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
 - **Portaria** — botão "Abrir leitor de QR Code" (mesmo leitor da equipe).
 - **Financeiro** (fase 3):
 
@@ -684,16 +744,16 @@ A taxa de serviço paga pelos compradores (R$ 22,50) não entra na sua parte.
 - **Pedidos à equipe** — lista de estorno/exclusão/mudança com situação.
 - Rodapé da página: "Excluir evento" (ou "Pedir exclusão" quando houve vendas).
 
-**Minha conta:** dados, nome público, chave PIX (mascarada) + "Trocar chave PIX" (aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"), duas etapas, Termos aceitos (versão e data).
+**Minha conta:** dados, nome público, chave PIX e CPF/CNPJ do titular (mascarados) + "Trocar chave PIX" (aviso: "A troca precisa ser confirmada pelo Espaço Byla antes do próximo repasse"), duas etapas, Termos aceitos (versão e data).
 
 ### 12.3 Painel da equipe
 
 Menu (Admin): **Eventos** · **Aprovações** (com número de pendências) · **Organizadores** · **Repasses** · **Taxa de serviço**. Secretaria: **Eventos** (com a faixa de pedidos de estorno).
 
-- **Aprovações:** abas "Eventos" (cards com prévia, lista de conferência, "Aprovar e publicar" / "Aprovar sem publicar" / "Recusar"), "Mudanças" (pedidos da seção 6.4) e "Exclusões".
+- **Aprovações:** abas "Eventos" (cards com prévia, lista de conferência — inclusive o nome público que vai aparecer como "Produção" —, "Aprovar e publicar" / "Aprovar sem publicar" / "Recusar"), "Mudanças" (pedidos da seção 6.4: a equipe aplica a mudança pelo editor normal e marca "Feito", ou "Recusar" com motivo) e "Exclusões".
 - **Organizadores:** abas "Pedidos do site" (Nova/Convidada/Arquivada; "Gerar convite", "Arquivar"), "Convites" (gerar, copiar, WhatsApp, revogar) e "Contas" (status, eventos, "Suspender", "Redefinir duas etapas", "Link para nova senha", trocas de PIX pendentes com "Confirmar"/"Recusar").
-- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. Tudo o mais igual a hoje.
-- **Repasses** (`/equipe/repasses`): totais "A pagar", "Atrasados", "Pago no período"; uma linha/card por evento de organizador (organizador, data, sua parte, situação, prazo) e "Marcar como pago" (Admin não desenvolvedor) com a chave PIX completa e o titular só nessa tela.
+- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). Tudo o mais igual a hoje.
+- **Repasses** (`/equipe/repasses`): totais "A pagar", "Atrasados", "Pago no período", "A receber de organizadores"; uma linha/card por evento de organizador (organizador, data, sua parte, situação, prazo) e "Marcar como pago" (Admin não desenvolvedor) com a chave PIX completa e o titular (nome e CPF/CNPJ completos) só nessa tela. Eventos com saldo negativo mostram "Desconto pendente", "Devolução pendente até dd/mm" ou "Devolução atrasada", com o botão "Devolução recebida" (Admin não desenvolvedor; valor e data do PIX).
 - **Equipe → Segurança da equipe** (Admin): quem já tem duas etapas; "Redefinir duas etapas" de outra conta.
 
 ---
@@ -722,7 +782,9 @@ Estes termos valem para quem cria e vende ingressos de eventos próprios pelo si
 
 - A conta é criada só por convite do Espaço Byla. Ela é pessoal: não compartilhe a senha nem o aplicativo de verificação.
 - A verificação em duas etapas é obrigatória. Se perder o celular, fale com o Espaço Byla para redefinir.
+- No cadastro, confirmamos o seu e-mail com um código. Use um e-mail que você acessa: é por ele que avisamos sobre aprovações, pedidos e repasses.
 - Mantenha seus dados e sua chave PIX corretos. Trocar a chave PIX precisa da confirmação do Espaço Byla antes do próximo repasse.
+- Seu nome público aparece como "Produção: <nome público>" na página do evento e no e-mail do ingresso dos compradores.
 - Você responde pelo que for feito na sua conta. Se suspeitar de uso indevido, avise na hora.
 
 **3. Como o evento vai ao ar**
@@ -741,20 +803,21 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 - A meia-entrada segue a lei e custa metade da inteira da mesma sessão.
 - A lotação de cada sessão não pode passar do limite combinado com o Espaço Byla.
 - A venda, o pagamento e os reembolsos são feitos pelo Espaço Byla, em nome de quem o comprador paga.
+- **Cortesias** (ingressos gratuitos) são emitidas só pela equipe do Espaço Byla. Se precisar, peça pelo WhatsApp informando a sessão, a quantidade e o nome e e-mail de cada convidado. Cortesias não entram na conta da sua parte.
 
 **6. Dinheiro: o que você recebe**
 
 - Todo pagamento cai na conta do Espaço Byla no banco responsável pelo pagamento. O Espaço Byla **não cobra comissão** sobre as suas vendas.
 - O site pode cobrar do comprador uma **taxa de serviço** ({percentual}% por item, mínimo {mínimo}), que paga a manutenção do site. Ela é paga pelo comprador e **não sai da sua parte**.
-- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real** cobrado em cada pagamento. Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
+- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real** cobrado em cada pagamento {texto final depende da pergunta 8: tarifa inteira do pagamento ou só a parte proporcional ao valor dos ingressos}. Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
 - **Sua parte** = valor dos ingressos vendidos − estornos − contestações no cartão − tarifas do banco.
 - No painel do evento você acompanha: vendido, tarifa do banco, estornos, sua parte e a situação do repasse.
 
 **7. Repasse**
 
-- O Espaço Byla paga sua parte por PIX, na chave cadastrada, **em até 5 dias úteis** contados do dia seguinte à última sessão do evento. Dias úteis: segunda a sexta, fora feriados nacionais e de Salvador.
+- O Espaço Byla paga sua parte por PIX, na chave cadastrada, **em até 5 dias úteis** contados do dia seguinte à última sessão do evento. Dias úteis: segunda a sexta, fora feriados nacionais e de {cidade — Salvador, a confirmar na pergunta 9}.
 - Ao registrar o pagamento, o Espaço Byla envia um e-mail com valor e data. O registro não pode ser apagado.
-- O titular da chave PIX deve ser você ou a sua empresa.
+- O titular da chave PIX deve ser você (CPF) ou a sua empresa (CNPJ). Pedimos o nome e o CPF ou CNPJ do titular no cadastro para conferir isso e para a nossa contabilidade. Se a lei exigir, você emite nota fiscal ou recibo do valor recebido.
 - Se houver tarifa ainda em conferência, o repasse pode ser feito com o valor conferido até ali e o restante acertado no próximo repasse.
 
 **8. Estornos, contestações e cancelamentos**
@@ -762,7 +825,7 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 - Pedidos de reembolso dos compradores são analisados e feitos pelo Espaço Byla, conforme os Termos de compra (por exemplo: desistência em até 7 dias da compra e pelo menos 48 horas antes da sessão; troca de horário; sessão cancelada; pagamento sem lugar).
 - Você pode pedir o estorno de um pedido do seu evento pelo painel. O Espaço Byla decide e faz o estorno, que devolve 100% ao comprador, incluindo a taxa de serviço.
 - Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos. Se o banco não devolver a tarifa daquele pagamento, ela continua descontada.
-- Estorno ou contestação depois do repasse: {regra conforme a pergunta 4 — ex.: o valor é descontado do próximo repasse; se não houver outro evento em até 30 dias, você devolve por PIX em até 10 dias}.
+- **Estorno ou contestação depois do repasse:** o valor é descontado do seu próximo repasse. Se em 30 dias não houver repasse que cubra esse valor, você devolve o valor por PIX ao Espaço Byla em até 10 dias depois do aviso. Enquanto houver devolução atrasada, você não consegue enviar evento novo para aprovação.
 - Para cancelar uma sessão ou o evento depois de vender, peça pelo painel. Todos os compradores recebem 100% de volta, e não há repasse sobre pedidos estornados.
 
 **9. Dados dos compradores (LGPD)**
@@ -775,7 +838,7 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 
 **10. Portaria**
 
-- Você pode conferir os ingressos dos seus eventos pelo leitor de QR Code do site. Cada QR Code vale uma entrada; o site recusa ingressos de outro evento, de outra sessão ou de sessão cancelada.
+- Você pode conferir os ingressos dos seus eventos pelo leitor de QR Code do site, com a sua conta (ela é pessoal; não há contas extras de portaria). Se precisar de ajuda na entrada, combine com o Espaço Byla. Cada QR Code vale uma entrada; o site recusa ingressos de outro evento, de outra sessão ou de sessão cancelada.
 - Na entrada, confira o documento de quem usa meia-entrada, conforme os Termos de compra.
 - Respeite a lotação e as regras de segurança do Espaço Byla.
 
@@ -825,8 +888,10 @@ Prioridade continua sendo os ingressos. Os avisos desta spec têm **teto própri
 | Organizador | evento aprovado / recusado (com motivo) | "Seu evento foi aprovado" / "Seu evento precisa de ajustes" |
 | Organizador | pedido de estorno/exclusão/mudança atendido ou recusado | "Resposta ao seu pedido" |
 | Organizador | repasse registrado | "Repasse de R$ X registrado" |
+| Organizador | saldo negativo virou "Devolução pendente" (seção 10.5) | "Devolução pendente: R$ X até dd/mm" |
 | Organizador | troca de chave PIX pedida (para o e-mail da conta) e confirmada | "Sua chave PIX foi alterada" |
-| Organizador | código de confirmação do e-mail no cadastro (pergunta 6) | "Seu código: 123456" |
+| Organizador | código de confirmação do e-mail no cadastro (decisão 17; fora do teto de 10/dia, limitado a 3 por convite) | "Seu código do Espaço Byla Eventos" (o código vai no corpo, nunca no assunto) |
+| Comprador | e-mail do ingresso já existente | ganha a linha "Produção: <nome público>" em eventos de organizador (decisão 16) |
 | Organizador | conta suspensa | "Sua conta foi suspensa" |
 
 O convite **não** vai por e-mail: é o link pelo WhatsApp (decisão 1).
@@ -844,16 +909,16 @@ Mudanças no texto de `/privacidade`:
 - **Introdução** — trocar "quando você compra ingressos por este site" por "quando você compra ingressos por este site, pede para fazer um evento ou usa uma conta de organizador".
 - **"Quais dados recebemos"** — novos itens:
   - "**No pedido para fazer um evento:** nome, contato (WhatsApp ou e-mail) e a ideia do evento."
-  - "**Na conta de organizador:** nome, nome público, e-mail, telefone, chave PIX e nome do titular{, CPF ou CNPJ do titular} e registros de acesso, usados para a conta, a segurança e o pagamento do organizador."
+  - "**Na conta de organizador:** nome, nome público, e-mail (confirmado por código), telefone, chave PIX, nome e CPF ou CNPJ do titular da chave e registros de acesso, usados para a conta, a segurança, o pagamento do organizador e obrigações fiscais e contábeis. O nome público aparece na página dos eventos do organizador."
 - **"Com quem compartilhamos"** — novo item, logo depois de "o banco responsável por processar o pagamento":
-  - "**o organizador do evento**, quando o evento for produzido por um organizador parceiro (indicado na página do evento): apenas o seu nome, o seu e-mail e a situação do seu pedido e dos ingressos (inclusive se já foram usados na entrada), para a operação daquele evento — por exemplo, conferir a entrada ou avisar sobre mudanças. O organizador é obrigado, por contrato, a usar esses dados só para isso, a não enviar propaganda e a apagá-los depois do evento. Telefone, CPF e dados de pagamento nunca são compartilhados com o organizador."
+  - "**o organizador do evento**, quando o evento for produzido por um organizador parceiro (indicado como "Produção" na página do evento e no e-mail do ingresso): apenas o seu nome, o seu e-mail e a situação do seu pedido e dos ingressos (inclusive se já foram usados na entrada), para a operação daquele evento — por exemplo, conferir a entrada ou avisar sobre mudanças. O organizador é obrigado, por contrato, a usar esses dados só para isso, a não enviar propaganda e a apagá-los depois do evento. Telefone, CPF e dados de pagamento nunca são compartilhados com o organizador."
 - **"Para que usamos"** — novo item: "Analisar pedidos para fazer eventos e administrar as contas de organizadores, inclusive o pagamento da parte deles."
 - **"Por quanto tempo guardamos"** — acrescentar: "Pedidos para fazer evento são apagados até 6 meses depois de respondidos. Dados da conta de organizador ficam guardados por até {5} anos depois do fim da parceria, para obrigações fiscais e contábeis."
 - **"Segurança"** — trocar "acesso restrito à equipe do Espaço Byla" por "acesso restrito à equipe do Espaço Byla e, para os próprios eventos, aos organizadores parceiros, sempre com verificação em duas etapas".
 
 ### 15.2 Termos de compra — nova versão
 
-`TERMS_VERSION` muda; na seção "Quem vende", acrescentar: "Alguns eventos são produzidos por organizadores parceiros, indicados na página do evento. Mesmo nesses casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo Espaço Byla, conforme estes termos." Nenhuma outra regra muda.
+`TERMS_VERSION` muda; na seção "Quem vende", acrescentar: "Alguns eventos são produzidos por organizadores parceiros, indicados como "Produção" na página do evento e no e-mail do ingresso. Mesmo nesses casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo Espaço Byla, conforme estes termos." Nenhuma outra regra muda.
 
 ---
 
@@ -875,7 +940,10 @@ Mudanças no texto de `/privacidade`:
 | Spam no formulário público | Turnstile (falha fechada), `consume_rate_limit` (3/h por IP, 30/dia total), tamanhos máximos, nenhum e-mail para quem pede, aviso à equipe agrupado. |
 | Conteúdo malicioso no evento (XSS, phishing) | React escapa o texto; e-mails escapam HTML; capa só `https` [V]; fotos pelo envio existente; aprovação do Admin e histórico de mudanças depois da aprovação. |
 | Organizador some com o dinheiro / evento falso | Dinheiro fica com o Espaço até depois do evento; aprovação prévia; repasse só depois da última sessão. |
-| Cortesia usada para fugir da taxa | Limite de cortesias do organizador (pergunta 2). |
+| Cortesia usada para fugir da taxa | Organizador não emite cortesia (decisão 13): só a equipe, pelas funções que já recusam quem não está em `staff_profiles`. |
+| E-mail errado ou de outra pessoa no cadastro | Código de 6 dígitos (só o hash guardado, 15 min, 5 tentativas, 3 envios por convite); conta criada só com o e-mail confirmado. |
+| CPF/CNPJ do titular exposto | Mascarado nas telas, completo só na tela de repasse do Admin não desenvolvedor; nunca em logs, e-mails, planilhas ou histórico. |
+| Nome público usado para enganar comprador | Nome público é revisado pelo Admin na aprovação de cada evento; texto escapado; até 80 caracteres. |
 | Admin registra repasse falso | Registro imutável, e-mail ao organizador a cada repasse, conta do desenvolvedor não registra dinheiro. Limite honesto: quem administra o banco consegue burlar qualquer regra. |
 | Emergência (abuso em andamento) | `organizer_settings.enabled = false` desliga toda a área do organizador na hora; suspensão por conta. |
 
@@ -892,16 +960,17 @@ Mudanças no texto de `/privacidade`:
 - **Inventário:** teste que lê `src/app/organizador/**/actions.ts`, `src/app/equipe/**/actions.ts` e `route.ts` e falha se alguma função exportada não chamar um helper de acesso (`requireOrganizer`, `requireEventAccess`, `requireStaffUser`, `assertStaff`, `requireFinanceAdmin`).
 - **Matriz no banco:** para cada função nova ou alterada, chamar como anônimo, organizador A, organizador B (dono de outro evento), organizador suspenso, secretaria, Admin desenvolvedor e Admin; conferir aceita/recusa conforme a seção 4.2.
 - **RLS com tokens:** organizador `aal1` não lê nada; organizador `aal2` lê só os próprios eventos/sessões/tipos/fotos e nunca `orders`/`tickets`; equipe `aal1` perde leitura depois de `staff_mfa_enforced`.
+- **Cortesia:** organizador chamando `issue_courtesy_ticket` / `cancel_courtesy_ticket` (direto ou por qualquer ação) é recusado; a área do organizador não tem ação de cortesia (o teste de inventário confere).
 
 ---
 
 ## 17. Plano de testes
 
-1. **Unitários (Vitest):** dias úteis e prazo (exemplos da seção 10.3, virada de dia em Brasília com servidor em UTC); contas do organizador (seção 10.2, com estorno, contestação, tarifa pendente, saldo negativo); token do convite (geração, hash, formato); validações dos formulários; textos de situação do repasse; leitura da resposta do banco de pagamento para tarifa (formatos esperados e ausentes).
-2. **Banco** (transação revertida, no padrão de `scripts/db-tests/*.mjs`): estados do evento e gatilho de publicação; dono imutável; convite usado duas vezes ao mesmo tempo; convite vencido/revogado; check-in de evento alheio sem nome; pedido de estorno duplicado; exclusão com e sem vendas; repasse com tarifa pendente, troca de PIX pendente, valor mudado, duplo clique, desconto de outro evento; registros imutáveis até para `service_role`; matriz da seção 16.3.
+1. **Unitários (Vitest):** dias úteis e prazo (exemplos da seção 10.3, virada de dia em Brasília com servidor em UTC); contas do organizador (seção 10.2, com estorno, contestação, tarifa pendente, saldo negativo, cortesia valendo 0); desconto pendente → devolução pendente aos 30 dias → prazo de 10 dias (seção 10.5); token do convite e código do e-mail (geração, hash, formato, validade); CPF/CNPJ (dígitos verificadores, máscara); validações dos formulários; quais campos de evento aprovado pedem Admin (seção 6.4); linha "Produção" no e-mail do ingresso (com e sem organizador); textos de situação do repasse; leitura da resposta do banco de pagamento para tarifa (formatos esperados e ausentes).
+2. **Banco** (transação revertida, no padrão de `scripts/db-tests/*.mjs`): estados do evento e gatilho de publicação; dono imutável; convite usado duas vezes ao mesmo tempo; convite vencido/revogado; código do e-mail errado 5 vezes, vencido e reenviado demais; cadastro sem e-mail confirmado ou com CPF/CNPJ inválido; check-in de evento alheio sem nome; pedido de estorno duplicado; `save_event_with_sessions` do dono recusando, em evento aprovado, nome, preço vendido, redução de lugares e troca de horário (e aceitando descrição, fotos e sessão nova); pedido de mudança feito/recusado; exclusão com e sem vendas; repasse com tarifa pendente, troca de PIX pendente, valor mudado, duplo clique, desconto de outro evento; devolução recebida zerando o saldo; envio para aprovação recusado com devolução atrasada; registros imutáveis até para `service_role`; matriz da seção 16.3.
 3. **Servidor:** cada ação e rota recusa anônimo, conta sem duas etapas, organizador de outro evento e (quando couber) secretaria e desenvolvedor, inclusive por POST direto (mesmo estilo de `tests/api/check-in-route.test.ts`).
 4. **Teste do banco de pagamento** (fase 3, credenciais de teste): seção 9, item 1.
-5. **Telas (local, dados falsos):** cadastro completo no celular, duas etapas, criar → enviar → aprovar → vender (pagamento de teste) → pedir estorno → estornar → painel financeiro → marcar repasse.
+5. **Telas (local, dados falsos):** cadastro completo no celular (com código do e-mail e CPF/CNPJ), duas etapas, criar → enviar → aprovar → "Produção" na página do evento → vender (pagamento de teste) → cortesia emitida pela equipe aparece na lista do organizador → pedir mudança → pedir estorno → estornar → painel financeiro → marcar repasse → estorno depois do repasse vira desconto pendente.
 6. **Produção (só leitura, depois de cada publicação):** com a área desligada, nada muda para compradores e equipe; depois de ligar, o dono faz um convite de teste para uma conta própria, cria um evento de teste, aprova, confere que aparece, e exclui em seguida.
 
 ---
@@ -914,12 +983,12 @@ Cada fase tem plano próprio em `docs/superpowers/plans/`, migration aditiva com
 Helper `getActor` com `aal2`; telas de cadastro/código/minha segurança; "Segurança da equipe" e "Redefinir duas etapas"; `organizer_settings` (só a chave `staff_mfa_enforced`); `is_staff()`/`is_admin()` com `aal2` atrás da chave; check-in exigindo `aal2`. Ligar a trava só depois de todas as contas cadastradas (seção 11.4). Independe do resto e já melhora a segurança de hoje.
 
 **Fase 2 — Contas de organizador, eventos e aprovação** (≈5–7 dias; pode ser dividida em 2a e 2b)
-- 2a: "Quero fazer meu evento", convites, cadastro, área do organizador, eventos próprios, aprovação, `organizer_id` e mudanças de RLS/funções, Termos do organizador, nova Política de Privacidade e Termos de compra, e-mails de aprovação.
-- 2b: pedidos (compradores) do organizador, portaria só dos próprios eventos, pedidos de estorno/exclusão/mudança, cortesias com limite, histórico.
+- 2a: "Quero fazer meu evento", convites, cadastro (código do e-mail, CPF/CNPJ do titular), área do organizador, eventos próprios, aprovação, regras de mudança depois da aprovação e "Pedir mudança", `organizer_id` e mudanças de RLS/funções, "Produção" na página do evento e no e-mail do ingresso, Termos do organizador, nova Política de Privacidade e Termos de compra, e-mails de aprovação.
+- 2b: pedidos (compradores e cortesias) do organizador, portaria só dos próprios eventos, pedidos de estorno e de exclusão, histórico. Sem cortesia na área do organizador (decisão 13).
 - Publicada com `organizer_settings.enabled = false`; o dono liga quando quiser.
 
 **Fase 3 — Financeiro do organizador e repasses** (≈3–4 dias)
-Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → avisos de atraso.
+Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → desconto pendente e devolução (seção 10.5) → avisos de atraso. As perguntas 8 (fórmula da tarifa) e 9 (cidade dos feriados) já precisam estar respondidas, porque entram nos Termos publicados na fase 2a.
 
 **Regra de ordem [R]:** o primeiro evento real de organizador só é aprovado depois da fase 3 no ar, para o painel e o prazo de repasse prometidos nos Termos existirem desde a primeira venda.
 
@@ -929,7 +998,8 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 
 - Divisão automática do pagamento (split) ou repasse automático.
 - Cadastro aberto de organizador (sem convite).
-- Subcontas de portaria do organizador (pergunta 7).
+- Subcontas de portaria do organizador (decisão 18).
+- Cortesia emitida pelo organizador e tela "Pedir cortesia" (decisão 13: pedido pelo WhatsApp; a tela pode entrar depois se o volume crescer).
 - Planilha de compradores para o organizador; envio de e-mails em massa aos compradores pelo site.
 - Comissão do Espaço, taxas diferentes por organizador, cupons de desconto.
 - Página pública do organizador ("perfil do produtor"), domínio próprio.
@@ -948,31 +1018,20 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 4. **Papel na LGPD e parte fiscal [S]:** confirmar com jurídico/contador (seção 13).
 5. **Organizador suspenso com evento à venda:** decisão manual do Admin (pausar, manter ou cancelar).
 6. **Confiança no administrador do banco** (estrutural, igual à taxa de serviço): mitigada com histórico imutável e e-mails, não eliminada.
+7. **Devolução que não chega:** quando o organizador não devolve no prazo (seção 10.5), o sistema só bloqueia novos envios para aprovação; cobrar fica com o Espaço, fora do site.
+8. **Mais dados pessoais guardados:** CPF/CNPJ do titular passa a existir no banco (decisão 14); mitigado com máscara, acesso mínimo e prazo de guarda na Política de Privacidade.
 
 ---
 
 ## 21. Perguntas para o dono
 
-1. **Mudanças depois da aprovação** (o evento já está à venda):
-   - **A (recomendado):** descrição, fotos, pausar/reabrir vendas e sessão nova valem na hora (ficam no histórico); nome, preço de sessão com venda, redução de lugares, troca de horário e cancelamento de sessão viram pedido ao Admin.
-   - **B:** qualquer mudança volta para análise (vendas pausam até o Admin aprovar).
-   - **C:** tudo vale na hora; o Admin só vê o histórico.
-2. **Cortesias do organizador:**
-   - **A (recomendado):** o organizador emite cortesias até 10% da lotação de cada sessão; acima disso, só a equipe do Espaço.
-   - **B:** sem limite.
-   - **C:** organizador não emite; pede à equipe.
-3. **Dados de quem recebe o repasse:**
-   - **A (recomendado):** pedir nome e CPF/CNPJ do titular da chave PIX (tem de ser o organizador ou a empresa dele) e o Espaço confirma com o contador se precisa de nota ou recibo.
-   - **B:** só a chave PIX e o nome do titular.
-4. **Estorno ou contestação depois do repasse** (o organizador já recebeu):
-   - **A (recomendado):** desconta do próximo repasse do mesmo organizador; se não houver outro evento em até 30 dias, ele devolve por PIX em até 10 dias (escrito nos Termos).
-   - **B:** o Espaço assume a perda.
-5. **Nome do organizador para o comprador:**
-   - **A (recomendado):** mostrar "Produção: <nome público>" na página do evento e no e-mail do ingresso (transparência e base para a Política de Privacidade).
-   - **B:** não mostrar; o evento aparece só como do Espaço Byla.
-6. **Confirmar o e-mail no cadastro:**
-   - **A (recomendado):** código de 6 dígitos enviado ao e-mail durante o cadastro (1 e-mail por organizador; evita e-mail digitado errado, que impediria avisos de repasse).
-   - **B:** não confirmar; o Admin confere o e-mail na conversa pelo WhatsApp.
-7. **Equipe de portaria do organizador:**
-   - **A (recomendado):** fica para depois; nesta entrega o próprio organizador (ou a equipe do Espaço) faz o check-in.
-   - **B:** incluir agora subcontas só de portaria para o organizador (mais telas, mais contas com duas etapas).
+As perguntas 1 a 7 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A) e viraram as decisões 12 a 18 (seção 2.1). Faltam duas, sobre dinheiro. A fase 1 não depende delas; na fase 2a, só dois trechos dos Termos do organizador (itens 6 e 7, entre `{}`) esperam a resposta, que precisa vir antes de publicar os Termos.
+
+8. **Tarifa do banco sobre a parte da taxa de serviço** (só faz diferença quando a taxa de serviço está ligada).
+   Exemplo com números ilustrativos: o comprador paga R$ 52,50 no cartão (R$ 50,00 do ingresso + R$ 2,50 de taxa de serviço). O banco cobra R$ 2,61 sobre o pagamento inteiro: cerca de R$ 2,49 por causa dos R$ 50,00 do ingresso e R$ 0,12 por causa dos R$ 2,50 da taxa. A pergunta é quem paga esses R$ 0,12. Num evento de 10 ingressos como o da seção 10.2, a diferença total fica em torno de R$ 0,65.
+   - **A (recomendado):** o organizador paga a tarifa inteira (R$ 2,61). Mais simples de explicar ("sai da sua parte o que o banco cobrou") e o Espaço não perde nada em eventos de organizador.
+   - **B:** proporcional: o organizador paga só a parte do ingresso (R$ 2,49) e os R$ 0,12 da taxa ficam com o Espaço, como já acontece nos eventos do próprio Espaço (decisão 4 da spec da taxa de serviço). Mais justo com o organizador, mas o painel e os Termos ficam um pouco mais complicados.
+9. **Cidade dos feriados no prazo do repasse** ("5 dias úteis"):
+   - **A (recomendado):** feriados nacionais + feriados de Salvador/BA (cidade do Espaço e do foro dos Termos).
+   - **B:** só feriados nacionais (prazo às vezes 1 dia mais curto para o Espaço).
+   - Se o Espaço não fica em Salvador, basta dizer a cidade.
