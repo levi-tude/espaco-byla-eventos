@@ -208,9 +208,9 @@ try {
   const createOrgEvent = (org, slug, name, { sessions = [session()], cover = null } = {}) => scalar(
     "select public.create_organizer_event($1, $2, $3, 'Espaço Teste', 'desc', $4, $5::jsonb, $6::jsonb) as v",
     [org.id, slug, name, cover, JSON.stringify(types), JSON.stringify(sessions)]);
-  const saveAs = (actorId, eventId, { name, venue = "Espaço Teste", description = "desc", cover = COVER, sessions }) => svc(
+  const saveAs = (actorId, eventId, { name, venue = "Espaço Teste", description = "desc", cover = COVER, sessions, ticketTypes = types }) => svc(
     "select public.save_event_with_sessions($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)",
-    [eventId, name, venue, description, cover, JSON.stringify(types), JSON.stringify(sessions), actorId]);
+    [eventId, name, venue, description, cover, JSON.stringify(ticketTypes), JSON.stringify(sessions), actorId]);
   const submit = (org, eventId) => svc("select public.submit_event_for_approval($1, $2)", [org.id, eventId]);
   const decide = (staff, eventId, decision, publish = true, note = null) => svc(
     "select public.decide_event_approval($1, $2, $3, $4, $5)", [staff.id, eventId, decision, publish, note]);
@@ -421,8 +421,16 @@ try {
     () => accept(h1, orgCId, { key: "11144477735", doc: "52998224725" }), /^ORG_DADOS/);
   await rejects("4. chave tipo cnpj com documento de CPF: ORG_DADOS",
     () => accept(h1, orgCId, { type: "cnpj", key: "52998224725", doc: "52998224725" }), /^ORG_DADOS/);
-  await rejects("4. conta da equipe não aceita convite: ORG_ACESSO ou ORG_EMAIL",
-    () => accept(h1, sec.id), /^ORG_(ACESSO|EMAIL)/);
+  // Conta com o e-mail confirmado que já é da equipe: só a trava equipe × organizador barra.
+  const hStaff = newToken();
+  await invite(hStaff);
+  check("4. equipe: envio para e-mail novo", (await startCode(hStaff, "equipe-nova@exemplo.com", "777777")) === "ok");
+  check("4. equipe: código certo", (await verifyCode(hStaff, "777777")) === "ok");
+  const staffNew = await newStaff("equipe-nova@exemplo.com", "Equipe Nova", "secretaria");
+  await rejects("4. conta da equipe com o e-mail confirmado não aceita convite: ORG_ACESSO",
+    () => accept(hStaff, staffNew.id), /^ORG_ACESSO/);
+  check("4. equipe: convite continua sem uso e nenhum perfil criado", (await checkInvite(hStaff)) === "valido"
+    && (await one("select count(*)::int as n from public.organizer_profiles where user_id = $1", [staffNew.id])).n === 0);
   await accept(h1, orgCId);
   const profC = await one("select status, pix_holder_document from public.organizer_profiles where user_id = $1", [orgCId]);
   check("4. aceite com CPF 52998224725: perfil ativo", profC?.status === "ativo" && profC.pix_holder_document === "52998224725");
@@ -545,6 +553,16 @@ try {
     () => saveAs(orgA.id, ev6, base6({ prices: [price(0, 5000)] })), /^ORG_ESTADO:mudanca:preco$/);
   await rejects("6. com venda, pausa um tipo: ORG_ESTADO:mudanca:preco",
     () => saveAs(orgA.id, ev6, base6({ prices: [price(0, 5000), price(1, 2500, { on_sale: false })] })), /^ORG_ESTADO:mudanca:preco$/);
+  await rejects("6. com venda, tipo arquivado agora (save_event_ticket_types): ORG_ESTADO:mudanca:preco",
+    () => saveAs(orgA.id, ev6, { ...base6({ prices: [price(0, 5000)] }), ticketTypes: [types[0]] }), /^ORG_ESTADO:mudanca:preco$/);
+  check("6. tipo arquivado agora: nada mudou (tudo desfeito)",
+    (await one("select count(*)::int as n from public.ticket_types where event_id = $1 and kind = 'meia' and archived_at is null", [ev6])).n === 1);
+  const violations = (sessions) => scalar("select public.organizer_change_violations($1, 'Show Seis', 'Espaço Teste', $2::jsonb) as v",
+    [ev6, JSON.stringify(sessions)]);
+  check("6. violações: id de sessão fora do formato UUID é ignorado",
+    JSON.stringify(await violations([session({ id: "abc", starts_at: days(8), capacity: 1 })])) === "[]");
+  check("6. violações: mesma sessão com id certo acusa horário e lotação",
+    JSON.stringify(await violations([session({ id: s6, starts_at: days(8), capacity: 1 })])) === '["horario","lotacao"]');
   await rejects("6. com venda, cota de meia nova: ORG_ESTADO:mudanca:lotacao",
     () => saveAs(orgA.id, ev6, base6({ meia_quota: 10 })), /^ORG_ESTADO:mudanca:lotacao$/);
   await rejects("6. várias mudanças juntas", () => saveAs(orgA.id, ev6, base6({ capacity: 20 }, { name: "X", venue: "Y" })),
@@ -593,6 +611,11 @@ try {
   await q("update public.events set cover_image_url = null where id = $1", [ev6b]);
   await rejects("6. aprovar sem capa: ORG_ESTADO:capa", () => decide(admin, ev6b, "aprovar"), /^ORG_ESTADO:capa$/);
   await q("alter table public.events enable trigger events_guard_organizer");
+  const ev6c = await createOrgEvent(orgA, "show-seis-c", "Show Seis C", { cover: COVER });
+  await submit(orgA, ev6c);
+  await q(`update public.session_ticket_types stt set on_sale = false
+           from public.event_sessions s where s.id = stt.session_id and s.event_id = $1`, [ev6c]);
+  await rejects("6. aprovar sem tipo à venda: ORG_ESTADO:sem_preco", () => decide(admin, ev6c, "aprovar"), /^ORG_ESTADO:sem_preco$/);
   await decide(admin, ev6b, "recusar", false, "Falta a capa do show");
   const ev6bRow = await eventRow(ev6b);
   check("6. recusa com nota: recusado e fechado", ev6bRow.approval_status === "recusado" && ev6bRow.sales_open === false
@@ -640,6 +663,8 @@ try {
   check("7. pedido vira estornado: pedido de estorno atendido", closed7.status === "atendido" && closed7.decided_at !== null);
   const sys7 = await one("select actor_kind, actor_user_id from public.audit_log where action = 'pedido_atendido' and order_id = $1", [paid7]);
   check("7. histórico do sistema", sys7?.actor_kind === "sistema" && sys7.actor_user_id === null);
+  check("7. pedido estornado continua na lista de compradores",
+    (await svc("select * from public.organizer_event_orders($1, $2)", [orgA.id, ev6])).find((r) => r.order_id === paid7)?.status === "estornado");
 
   const change = (org, eventId, what = "Trocar o horário", reason = "Artista atrasou") => scalar(
     "select public.request_event_change($1, $2, $3, $4) as v", [org.id, eventId, what, reason]);
@@ -651,6 +676,7 @@ try {
   await rejects("7. recusa sem nota: ORG_DADOS", () => svc("select public.decline_ops_request($1, $2, 'x')", [admin.id, change1]), /^ORG_DADOS/);
   await svc("select public.decline_ops_request($1, $2, 'Não dá agora')", [admin.id, change1]);
   await rejects("7. recusar de novo: ORG_ESTADO:estado", () => svc("select public.decline_ops_request($1, $2, 'Não dá agora')", [admin.id, change1]), /^ORG_ESTADO:estado$/);
+  await rejects("7. concluir mudança já recusada: ORG_ESTADO:estado", () => svc("select public.finish_event_change($1, $2)", [admin.id, change1]), /^ORG_ESTADO:estado$/);
   await rejects("7. secretaria conclui mudança: ORG_ACESSO", () => svc("select public.finish_event_change($1, $2)", [sec.id, change2]), /^ORG_ACESSO/);
   await svc("select public.finish_event_change($1, $2)", [admin.id, change2]);
   check("7. Admin conclui mudança", (await one("select status from public.organizer_ops_requests where id = $1", [change2])).status === "atendido");
@@ -684,6 +710,8 @@ try {
   check("7. histórico do evento sem quem fez nem detalhes",
     hist.some((h) => h.action === "evento_aprovado" && h.actor_kind === "admin")
       && JSON.stringify(Object.keys(hist[0]).sort()) === JSON.stringify(["action", "actor_kind", "created_at"]));
+  const histTeam = await svc("select * from public.organizer_event_history($1, $2)", [sec.id, ev6]);
+  check("7. equipe (secretaria) lê o histórico do evento", histTeam.length === hist.length && histTeam.length > 0);
   await rejects("7. B não vê histórico de A: ORG_DONO", () => svc("select * from public.organizer_event_history($1, $2)", [orgB.id, ev6]), /^ORG_DONO/);
 
   check("7. dono pausa o evento", (await scalar("select public.set_event_sales_open($1, $2, false) as v", [orgA.id, ev6])) === false);
@@ -703,6 +731,20 @@ try {
     }
   }
   check("7. 31º pedido na mesma hora: ORG_LIMITE", limitAt === 31, String(limitAt));
+  await rejects("7. limite vale também para pedido de estorno", async () => refundReq(orgD, await addOrder(evD)), /^ORG_LIMITE/);
+  const orgE = await newOrganizer("estornos@exemplo.com", "Produtora E");
+  const evE = await approvedEvent(orgE, "show-e", "Show E");
+  let refundLimitAt = null;
+  for (let i = 1; i <= 31; i += 1) {
+    const orderE = await addOrder(evE);
+    try {
+      await refundReq(orgE, orderE);
+    } catch (error) {
+      refundLimitAt = /^ORG_LIMITE/.test(error.message) ? i : `erro ${error.message}`;
+      break;
+    }
+  }
+  check("7. 31º pedido de estorno na mesma hora: ORG_LIMITE", refundLimitAt === 31, String(refundLimitAt));
 
   // Excluir e pedir exclusão.
   await rejects("7. A exclui evento com venda: ORG_ESTADO:com_vendas",
@@ -755,8 +797,29 @@ try {
       && (await one("select status from public.organizer_ops_requests where id = $1", [del7])).status === "atendido");
   const leftStatus = (await q("select status from public.organizer_ops_requests where id = any($1::uuid[])", [[changeLeft, change4]])).map((r) => r.status);
   check("7. conclusão cancela os outros pendentes", leftStatus.length === 2 && leftStatus.every((s) => s === "cancelado"), JSON.stringify(leftStatus));
-  check("7. fila pendente ignora evento excluído", (await svc("select * from public.list_ops_requests($1, 'pendente', $2)", [admin.id, ev6])).length === 0);
   check("7. fila atendida mantém a exclusão", (await svc("select * from public.list_ops_requests($1, 'atendido', $2)", [admin.id, ev6])).some((r) => r.id === del7));
+  // Pendentes que sobram num evento já excluído (a conclusão cancela os dela; estes entram
+  // direto pelo dono do banco) não aparecem na fila nem nos números.
+  const countsBeforeOrphans = (await svc("select * from public.team_pending_counts($1)", [admin.id]))[0];
+  const secCountsBeforeOrphans = (await svc("select * from public.team_pending_counts($1)", [sec.id]))[0];
+  const orphanOrder = await addOrder(ev6, { sessionId: s6 });
+  const orphans = (await q(
+    `insert into public.organizer_ops_requests (kind, event_id, order_id, reason, requested_by)
+     values ('estorno', $1, $2, 'Pedido que sobrou', $3), ('mudanca', $1, null, 'Pedido que sobrou', $3),
+            ('exclusao', $1, null, 'Pedido que sobrou', $3)
+     returning id`, [ev6, orphanOrder, orgA.id])).map((r) => r.id);
+  const pendingAll = (await svc("select id from public.list_ops_requests($1, 'pendente')", [admin.id])).map((r) => r.id);
+  const pendingSec = (await svc("select id from public.list_ops_requests($1, 'pendente')", [sec.id])).map((r) => r.id);
+  check("7. fila pendente (Admin e secretaria) ignora pendente de evento excluído",
+    orphans.length === 3 && !orphans.some((id) => pendingAll.includes(id) || pendingSec.includes(id)), JSON.stringify(pendingAll));
+  check("7. fila pendente filtrada pelo evento excluído: vazia",
+    (await svc("select * from public.list_ops_requests($1, 'pendente', $2)", [admin.id, ev6])).length === 0);
+  const countsAfterOrphans = (await svc("select * from public.team_pending_counts($1)", [admin.id]))[0];
+  const secCountsAfterOrphans = (await svc("select * from public.team_pending_counts($1)", [sec.id]))[0];
+  check("7. números ignoram pendente de evento excluído (estornos, mudanças, exclusões)",
+    JSON.stringify(countsAfterOrphans) === JSON.stringify(countsBeforeOrphans)
+      && JSON.stringify(secCountsAfterOrphans) === JSON.stringify(secCountsBeforeOrphans),
+    `${JSON.stringify(countsBeforeOrphans)} → ${JSON.stringify(countsAfterOrphans)}`);
   await rejects("7. concluir de novo: ORG_ESTADO:estado", () => svc("select public.finish_event_deletion($1, $2)", [admin.id, del7]), /^ORG_ESTADO:estado$/);
   await rejects("7. evento excluído: mudança → ORG_DONO", () => change(orgA, ev6), /^ORG_DONO/);
   await rejects("7. evento excluído: vendas → ORG_DONO", () => svc("select public.set_event_sales_open($1, $2, false)", [orgA.id, ev6]), /^ORG_DONO/);
@@ -903,9 +966,16 @@ try {
   }
   const tokens = ensaioMessage.replace(/^ENSAIO/, "").trim().split(/\s+/).filter(Boolean);
   const bad = tokens.filter((t) => !/^[a-z0-9_]+=ok$/.test(t));
-  check("12. ensaio termina com ENSAIO e só casos ok", ensaioMessage.startsWith("ENSAIO") && tokens.length >= 30 && bad.length === 0,
-    `(${tokens.length} casos; problemas: ${bad.join(" ") || ensaioMessage})`);
-  console.log(`     ensaio: ${tokens.length} casos`);
+  // Cada caso aparece em 1 ou 2 linhas `r := r || ' nome=` (ramo ok e ramo do erro);
+  // "interrompido" só aparece quando algo quebra.
+  const expectedNames = [...new Set([...ensaio.matchAll(/r := r \|\| ' ([a-z0-9_]+)=/g)].map((m) => m[1]))]
+    .filter((n) => n !== "interrompido").sort();
+  const gotNames = tokens.map((t) => t.split("=")[0]).sort();
+  check("12. ensaio termina com ENSAIO e só casos ok", ensaioMessage.startsWith("ENSAIO") && bad.length === 0,
+    `(problemas: ${bad.join(" ") || ensaioMessage})`);
+  check(`12. ensaio devolve exatamente os ${expectedNames.length} casos do arquivo, cada um uma vez`,
+    JSON.stringify(gotNames) === JSON.stringify(expectedNames), `(${tokens.length} recebidos)`);
+  console.log(`     ensaio: ${tokens.length} de ${expectedNames.length} casos`);
   check("12. ensaio não imprime e-mail", !/@/.test(ensaioMessage));
   const left = (await ens.query(
     "select to_regclass('public.organizer_profiles') as t, to_regprocedure('public.check_in_ticket(uuid,text,uuid)') is not null as old_sig")).rows[0];
