@@ -232,6 +232,35 @@ export async function alertTeamFeePayout(
   );
 }
 
+const ORPHAN_ACCOUNT_SUBJECT = "Conta de organizador sem cadastro completo";
+
+/** Um aviso por conta: a chave é o próprio código da conta. */
+const ORPHAN_ACCOUNT_DEDUP: RateLimitRule = {
+  bucket: "alert:account",
+  limit: 1,
+  windowSeconds: 86_400,
+};
+
+/**
+ * O cadastro do organizador falhou e a conta criada não pôde ser apagada sozinha.
+ * Só o código da conta: nada de e-mail, nome ou documento. Nunca lança.
+ */
+export async function alertTeamOrphanAccount(admin: SupabaseAdmin, userId: string): Promise<void> {
+  await deliverAlert(
+    admin,
+    ORPHAN_ACCOUNT_DEDUP,
+    userId,
+    ORPHAN_ACCOUNT_SUBJECT,
+    async () =>
+      joinLines([
+        "Uma conta de organizador ficou sem cadastro completo. Apague-a no painel de contas.",
+        "",
+        `Conta (código interno): ${userId}`,
+      ]),
+    { kind: "conta_sem_cadastro", userId },
+  );
+}
+
 /** Avisa a equipe sobre configuração faltando no site. Nunca lança. */
 export async function alertTeamSetup(
   admin: SupabaseAdmin,

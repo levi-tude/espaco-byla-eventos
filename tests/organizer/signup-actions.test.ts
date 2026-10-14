@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   updateUserById: vi.fn(),
   areaEnabled: vi.fn(),
   sendLoginCodeEmail: vi.fn(),
+  alertTeamOrphanAccount: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -26,7 +27,10 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 vi.mock("@/components/brand/SiteHeader", () => ({ SiteHeader: () => null }));
-vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: vi.fn() }));
+vi.mock("@/lib/alerts/team-alert", () => ({
+  alertTeamSetup: vi.fn(),
+  alertTeamOrphanAccount: mocks.alertTeamOrphanAccount,
+}));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: mocks.rpc,
@@ -112,6 +116,7 @@ beforeEach(() => {
   mocks.sendLoginCodeEmail.mockResolvedValue("sent");
   mocks.createUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   mocks.deleteUser.mockResolvedValue({ data: {}, error: null });
+  mocks.alertTeamOrphanAccount.mockResolvedValue(undefined);
   database();
 });
 afterEach(() => {
@@ -389,17 +394,37 @@ describe("completeOrganizerSignup", () => {
 
     expect(await completeOrganizerSignup(TOKEN, input)).toEqual({ ok: false, error: ACCOUNT_FAILED });
     expect(mocks.deleteUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.alertTeamOrphanAccount).not.toHaveBeenCalled();
     const logged = JSON.stringify(log.mock.calls);
     for (const secret of ["fulana@exemplo.com", "52998224725", TOKEN, "senha-bem-comprida"]) expect(logged).not.toContain(secret);
   });
 
-  it("accept falha e apagar também falha: ainda mostra a mensagem genérica", async () => {
+  it.each([
+    ["apagar responde com erro", () => mocks.deleteUser.mockResolvedValue({ data: null, error: { message: "fora do ar" } })],
+    ["apagar lança", () => mocks.deleteUser.mockRejectedValue(new Error("rede caiu"))],
+  ])("accept falha e %s: avisa a equipe só com o código da conta e mostra a mensagem genérica", async (_name, failDelete) => {
     happyDatabase({ accept_organizer_invite: { error: { message: "ORG_DADOS: Dados inválidos." } } });
-    mocks.deleteUser.mockResolvedValue({ data: null, error: { message: "fora do ar" } });
+    failDelete();
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(await completeOrganizerSignup(TOKEN, input)).toEqual({ ok: false, error: ACCOUNT_FAILED });
     expect(mocks.deleteUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.alertTeamOrphanAccount).toHaveBeenCalledTimes(1);
+    expect(mocks.alertTeamOrphanAccount).toHaveBeenCalledWith(expect.anything(), USER_ID);
+    const sent = JSON.stringify(mocks.alertTeamOrphanAccount.mock.calls[0].slice(1));
+    for (const secret of ["fulana@exemplo.com", "Fulana", "52998224725", TOKEN]) expect(sent).not.toContain(secret);
+  });
+
+  it("aviso à equipe que falha não muda a resposta (mensagem genérica)", async () => {
+    happyDatabase({ accept_organizer_invite: { error: { message: "ORG_DADOS: Dados inválidos." } } });
+    mocks.deleteUser.mockResolvedValue({ data: null, error: { message: "fora do ar" } });
+    mocks.alertTeamOrphanAccount.mockRejectedValue(new Error("alerta caiu"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await completeOrganizerSignup(TOKEN, input)).toEqual({ ok: false, error: ACCOUNT_FAILED });
+    expect(mocks.alertTeamOrphanAccount).toHaveBeenCalledTimes(1);
+    // A falha do aviso fica dentro do cadastro: não chega a virar "erro inesperado" da ação.
+    expect(log).not.toHaveBeenCalledWith("[acao] Erro inesperado.", expect.anything());
   });
 });
 

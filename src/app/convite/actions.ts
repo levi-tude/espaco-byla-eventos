@@ -1,6 +1,7 @@
 "use server";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
+import { alertTeamOrphanAccount } from "@/lib/alerts/team-alert";
 import { generateLoginCode, normalizeLoginCode } from "@/lib/auth/login-code";
 import { sendLoginCodeEmail } from "@/lib/email/send-login-code";
 import { ORGANIZER_TERMS_VERSION } from "@/lib/legal/organizer-terms";
@@ -124,13 +125,21 @@ export async function verifyInviteEmailCode(token: string, code: string): Promis
   }, FALLBACK_MESSAGE);
 }
 
-/** Apaga a conta criada quando o convite não pôde ser aceito. Nunca lança. */
+/** Apaga a conta criada quando o convite não pôde ser aceito; se não der, avisa a equipe. Nunca lança. */
 async function removeOrphanAccount(admin: AdminClient, userId: string): Promise<void> {
+  let deleted = false;
   try {
     const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error) console.error(`[convite] Conta sem perfil não foi apagada; apagar à mão (${userId}).`);
+    deleted = !error;
   } catch {
-    console.error(`[convite] Conta sem perfil não foi apagada; apagar à mão (${userId}).`);
+    deleted = false;
+  }
+  if (deleted) return;
+  console.error(`[convite] Conta sem perfil não foi apagada; apagar à mão (${userId}).`);
+  try {
+    await alertTeamOrphanAccount(admin, userId);
+  } catch {
+    console.error("[convite] Aviso da conta sem perfil não saiu.");
   }
 }
 

@@ -11,7 +11,7 @@ vi.mock("@/lib/security/rate-limit", () => ({
   releaseRateLimit: mocks.releaseRateLimit,
 }));
 
-import { alertTeam, alertTeamFeePayout, alertTeamSetup } from "@/lib/alerts/team-alert";
+import { alertTeam, alertTeamFeePayout, alertTeamOrphanAccount, alertTeamSetup } from "@/lib/alerts/team-alert";
 import type { SupabaseAdmin } from "@/lib/domain/orders";
 
 const orderId = "00000000-0000-4000-8000-000000000010";
@@ -206,6 +206,31 @@ describe("alertTeam", () => {
     );
     expect(body.text).not.toContain("comprador@example.com");
     expect(body.text).not.toContain("Comprador");
+  });
+
+  it("conta de organizador sem cadastro: só o código da conta, sem dados pessoais", async () => {
+    const userId = "00000000-0000-4000-8000-0000000000bb";
+    await alertTeamOrphanAccount(admin, userId);
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ bucket: "alert:account", limit: 1 }),
+      userId,
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toBe("[Alerta] Conta de organizador sem cadastro completo");
+    expect(body.text).toContain(
+      "Uma conta de organizador ficou sem cadastro completo. Apague-a no painel de contas.",
+    );
+    expect(body.text).toContain(`Conta (código interno): ${userId}`);
+    expect(body.text).not.toContain("@");
+    expect(body.text).not.toContain("Comprador");
+    expect(body.text).not.toContain("Pedido");
+  });
+
+  it("alerta de conta sem cadastro nunca lança", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockRejectedValue(new Error("rede caiu"));
+    await expect(alertTeamOrphanAccount(admin, "u")).resolves.toBeUndefined();
   });
 
   it("alerta de repasse nunca lança", async () => {
