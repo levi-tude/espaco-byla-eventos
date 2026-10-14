@@ -224,6 +224,13 @@ export async function setSalesOpen(id: string, open: boolean): Promise<ActionRes
   return runAction(() => setSalesOpenOrThrow(id, open), "Não foi possível alterar a venda.");
 }
 
+export async function setHiddenFromPast(id: string, hidden: boolean): Promise<ActionResult> {
+  return runAction(
+    () => setHiddenFromPastOrThrow(id, hidden),
+    "Não foi possível alterar a exibição do evento.",
+  );
+}
+
 export async function setSessionSalesOpen(
   sessionId: string,
   open: boolean,
@@ -361,6 +368,26 @@ async function setSalesOpenOrThrow(id: string, open: boolean): Promise<undefined
 
   const slug = await getEventSlug(id);
   revalidateEventSurfaces(id, slug);
+}
+
+async function setHiddenFromPastOrThrow(id: string, hidden: boolean): Promise<undefined> {
+  if (typeof id !== "string" || !UUID_PATTERN.test(id) || typeof hidden !== "boolean") {
+    throw new ActionError("Evento não encontrado.");
+  }
+  await assertStaff();
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ hidden_from_past: hidden, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("slug")
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new ActionError("Não foi possível alterar a exibição do evento.");
+  }
+
+  revalidateEventSurfaces(id, data.slug);
 }
 
 async function setSessionSalesOpenOrThrow(sessionId: string, open: boolean): Promise<undefined> {

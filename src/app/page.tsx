@@ -3,12 +3,14 @@ import Link from "next/link";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { HomeSingleEvent } from "@/components/public/HomeSingleEvent";
+import { type PastEventCard, PastEventsSection } from "@/components/public/PastEventsSection";
 import { SessionChips } from "@/components/public/SessionChips";
 import { CoverImage } from "@/components/ui/CoverImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
 import { loadEventSessions } from "@/lib/domain/event-availability";
+import { nextPastLimit, parsePastLimit, pastEventDateLabel } from "@/lib/domain/past-events";
 import { priceWithFeeLabel } from "@/lib/domain/service-fee";
 import { homeChipSessions, sessionName } from "@/lib/domain/sessions";
 import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
@@ -20,13 +22,33 @@ const dateFormatter = eventDateFormatter({
   timeStyle: "short",
 });
 
-export default async function Home() {
-  const supabase = await createServerClient();
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("id, slug, name, starts_at, venue, cover_image_url")
-    .eq("sales_open", true)
-    .order("starts_at", { ascending: true });
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const [supabase, query] = await Promise.all([createServerClient(), searchParams]);
+  const pastLimit = parsePastLimit(query.passados);
+  const [{ data: events, error }, { data: pastRows, error: pastError }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, slug, name, starts_at, venue, cover_image_url")
+      .eq("sales_open", true)
+      .order("starts_at", { ascending: true }),
+    supabase.rpc("public_past_events", { p_limit: pastLimit + 1 }),
+  ]);
+  // Sem os passados (falha na consulta), a página segue só com os próximos.
+  if (pastError) console.error("[home] Falha ao carregar os eventos passados.");
+  const pastCards: PastEventCard[] = (pastRows ?? []).slice(0, pastLimit).map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    venue: row.venue,
+    coverImageUrl: row.cover_image_url,
+    dateLabel: pastEventDateLabel(row.session_starts),
+  }));
+  const pastSection = (
+    <PastEventsSection
+      events={pastCards}
+      nextLimit={(pastRows?.length ?? 0) > pastLimit ? nextPastLimit(pastLimit) : null}
+    />
+  );
 
   const admin = createAdminClient();
   const [summaries, feePolicy] = await Promise.all([
@@ -73,7 +95,9 @@ export default async function Home() {
           sessions: single.chips.length > 1 ? single.chips : [],
           priceLabel: single.priceLabel,
         }}
-      />
+      >
+        {pastSection}
+      </HomeSingleEvent>
     );
   }
 
@@ -107,6 +131,12 @@ export default async function Home() {
             icon={CalendarX}
             title="Nenhum evento à venda no momento"
           />
+        ) : null}
+
+        {!error && list.length > 1 && pastCards.length ? (
+          <h2 className="mt-10 font-display text-3xl tracking-wide text-foreground sm:text-4xl">
+            Próximos eventos
+          </h2>
         ) : null}
 
         {!error && list.length > 1 ? (
@@ -177,6 +207,8 @@ export default async function Home() {
             })}
           </ul>
         ) : null}
+
+        {pastSection}
       </div>
     </main>
   );

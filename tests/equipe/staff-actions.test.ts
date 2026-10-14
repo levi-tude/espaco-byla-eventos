@@ -25,6 +25,7 @@ import {
   cancelTicket,
   createEvent,
   issueCourtesy,
+  setHiddenFromPast,
   setSalesOpen,
   setSessionSalesOpen,
   updateEvent,
@@ -54,6 +55,7 @@ const staffActions = {
   createEvent: () => createEvent(eventInput),
   updateEvent: () => updateEvent(eventId, eventInput),
   setSalesOpen: () => setSalesOpen(eventId, true),
+  setHiddenFromPast: () => setHiddenFromPast(eventId, true),
   setSessionSalesOpen: () => setSessionSalesOpen("00000000-0000-4000-8000-000000000003", false),
   issueCourtesy: () =>
     issueCourtesy({ eventId, name: "Convidado", email: "convidado@example.com" }),

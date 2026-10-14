@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { EventEndedNotice } from "@/components/public/EventEndedNotice";
 import { EventGallery } from "@/components/public/EventGallery";
 import { FeeNote } from "@/components/public/FeeNote";
 import { SessionPicker } from "@/components/public/SessionPicker";
@@ -26,6 +27,7 @@ import {
   loadEventSessions,
   loadSessionAvailability,
 } from "@/lib/domain/event-availability";
+import { pastEventDateLabel } from "@/lib/domain/past-events";
 import { formatMoney } from "@/lib/domain/service-fee";
 import {
   buyerVisibleSessions,
@@ -108,31 +110,37 @@ export default async function EventoPublicoPage({
   if (!event) notFound();
 
   const admin = createAdminClient();
-  const [gallery, { data: ticketTypes }, summary, feePolicy] = await Promise.all([
-    loadEventGallery(supabase, event.id),
-    supabase
-      .from("ticket_types")
-      .select("id, name, kind, price_cents, people_per_unit")
-      .eq("event_id", event.id)
-      .neq("kind", "cortesia")
-      .is("archived_at", null)
-      .eq("active", true)
-      .order("sort_order")
-      .order("id"),
-    loadEventSessions(admin, event.id),
-    loadServiceFeePolicy(admin),
-  ]);
+  const [gallery, { data: ticketTypes }, summary, feePolicy, { data: pastFlag }] =
+    await Promise.all([
+      loadEventGallery(supabase, event.id),
+      supabase
+        .from("ticket_types")
+        .select("id, name, kind, price_cents, people_per_unit")
+        .eq("event_id", event.id)
+        .neq("kind", "cortesia")
+        .is("archived_at", null)
+        .eq("active", true)
+        .order("sort_order")
+        .order("id"),
+      loadEventSessions(admin, event.id),
+      loadServiceFeePolicy(admin),
+      supabase.rpc("event_is_past", { p_event_id: event.id }),
+    ]);
+  // Evento que já aconteceu: só vitrine, sem sessões à venda, preços ou compra.
+  const ended = pastFlag === true;
 
-  const visible = summary ? buyerVisibleSessions(summary.sessions) : [];
+  const visible = summary && !ended ? buyerVisibleSessions(summary.sessions) : [];
   const multi = visible.length > 1;
   const selected = pickBuyerSession(visible, query.sessao);
   // Sem o resumo das sessões (falha na consulta), vale o comportamento antigo:
   // o banco usa a sessão única e recusa se houver mais de uma.
-  const availability = selected
-    ? await loadSessionAvailability(admin, selected.id)
-    : summary
-      ? null
-      : await loadEventAvailability(admin, event);
+  const availability = ended
+    ? null
+    : selected
+      ? await loadSessionAvailability(admin, selected.id)
+      : summary
+        ? null
+        : await loadEventAvailability(admin, event);
 
   const sessionTypes = new Map(
     (availability?.types ?? []).map((type) => [type.ticketTypeId, type]),
@@ -193,13 +201,24 @@ export default async function EventoPublicoPage({
     : buyablePrices.length
       ? Math.min(...buyablePrices)
       : null;
-  const showBuy = state === "open";
+  const showBuy = !ended && state === "open";
   const selectedLabel = selected
     ? formatSessionLabel(selected.name, selected.startsAt, selected.endsAt)
     : "";
-  const whenText = multi
-    ? daysLabel(visible.map((session) => session.startsAt))
-    : dateFormatter.format(new Date(visible[0]?.startsAt ?? event.starts_at));
+  const endedLabel = ended
+    ? pastEventDateLabel(
+        summary
+          ? summary.sessions
+              .filter((session) => session.status === "ativa")
+              .map((session) => session.startsAt)
+          : [event.starts_at],
+      )
+    : "";
+  const whenText = ended
+    ? endedLabel || dateFormatter.format(new Date(event.starts_at))
+    : multi
+      ? daysLabel(visible.map((session) => session.startsAt))
+      : dateFormatter.format(new Date(visible[0]?.startsAt ?? event.starts_at));
 
   return (
     <main
@@ -235,89 +254,95 @@ export default async function EventoPublicoPage({
           </div>
 
           <aside
-            aria-labelledby="ingressos-titulo"
+            aria-labelledby={ended ? "encerrado-titulo" : "ingressos-titulo"}
             className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-5 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-start lg:shadow-xl lg:shadow-black/10"
           >
-            <h2
-              className="flex items-center gap-2 text-lg font-semibold text-foreground"
-              id="ingressos-titulo"
-            >
-              <Ticket aria-hidden className="h-5 w-5 text-byla-accent-text" />
-              Ingressos
-            </h2>
-
-            {multi ? (
-              <SessionPicker
-                feePolicy={feePolicy}
-                selectedId={selected?.id ?? null}
-                sessions={visible}
-                slug={event.slug}
-              />
-            ) : null}
-
-            {choosing ? (
-              <p className="mt-4 text-base text-byla-muted">
-                Escolha uma sessão para ver os ingressos e os preços.
-              </p>
+            {ended ? (
+              <EventEndedNotice whenLabel={endedLabel} />
             ) : (
               <>
-                {multi && selected ? (
-                  <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-byla-accent-text">
-                    {selectedLabel}
-                  </p>
+                <h2
+                  className="flex items-center gap-2 text-lg font-semibold text-foreground"
+                  id="ingressos-titulo"
+                >
+                  <Ticket aria-hidden className="h-5 w-5 text-byla-accent-text" />
+                  Ingressos
+                </h2>
+
+                {multi ? (
+                  <SessionPicker
+                    feePolicy={feePolicy}
+                    selectedId={selected?.id ?? null}
+                    sessions={visible}
+                    slug={event.slug}
+                  />
                 ) : null}
-                {offeredTypes.length ? (
-                  <dl className={multi ? "mt-1 divide-y divide-byla-border" : "mt-3 divide-y divide-byla-border"}>
-                    {offeredTypes.map((ticketType) => (
-                      <div
-                        className="flex items-center justify-between gap-4 py-3"
-                        key={ticketType.id}
-                      >
-                        <dt className="text-base text-foreground">
-                          {ticketType.name}
-                          {ticketType.people_per_unit > 1 ? (
-                            <span className="block text-sm text-byla-muted">
-                              {unitContentsLabel(ticketType.people_per_unit, ticketType.kind)}
-                            </span>
-                          ) : null}
-                        </dt>
-                        <dd
-                          className={
-                            soldOutTypes.has(ticketType.id)
-                              ? "text-right text-base font-semibold text-byla-muted"
-                              : "text-right text-lg font-semibold text-foreground"
-                          }
-                        >
-                          {soldOutTypes.has(ticketType.id) ? (
-                            "Esgotado"
-                          ) : (
-                            <>
-                              {formatMoney(ticketType.price_cents)}
-                              <FeeNote priceCents={ticketType.price_cents} policy={feePolicy} />
-                            </>
-                          )}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
+
+                {choosing ? (
+                  <p className="mt-4 text-base text-byla-muted">
+                    Escolha uma sessão para ver os ingressos e os preços.
+                  </p>
                 ) : (
-                  <p className="mt-3 text-base text-byla-muted">Valores indisponíveis.</p>
+                  <>
+                    {multi && selected ? (
+                      <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-byla-accent-text">
+                        {selectedLabel}
+                      </p>
+                    ) : null}
+                    {offeredTypes.length ? (
+                      <dl className={multi ? "mt-1 divide-y divide-byla-border" : "mt-3 divide-y divide-byla-border"}>
+                        {offeredTypes.map((ticketType) => (
+                          <div
+                            className="flex items-center justify-between gap-4 py-3"
+                            key={ticketType.id}
+                          >
+                            <dt className="text-base text-foreground">
+                              {ticketType.name}
+                              {ticketType.people_per_unit > 1 ? (
+                                <span className="block text-sm text-byla-muted">
+                                  {unitContentsLabel(ticketType.people_per_unit, ticketType.kind)}
+                                </span>
+                              ) : null}
+                            </dt>
+                            <dd
+                              className={
+                                soldOutTypes.has(ticketType.id)
+                                  ? "text-right text-base font-semibold text-byla-muted"
+                                  : "text-right text-lg font-semibold text-foreground"
+                              }
+                            >
+                              {soldOutTypes.has(ticketType.id) ? (
+                                "Esgotado"
+                              ) : (
+                                <>
+                                  {formatMoney(ticketType.price_cents)}
+                                  <FeeNote priceCents={ticketType.price_cents} policy={feePolicy} />
+                                </>
+                              )}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="mt-3 text-base text-byla-muted">Valores indisponíveis.</p>
+                    )}
+                  </>
+                )}
+
+                {state === "open" ? (
+                  choosing ? null : (
+                    <div className="mt-4 hidden lg:block">
+                      <ButtonLink fullWidth href={checkoutHref} size="lg">
+                        Comprar ingresso
+                      </ButtonLink>
+                    </div>
+                  )
+                ) : (
+                  <Notice className="mt-4" live={false} tone={state === "held" ? "warning" : "neutral"}>
+                    {blockedText}
+                  </Notice>
                 )}
               </>
-            )}
-
-            {state === "open" ? (
-              choosing ? null : (
-                <div className="mt-4 hidden lg:block">
-                  <ButtonLink fullWidth href={checkoutHref} size="lg">
-                    Comprar ingresso
-                  </ButtonLink>
-                </div>
-              )
-            ) : (
-              <Notice className="mt-4" live={false} tone={state === "held" ? "warning" : "neutral"}>
-                {blockedText}
-              </Notice>
             )}
           </aside>
 

@@ -7,6 +7,7 @@ import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventFinancePanel } from "@/components/equipe/EventFinancePanel";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
+import { PastVisibilityToggle } from "@/components/equipe/PastVisibilityToggle";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { SalesToggle } from "@/components/equipe/SalesToggle";
 import { type EditorSession, savedTypeKey } from "@/components/equipe/session-drafts";
@@ -420,6 +421,13 @@ export default async function EventoEquipePage({
           </ButtonLink>
           <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
         </div>
+        {event.published_at ? (
+          <PastVisibilityToggle
+            className="mt-4"
+            eventId={event.id}
+            shownInPast={!event.hidden_from_past}
+          />
+        ) : null}
       </header>
 
       {multi ? (

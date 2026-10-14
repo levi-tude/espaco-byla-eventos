@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { eventDateFormatter, formatSessionShort } from "@/lib/datetime";
+import { isPastEventDay } from "@/lib/domain/past-events";
 import { createServerClient } from "@/lib/supabase/server";
 
 const dateFormatter = eventDateFormatter({
@@ -14,27 +15,23 @@ const dateFormatter = eventDateFormatter({
   timeStyle: "short",
 });
 
-/** Evento continua em "Próximos" durante o dia em que acontece. */
-const PAST_AFTER_MS = 24 * 60 * 60 * 1000;
-
 type EventRow = {
   id: string;
   name: string;
   starts_at: string;
   sales_open: boolean;
+  published_at: string | null;
+  hidden_from_past: boolean;
   cover_image_url: string | null;
   /** Início das sessões ativas, em ordem. */
   sessionStarts: string[];
+  /** Fim (ou início, sem término) da última sessão ativa. */
+  lastSessionAt: string | null;
 };
 
-/** Evento passa para "Passados" um dia depois do início da última sessão. */
-function lastStart(event: EventRow) {
-  return new Date(event.sessionStarts.at(-1) ?? event.starts_at).getTime();
-}
-
+/** Evento passa para "Passados" no dia seguinte à última sessão (mesma regra do site). */
 function splitByDate(events: EventRow[]) {
-  const cutoff = Date.now() - PAST_AFTER_MS;
-  const isPast = (event: EventRow) => lastStart(event) < cutoff;
+  const isPast = (event: EventRow) => isPastEventDay(event.lastSessionAt ?? event.starts_at);
   return {
     upcoming: events.filter((event) => !isPast(event)),
     past: events.filter(isPast).reverse(),
@@ -53,7 +50,15 @@ function whenLine(event: EventRow) {
     : `${event.sessionStarts.length} sessões · última: ${formatSessionShort(event.sessionStarts.at(-1))}`;
 }
 
-function EventList({ title, events }: { title: string; events: EventRow[] }) {
+function EventList({
+  title,
+  events,
+  past = false,
+}: {
+  title: string;
+  events: EventRow[];
+  past?: boolean;
+}) {
   if (!events.length) return null;
 
   return (
@@ -72,9 +77,18 @@ function EventList({ title, events }: { title: string; events: EventRow[] }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold text-foreground">{event.name}</p>
                 <p className="mt-0.5 text-sm text-byla-muted">{whenLine(event)}</p>
-                <StatusBadge className="mt-2" tone={event.sales_open ? "success" : "neutral"}>
-                  {event.sales_open ? "Venda aberta" : "Venda fechada"}
-                </StatusBadge>
+                {past ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <StatusBadge>Encerrado</StatusBadge>
+                    {event.published_at && event.hidden_from_past ? (
+                      <StatusBadge tone="warning">Escondido do site</StatusBadge>
+                    ) : null}
+                  </div>
+                ) : (
+                  <StatusBadge className="mt-2" tone={event.sales_open ? "success" : "neutral"}>
+                    {event.sales_open ? "Venda aberta" : "Venda fechada"}
+                  </StatusBadge>
+                )}
               </div>
               <ChevronRight
                 aria-hidden
@@ -93,17 +107,22 @@ export default async function EquipePage() {
   const { data: rows, error } = await supabase
     .from("events")
     .select(
-      "id, name, starts_at, sales_open, cover_image_url, event_sessions(starts_at, status, archived_at)",
+      "id, name, starts_at, sales_open, published_at, hidden_from_past, cover_image_url, event_sessions(starts_at, ends_at, status, archived_at)",
     )
     .order("starts_at", { ascending: true });
 
-  const events: EventRow[] = (rows ?? []).map(({ event_sessions: sessions, ...event }) => ({
-    ...event,
-    sessionStarts: (sessions ?? [])
-      .filter((session) => session.status === "ativa" && session.archived_at === null)
-      .map((session) => session.starts_at)
-      .sort((a, b) => Date.parse(a) - Date.parse(b)),
-  }));
+  const events: EventRow[] = (rows ?? []).map(({ event_sessions: sessions, ...event }) => {
+    const active = (sessions ?? []).filter(
+      (session) => session.status === "ativa" && session.archived_at === null,
+    );
+    const byTime = (a: string, b: string) => Date.parse(a) - Date.parse(b);
+    return {
+      ...event,
+      sessionStarts: active.map((session) => session.starts_at).sort(byTime),
+      lastSessionAt:
+        active.map((session) => session.ends_at ?? session.starts_at).sort(byTime).at(-1) ?? null,
+    };
+  });
   const { upcoming, past } = splitByDate(events);
 
   return (
@@ -140,7 +159,7 @@ export default async function EquipePage() {
       {!error ? (
         <>
           <EventList events={upcoming} title="Próximos" />
-          <EventList events={past} title="Passados" />
+          <EventList events={past} past title="Passados" />
         </>
       ) : null}
     </main>
