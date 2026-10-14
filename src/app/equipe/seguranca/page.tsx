@@ -105,8 +105,8 @@ export default async function SegurancaPage() {
         <Card className="mt-4">
           <h2 className="text-lg font-semibold text-foreground">Contas da equipe</h2>
           <p className="mb-4 mt-1 text-sm text-byla-muted">
-            Se alguém da equipe perder o celular ou sair da equipe, esqueça os aparelhos dessa conta: no próximo
-            acesso, ela vai pedir o código do e-mail.
+            Se alguém da equipe perder o celular ou sair da equipe, esqueça os aparelhos dessa conta: o acesso aberto
+            também é encerrado e, no próximo acesso, ela vai pedir o código do e-mail.
           </p>
           {team === null ? (
             <Notice live={false} tone="danger">
@@ -132,9 +132,9 @@ export default async function SegurancaPage() {
                   </div>
                   {account.isMe ? (
                     <p className="text-sm text-byla-muted">Sua conta: use “Meus aparelhos” acima.</p>
-                  ) : account.devicesCount > 0 ? (
+                  ) : (
                     <ForgetStaffDevicesButton userId={account.userId} />
-                  ) : null}
+                  )}
                 </li>
               ))}
             </ul>

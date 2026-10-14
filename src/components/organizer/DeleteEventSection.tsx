@@ -7,6 +7,7 @@ import { deleteOwnEvent, requestEventDeletion } from "@/app/organizador/eventos/
 import { Button } from "@/components/ui/Button";
 import { Field, TextAreaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { ORGANIZER_STATE_MESSAGES } from "@/lib/organizer/errors";
 
 type Props = {
   eventId: string;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 function DeleteForm({ eventId, eventName, onCancel }: { eventId: string; eventName: string; onCancel: () => void }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -29,7 +31,11 @@ function DeleteForm({ eventId, eventName, onCancel }: { eventId: string; eventNa
       try {
         // Deu certo: o servidor leva para "Meus eventos".
         const result = await deleteOwnEvent(eventId, name);
-        if (result && !result.ok) setError(result.error);
+        if (result && !result.ok) {
+          setError(result.error);
+          // Uma venda começou depois que a página abriu: atualiza para aparecer "Pedir exclusão".
+          if (result.error === ORGANIZER_STATE_MESSAGES.com_vendas) router.refresh();
+        }
       } catch {
         setError("Não foi possível excluir o evento.");
       }

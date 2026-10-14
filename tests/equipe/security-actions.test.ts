@@ -231,7 +231,7 @@ describe("página Segurança", () => {
     expect(userCalls("list_my_devices")).toEqual([["list_my_devices", { p_current_token: null }]]);
   });
 
-  it("Admin vê as contas da equipe e “Esquecer aparelhos” só nas outras contas com aparelhos", async () => {
+  it("Admin vê as contas da equipe e “Esquecer aparelhos” em todas as outras contas", async () => {
     as("admin", { list_my_devices: { data: myDevices }, staff_security_overview: { data: overview } });
     const html = renderToStaticMarkup(await SegurancaPage());
     const page = text(html);
@@ -240,13 +240,18 @@ describe("página Segurança", () => {
     expect(page).toContain("Conta Secretaria");
     expect(page).toContain("2 aparelhos lembrados");
     expect(page).toContain("Sua conta: use “Meus aparelhos” acima.");
-    expect(page.match(/Esquecer aparelhos/g)).toHaveLength(1);
+    expect(page).toContain("o acesso aberto também é encerrado");
+    expect(page.match(/Esquecer aparelhos/g)).toHaveLength(2);
     expect(adminCalls("staff_security_overview")).toEqual([["staff_security_overview", { p_admin: ME }]]);
 
     const ownItem = page.slice(page.indexOf("Conta Admin"), page.indexOf("Conta Secretaria"));
     expect(ownItem).not.toContain("Esquecer aparelhos");
     const otherItem = page.slice(page.indexOf("Conta Secretaria"), page.indexOf("Conta Sem Aparelho"));
     expect(otherItem).toContain("Esquecer aparelhos");
+    // Sem aparelho lembrado, a conta pode ter um acesso aberto (ex.: celular perdido).
+    const noDeviceItem = page.slice(page.indexOf("Conta Sem Aparelho"));
+    expect(noDeviceItem).toContain("Nenhum aparelho lembrado");
+    expect(noDeviceItem).toContain("Esquecer aparelhos");
   });
 
   it("falha ao listar as contas não esconde Meus aparelhos", async () => {

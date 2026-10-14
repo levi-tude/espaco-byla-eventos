@@ -381,9 +381,17 @@ async function deleteOwnEventOrThrow(id: string, confirmName: unknown): Promise<
   }
 
   if (data === "apagado") {
-    if (photos) await removeMediaObjects(photos);
-    else console.error("[organizador] Fotos do evento apagado não foram lidas; arquivos mantidos.");
-    await removeReplacedCover(admin, id, event?.cover_image_url, null);
+    // O evento já foi apagado: falha nos arquivos não pode virar erro para o organizador.
+    try {
+      if (photos) await removeMediaObjects(photos);
+      else console.error("[organizador] Fotos do evento apagado não foram lidas; arquivos mantidos.");
+      await removeReplacedCover(admin, id, event?.cover_image_url, null);
+    } catch (error) {
+      console.error(
+        "[organizador] Falha ao apagar os arquivos do evento apagado.",
+        error instanceof Error ? error.name : "desconhecido",
+      );
+    }
   }
 
   revalidateOrganizerSurfaces(id);

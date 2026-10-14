@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Result = { data: unknown; error: unknown };
 type Calls = [string, unknown[]][];
@@ -105,6 +105,10 @@ function removedPaths(): string[] {
   return mocks.removeMediaObjects.mock.calls.flatMap(([paths]) => paths as string[]);
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://proj.supabase.co");
@@ -201,6 +205,15 @@ describe("deleteOwnEvent", () => {
     await expect(deleteOwnEvent(EVENT_ID, "Peça Y")).rejects.toThrow("NEXT_REDIRECT:/organizador");
     expect(removedPaths()).not.toContain(COVER_PATH);
     expect(removedPaths().sort()).toEqual([...GALLERY_PATHS].sort());
+  });
+
+  it("falha ao limpar os arquivos depois de apagar: a exclusão vale e vai para Meus eventos", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.removeMediaObjects.mockRejectedValue(new Error(`sem chave para ${COVER_PATH}`));
+    await expect(deleteOwnEvent(EVENT_ID, "Peça Y")).rejects.toThrow("NEXT_REDIRECT:/organizador");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/organizador");
+    expect(log).toHaveBeenCalledWith("[organizador] Falha ao apagar os arquivos do evento apagado.", "Error");
+    expect(JSON.stringify(log.mock.calls)).not.toContain(COVER_PATH);
   });
 
   it("exclusão lógica (pedidos expirados) mantém os arquivos", async () => {

@@ -1,6 +1,6 @@
 import { LOCKED_FIELD_LABELS, type LockedField } from "@/lib/organizer/post-approval";
 
-const STATE_MESSAGES: Record<string, string> = {
+export const ORGANIZER_STATE_MESSAGES = {
   em_analise: "O evento está em análise. Toque em “Voltar para rascunho” para editar.",
   capa: "Adicione uma capa antes de enviar para aprovação.",
   sem_sessao_futura: "Cadastre pelo menos uma sessão com data futura.",
@@ -16,7 +16,8 @@ const STATE_MESSAGES: Record<string, string> = {
   sessoes_ativas: "Cancele todas as sessões ativas antes de concluir a exclusão.",
   organizador_inativo: "A conta deste organizador não está ativa.",
   estado: "Esta ação não está disponível agora. Recarregue a página.",
-};
+} as const;
+const STATE_MESSAGES: Record<string, string> = ORGANIZER_STATE_MESSAGES;
 
 const FIELD_ORDER: LockedField[] = ["nome", "local", "horario", "preco", "lotacao"];
 
