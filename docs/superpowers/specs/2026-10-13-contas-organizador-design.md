@@ -1,6 +1,6 @@
 # Contas de organizador — design
 
-Data: 2026-10-13 · Status: **aguardando revisão do dono** (perguntas 1–7 respondidas em 2026-10-13; faltam as perguntas 8 e 9 da seção 21) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
+Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as perguntas respondidas; decisões 12 a 20 na seção 2.1) · Base: `feat/sair-vercel` (`214c866`), migrations até `20261016100000_past_events.sql`.
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
@@ -14,7 +14,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 - **Estorno:** o organizador **pede**; a equipe do Espaço faz, pelo botão "Estornar pedido" que já existe.
 - **Cortesia:** o organizador **não emite**; pede à equipe do Espaço pelo WhatsApp, e a equipe emite pelo botão de cortesia que já existe.
 - **Mudanças depois de aprovado:** textos, fotos, pausar vendas e sessão nova valem na hora; nome, preço já vendido, menos lugares, troca de horário e cancelamento viram pedido ao Admin.
-- **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento, para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
+- **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento (inteira, inclusive a parte cobrada sobre a taxa de serviço) sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento (calendário de Salvador, com Carnaval), para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
 - **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A página do evento e o e-mail do ingresso mostram "Produção: <nome do organizador>". A Política de Privacidade ganha uma versão nova dizendo isso.
 - **Portaria:** o organizador faz check-in só de ingressos dos próprios eventos; o banco recusa os outros sem revelar de qual evento são.
 - **Verificação em duas etapas obrigatória** (código de 6 dígitos num aplicativo do celular) para organizadores **e** para a equipe atual, com implantação sem trancar ninguém para fora.
@@ -62,12 +62,14 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 16 (perg. 5) | Nome do organizador ao comprador | **A** — "Produção: <nome público>" na página do evento e no e-mail do ingresso. | 12.1, 14, 15 |
 | 17 (perg. 6) | Confirmar e-mail no cadastro | **A** — código de 6 dígitos por e-mail durante o cadastro. | 5.3, 7.3, 14 |
 | 18 (perg. 7) | Portaria do organizador | **A** — sem subcontas nesta entrega; o próprio organizador (ou a equipe do Espaço) faz o check-in. | 19 |
+| 19 (perg. 8) | Tarifa do banco sobre a taxa de serviço | **A** — o organizador paga a **tarifa real inteira** de cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço. O Espaço fica neutro nos eventos de organizador. Nos eventos do próprio Espaço continua valendo a decisão 4 da spec da taxa de serviço. | 10.1, 10.2, 13 |
+| 20 (perg. 9) | Dias úteis do prazo do repasse | **A** — Espaço Byla fica em Salvador (BA): dias úteis = segunda a sexta, fora feriados nacionais, o feriado estadual da Bahia, os feriados municipais de Salvador e os dias sem expediente bancário (segunda e terça de Carnaval). Lista, fontes e manutenção na seção 7.9. | 7.9, 10.3, 13 |
 
 **Cortesia a pedido — escolha desta spec [R]:** o pedido de cortesia vai **pelo WhatsApp**, sem tela nova. Motivo: a cortesia precisa de nome e e-mail do convidado; um formulário no painel guardaria esses dados num pedido intermediário (mais dados pessoais guardados, mais uma tela e mais uma regra), enquanto o botão "Emitir cortesia" que a equipe já usa resolve com uma conversa. O organizador vê as cortesias emitidas no próprio evento (lista de pedidos, valor R$ 0,00) e elas não mexem na parte dele. Se o volume crescer, um "Pedir cortesia" no painel pode entrar depois (fora de escopo).
 
-**Ainda em aberto:** a tarifa do banco sobre a parte da taxa de serviço (pergunta 8) e a cidade dos feriados do prazo do repasse (pergunta 9). Até a resposta, a spec segue a interpretação abaixo e Salvador.
+**Tarifa (decisão 19):** "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento. Exemplo: o comprador paga R$ 52,50 no cartão (R$ 50,00 de ingresso + R$ 2,50 de taxa de serviço) e o banco cobra R$ 2,61; os R$ 2,61 saem da parte do organizador, e a taxa de serviço chega inteira ao desenvolvedor.
 
-Interpretação desta spec para a decisão 5 **[R]**, a confirmar na pergunta 8: "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento (inclusive a parte que incide sobre a taxa de serviço). Assim o Espaço fica neutro em eventos de organizador. Para eventos do próprio Espaço continua valendo a decisão 4 da taxa de serviço (tarifa sobre a taxa fica com o Espaço). Se o dono escolher dividir proporcionalmente, muda só a fórmula da seção 10.2.
+**Carnaval (escolha desta spec, dentro da decisão 20) [R]:** segunda e terça de Carnaval **não** são dias úteis para o prazo, embora não sejam feriado por lei (são ponto facultativo), porque os bancos não têm expediente e o mercado financeiro não as conta como dias úteis (Resolução CMN 4.880/2020). A Quarta-feira de Cinzas **conta** como dia útil: a contagem é por dia inteiro, os bancos abrem às 12h e o PIX funciona o dia todo. Mesma lógica para Corpus Christi (já é feriado municipal em Salvador) e para 24/12 e 31/12 (contam como dias úteis; PIX funciona).
 
 ---
 
@@ -483,11 +485,53 @@ create table public.audit_log (
 ```sql
 create table public.business_holidays (
   day date primary key,
-  name text not null
+  name text not null check (char_length(name) between 3 and 80),
+  kind text not null check (kind in ('nacional','estadual','municipal','bancario','extra')),
+  source text not null check (char_length(source) between 3 and 120)  -- ex.: 'Lei 662/1949', 'Lei Municipal 1.997/1967'
 );
+alter table public.business_holidays enable row level security;  -- sem políticas: leitura só por função
 ```
 
-- Semeada para 2026 e 2027 com feriados nacionais e os dias sem expediente bancário em Salvador (Carnaval, Sexta-feira Santa, Corpus Christi, 2 de Julho, 8 de Dezembro…) **[S: conferir a lista com o contador/banco]**. Leitura só por função; o dono atualiza uma vez por ano (lembrete junto do de renovação do domínio).
+**Calendário adotado (decisão 20; Salvador – BA):** dia útil = segunda a sexta, fora as datas abaixo.
+
+| Data | Nome | Tipo | Base |
+| --- | --- | --- | --- |
+| 1º/1 | Confraternização Universal | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| móvel (Páscoa − 48 e − 47) | Segunda e terça de Carnaval | bancário | Resolução CMN 4.880/2020, art. 6º, I (ponto facultativo, não feriado: Portaria MGI 11.460/2025) |
+| móvel (Páscoa − 2) | Sexta-feira da Paixão | municipal (religioso) | Lei 9.093/1995, art. 2º; Lei Municipal 1.997/1967 (Salvador); listada como feriado nacional na Portaria MGI 11.460/2025 |
+| 21/4 | Tiradentes | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| 1º/5 | Dia do Trabalho | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| móvel (Páscoa + 60) | Corpus Christi | municipal (religioso) e bancário | Lei Municipal 1.997/1967; Resolução CMN 4.880/2020, art. 6º, II |
+| 24/6 | São João | municipal (religioso) | Lei Municipal 1.997/1967 |
+| 2/7 | Independência da Bahia (Dois de Julho) | estadual | Constituição do Estado da Bahia, art. 6º, § 3º; Lei 9.093/1995, art. 1º, II |
+| 7/9 | Independência do Brasil | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| 12/10 | Nossa Senhora Aparecida | nacional | Lei 6.802/1980 |
+| 2/11 | Finados | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| 15/11 | Proclamação da República | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+| 20/11 | Zumbi e Consciência Negra | nacional | Lei 14.759/2023 |
+| 8/12 | Nossa Senhora da Conceição da Praia | municipal (religioso) | Lei Municipal 1.997/1967 |
+| 25/12 | Natal | nacional | Lei 662/1949 (redação da Lei 10.607/2002) |
+
+Datas móveis em 2026: Carnaval 16 e 17/2, Sexta-feira da Paixão 3/4, Corpus Christi 4/6. Em 2027: Carnaval 8 e 9/2, Sexta-feira da Paixão 26/3, Corpus Christi 27/5.
+
+**Contam como dia útil** (de propósito): Quarta-feira de Cinzas (bancos abrem às 12h; PIX normal), 24/12 e 31/12, e os pontos facultativos do serviço público (ex.: sexta depois de Corpus Christi, Dia do Servidor). **Não são feriado em Salvador**, apesar de aparecerem em alguns sites de calendário: Aniversário de Salvador (29/3) e São José (19/3, feriado do Ceará). A lei municipal de Salvador usa as 4 vagas de feriado religioso permitidas pela Lei 9.093/1995 (São João, Conceição da Praia, Corpus Christi e Sexta-feira da Paixão).
+
+**Fontes consultadas em 2026-10-13:**
+- Portaria MGI nº 11.460/2025 (feriados nacionais e pontos facultativos de 2026): [DOU](https://www.in.gov.br/en/web/dou/-/portaria-mgi-n-11.460-de-29-de-dezembro-de-2025-678388627)
+- Resolução CMN nº 4.880/2020, art. 6º (dias não úteis no mercado financeiro: Carnaval e Corpus Christi): [texto](https://www.normasbrasil.com.br/norma/resolucao-4880-2020_406827.html)
+- Febraban, expediente bancário no Carnaval de 2026 (fechado segunda e terça; Cinzas a partir das 12h; PIX normal): [notícia](https://portal.febraban.org.br/noticia/4421/pt-br/)
+- Constituição do Estado da Bahia, art. 6º, § 3º (Dois de Julho): [Assembleia Legislativa da Bahia](https://www.al.ba.gov.br/fserver/:imagensAlbanet:upload:Constituicao_EGBA_EC-36.pdf)
+- Lei Municipal de Salvador nº 1.997/1967 (feriados municipais): [texto](https://www.normasbrasil.com.br/norma/lei-1997-1967-salvador_178349.html)
+- Justiça Federal da Bahia, Portaria SJBA-DIREF 30/2026 e 162/2026 (feriados municipais de Salvador em 2026 com a mesma base legal): [notícia](https://www.trf1.jus.br/sjba/noticias/justica-federal-da-bahia-divulga-portaria-de-feriados-e-pontos-facultativos-para-2026-), [portaria](https://www.trf1.jus.br/sjba/conteudo/Portaria%20SJBA-DIREF%20162-2026.pdf)
+- Prefeitura de Salvador, Decreto 41.381/2026 (Carnaval como ponto facultativo municipal, não feriado): [texto](https://www.legisweb.com.br/legislacao/?id=490544)
+
+**Como o calendário é mantido:**
+- Uma função de servidor (`src/lib/finance/business-days.ts`) calcula as datas a partir das regras acima (fixas + Páscoa pelo cálculo gregoriano). Testes conferem 2026 e 2027 contra a tabela desta seção.
+- A migration da fase 3 grava em `business_holidays` os anos de 2026 a 2030, gerados por essa função, com nome, tipo e base legal. `event_payout_due_date` lê só a tabela.
+- **Falha fechada:** se a data de início do prazo cair num ano que ainda não está na tabela, a função devolve vazio e as telas mostram "Prazo a confirmar" (nada de prazo calculado sem feriados).
+- **Aviso ao Admin:** a partir de 1º de novembro, a página "Repasses" mostra "Feriados de {ano seguinte} ainda não cadastrados" se faltar o ano seguinte, e "Calendário cadastrado até 31/12/{ano}" sempre no rodapé.
+- **Revisão anual (dezembro):** quando sair a portaria do governo federal do ano seguinte, alguém da equipe (ou o desenvolvedor) confere se mudou alguma lei ou se a Prefeitura/Estado antecipou ou mudou algum feriado; mudanças pontuais entram como `kind = 'extra'` por migration, com a fonte. Lembrete no Google Agenda do dono em dezembro, junto dos lembretes que já existem.
+- Mudar a tabela não altera repasses já registrados; muda só o prazo calculado de eventos ainda "A pagar".
 
 ---
 
@@ -609,7 +653,7 @@ Cortesia: **nenhuma função nova** (decisão 13). `issue_courtesy_ticket` e `ca
 
 - **Comprador** paga: preço do ingresso + taxa de serviço (quando ligada).
 - **Taxa de serviço** é do desenvolvedor; **não entra nem sai** da parte do organizador.
-- **Tarifa do banco** (cobrada sobre o pagamento inteiro) sai da parte do organizador (decisão 5; interpretação na seção 2, ainda em aberto na pergunta 8).
+- **Tarifa do banco** (cobrada sobre o pagamento inteiro) sai inteira da parte do organizador, inclusive a parte cobrada sobre a taxa de serviço (decisões 5 e 19).
 - **Espaço** não cobra comissão.
 
 ### 10.2 Contas do evento
@@ -628,8 +672,8 @@ Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inte
 ### 10.3 Prazo do repasse
 
 - "A pagar" começa no **dia seguinte à última sessão ativa** (mesma data de `event_fee_due_date`, horário de Brasília).
-- **Prazo** = 5º dia útil contado a partir desse dia (ele mesmo conta, se for dia útil). Dia útil = segunda a sexta, fora de `business_holidays` (feriados nacionais + da cidade; Salvador por suposição, a confirmar na pergunta 9).
-- Exemplos: última sessão sexta 23/10/2026 → começa sábado 24/10 → dias úteis 26, 27, 28, 29, 30 → **prazo 30/10**. Última sessão sábado 14/11/2026 → começa domingo 15/11 (feriado) → 16, 17, 18, 19 e (20/11 é feriado) 23 → **prazo 23/11**.
+- **Prazo** = 5º dia útil contado a partir desse dia (ele mesmo conta, se for dia útil). Dia útil = segunda a sexta, fora de `business_holidays` (calendário de Salvador com Carnaval, decisão 20, seção 7.9).
+- Exemplos: última sessão sexta 23/10/2026 → começa sábado 24/10 → dias úteis 26, 27, 28, 29, 30 → **prazo 30/10**. Última sessão sábado 14/11/2026 → começa domingo 15/11 (feriado) → 16, 17, 18, 19 e (20/11 é feriado) 23 → **prazo 23/11**. Última sessão sábado 20/06/2026 → começa domingo 21/06 → 22, 23, (24/06 São João) 25, 26 e 29 → **prazo 29/06**. Última sessão sábado 06/02/2027 → começa domingo 07/02 → (8 e 9/02 Carnaval) 10 (Cinzas conta), 11, 12, 15 e 16 → **prazo 16/02/2027**.
 - Ponto de atenção para o Espaço **[S]:** o dinheiro de cartão pode demorar a ficar disponível na conta do banco de pagamento (depende do prazo de recebimento escolhido na conta). O repasse em 5 dias úteis pode sair antes de o Espaço ter recebido as vendas no cartão.
 
 ### 10.4 Situação do repasse (calculada, não gravada)
@@ -809,13 +853,13 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 
 - Todo pagamento cai na conta do Espaço Byla no banco responsável pelo pagamento. O Espaço Byla **não cobra comissão** sobre as suas vendas.
 - O site pode cobrar do comprador uma **taxa de serviço** ({percentual}% por item, mínimo {mínimo}), que paga a manutenção do site. Ela é paga pelo comprador e **não sai da sua parte**.
-- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real** cobrado em cada pagamento {texto final depende da pergunta 8: tarifa inteira do pagamento ou só a parte proporcional ao valor dos ingressos}. Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
+- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real e inteiro** cobrado em cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço (por exemplo: num pagamento de R$ 52,50, sendo R$ 50,00 de ingresso e R$ 2,50 de taxa de serviço, toda a tarifa daquele pagamento sai da sua parte). Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
 - **Sua parte** = valor dos ingressos vendidos − estornos − contestações no cartão − tarifas do banco.
 - No painel do evento você acompanha: vendido, tarifa do banco, estornos, sua parte e a situação do repasse.
 
 **7. Repasse**
 
-- O Espaço Byla paga sua parte por PIX, na chave cadastrada, **em até 5 dias úteis** contados do dia seguinte à última sessão do evento. Dias úteis: segunda a sexta, fora feriados nacionais e de {cidade — Salvador, a confirmar na pergunta 9}.
+- O Espaço Byla paga sua parte por PIX, na chave cadastrada, **em até 5 dias úteis** contados do dia seguinte à última sessão do evento. Dias úteis: segunda a sexta, exceto feriados nacionais, o Dois de Julho, os feriados municipais de Salvador e a segunda e a terça de Carnaval (dias sem expediente bancário). O painel do evento mostra a data-limite já calculada.
 - Ao registrar o pagamento, o Espaço Byla envia um e-mail com valor e data. O registro não pode ser apagado.
 - O titular da chave PIX deve ser você (CPF) ou a sua empresa (CNPJ). Pedimos o nome e o CPF ou CNPJ do titular no cadastro para conferir isso e para a nossa contabilidade. Se a lei exigir, você emite nota fiscal ou recibo do valor recebido.
 - Se houver tarifa ainda em conferência, o repasse pode ser feito com o valor conferido até ali e o restante acertado no próximo repasse.
@@ -870,7 +914,7 @@ Fica eleito o foro de Salvador – BA.
 
 ---
 
-**[S]** Pedir a quem cuida da parte jurídica e ao contador uma leitura antes de publicar, em especial: papel do organizador perante a LGPD (operador x controlador), documento fiscal do repasse e a cláusula de devolução depois do repasse.
+**[S]** Pedir a quem cuida da parte jurídica e ao contador uma leitura antes de publicar, em especial: papel do organizador perante a LGPD (operador x controlador), documento fiscal do repasse e a cláusula de devolução depois do repasse (lista completa na seção 21.1).
 
 ---
 
@@ -966,7 +1010,7 @@ Mudanças no texto de `/privacidade`:
 
 ## 17. Plano de testes
 
-1. **Unitários (Vitest):** dias úteis e prazo (exemplos da seção 10.3, virada de dia em Brasília com servidor em UTC); contas do organizador (seção 10.2, com estorno, contestação, tarifa pendente, saldo negativo, cortesia valendo 0); desconto pendente → devolução pendente aos 30 dias → prazo de 10 dias (seção 10.5); token do convite e código do e-mail (geração, hash, formato, validade); CPF/CNPJ (dígitos verificadores, máscara); validações dos formulários; quais campos de evento aprovado pedem Admin (seção 6.4); linha "Produção" no e-mail do ingresso (com e sem organizador); textos de situação do repasse; leitura da resposta do banco de pagamento para tarifa (formatos esperados e ausentes).
+1. **Unitários (Vitest):** calendário de Salvador (datas de 2026 e 2027 da seção 7.9, Páscoa, Carnaval, Cinzas contando como dia útil); dias úteis e prazo (exemplos da seção 10.3, virada de dia em Brasília com servidor em UTC, ano sem calendário → "Prazo a confirmar"); contas do organizador (seção 10.2, com estorno, contestação, tarifa pendente, saldo negativo, cortesia valendo 0); desconto pendente → devolução pendente aos 30 dias → prazo de 10 dias (seção 10.5); token do convite e código do e-mail (geração, hash, formato, validade); CPF/CNPJ (dígitos verificadores, máscara); validações dos formulários; quais campos de evento aprovado pedem Admin (seção 6.4); linha "Produção" no e-mail do ingresso (com e sem organizador); textos de situação do repasse; leitura da resposta do banco de pagamento para tarifa (formatos esperados e ausentes).
 2. **Banco** (transação revertida, no padrão de `scripts/db-tests/*.mjs`): estados do evento e gatilho de publicação; dono imutável; convite usado duas vezes ao mesmo tempo; convite vencido/revogado; código do e-mail errado 5 vezes, vencido e reenviado demais; cadastro sem e-mail confirmado ou com CPF/CNPJ inválido; check-in de evento alheio sem nome; pedido de estorno duplicado; `save_event_with_sessions` do dono recusando, em evento aprovado, nome, preço vendido, redução de lugares e troca de horário (e aceitando descrição, fotos e sessão nova); pedido de mudança feito/recusado; exclusão com e sem vendas; repasse com tarifa pendente, troca de PIX pendente, valor mudado, duplo clique, desconto de outro evento; devolução recebida zerando o saldo; envio para aprovação recusado com devolução atrasada; registros imutáveis até para `service_role`; matriz da seção 16.3.
 3. **Servidor:** cada ação e rota recusa anônimo, conta sem duas etapas, organizador de outro evento e (quando couber) secretaria e desenvolvedor, inclusive por POST direto (mesmo estilo de `tests/api/check-in-route.test.ts`).
 4. **Teste do banco de pagamento** (fase 3, credenciais de teste): seção 9, item 1.
@@ -988,7 +1032,7 @@ Helper `getActor` com `aal2`; telas de cadastro/código/minha segurança; "Segur
 - Publicada com `organizer_settings.enabled = false`; o dono liga quando quiser.
 
 **Fase 3 — Financeiro do organizador e repasses** (≈3–4 dias)
-Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → desconto pendente e devolução (seção 10.5) → avisos de atraso. As perguntas 8 (fórmula da tarifa) e 9 (cidade dos feriados) já precisam estar respondidas, porque entram nos Termos publicados na fase 2a.
+Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → painel "Financeiro" do organizador → `organizer_payouts` → página "Repasses" → feriados e prazo → desconto pendente e devolução (seção 10.5) → avisos de atraso. Fórmula da tarifa (decisão 19) e calendário de Salvador (decisão 20, seção 7.9) já definidos.
 
 **Regra de ordem [R]:** o primeiro evento real de organizador só é aprovado depois da fase 3 no ar, para o painel e o prazo de repasse prometidos nos Termos existirem desde a primeira venda.
 
@@ -1025,13 +1069,13 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 
 ## 21. Perguntas para o dono
 
-As perguntas 1 a 7 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A) e viraram as decisões 12 a 18 (seção 2.1). Faltam duas, sobre dinheiro. A fase 1 não depende delas; na fase 2a, só dois trechos dos Termos do organizador (itens 6 e 7, entre `{}`) esperam a resposta, que precisa vir antes de publicar os Termos.
+Nenhuma pergunta em aberto. As perguntas 1 a 9 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A, 8A, 9A) e viraram as decisões 12 a 20 (seção 2.1).
 
-8. **Tarifa do banco sobre a parte da taxa de serviço** (só faz diferença quando a taxa de serviço está ligada).
-   Exemplo com números ilustrativos: o comprador paga R$ 52,50 no cartão (R$ 50,00 do ingresso + R$ 2,50 de taxa de serviço). O banco cobra R$ 2,61 sobre o pagamento inteiro: cerca de R$ 2,49 por causa dos R$ 50,00 do ingresso e R$ 0,12 por causa dos R$ 2,50 da taxa. A pergunta é quem paga esses R$ 0,12. Num evento de 10 ingressos como o da seção 10.2, a diferença total fica em torno de R$ 0,65.
-   - **A (recomendado):** o organizador paga a tarifa inteira (R$ 2,61). Mais simples de explicar ("sai da sua parte o que o banco cobrou") e o Espaço não perde nada em eventos de organizador.
-   - **B:** proporcional: o organizador paga só a parte do ingresso (R$ 2,49) e os R$ 0,12 da taxa ficam com o Espaço, como já acontece nos eventos do próprio Espaço (decisão 4 da spec da taxa de serviço). Mais justo com o organizador, mas o painel e os Termos ficam um pouco mais complicados.
-9. **Cidade dos feriados no prazo do repasse** ("5 dias úteis"):
-   - **A (recomendado):** feriados nacionais + feriados de Salvador/BA (cidade do Espaço e do foro dos Termos).
-   - **B:** só feriados nacionais (prazo às vezes 1 dia mais curto para o Espaço).
-   - Se o Espaço não fica em Salvador, basta dizer a cidade.
+### 21.1 Revisões recomendadas antes de publicar (jurídico e contador)
+
+Não bloqueiam o desenvolvimento, mas o dono deve pedir antes de publicar os Termos do organizador e a nova Política de Privacidade (fase 2a):
+
+1. **Jurídico:** papel do organizador perante a LGPD (operador x controlador) e o texto do item 9 dos Termos do organizador.
+2. **Jurídico:** cláusula de devolução depois do repasse (item 8: desconto em 30 dias, devolução por PIX em 10 dias) e a de suspensão/encerramento (item 14).
+3. **Contador:** documento fiscal do repasse (nota ou recibo do organizador) e uso do CPF/CNPJ do titular (decisão 14).
+4. **Contador:** confirmar o calendário de dias úteis da seção 7.9 (Salvador com Carnaval) para o compromisso de "5 dias úteis".
