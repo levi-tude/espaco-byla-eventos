@@ -3,6 +3,7 @@ import { parseQuotaInput } from "@/lib/domain/quotas";
 import { MAX_SESSIONS, type SessionInput } from "@/lib/domain/session-editor";
 import { TICKET_TYPE_LIMITS } from "@/lib/domain/ticket-types";
 import type { LimitedType } from "@/lib/domain/type-limits";
+import type { LockedField } from "@/lib/organizer/post-approval";
 
 /** Preço, "à venda" e limite de um tipo numa sessão, como digitados. */
 export type PriceDraft = { onSale: boolean; price: string; maxUnits: string };
@@ -31,6 +32,17 @@ export type EditorSession = {
   liveOrders: boolean;
   /** Pedidos pagos (para o aviso de mudança de horário). */
   paidOrders: number;
+  /** Área do organizador, evento aprovado: o que pede "Pedir mudança" nesta sessão. */
+  lockedFields?: LockedField[];
+};
+
+/** Travas de uma sessão do organizador (só conforto: quem decide é o banco). */
+export type SessionLock = {
+  fields: readonly LockedField[];
+  /** Lugares salvos: com "lotacao" travada, só dá para aumentar. */
+  capacity: number;
+  /** Tipos que já estavam à venda nesta sessão. */
+  onSaleKeys: readonly string[];
 };
 
 /** Chave do tipo no editor (liga o tipo ao preço de cada sessão). */
@@ -62,6 +74,7 @@ export type SessionDraft = {
     startsAt: string;
     endsAt: string;
   }) | null;
+  locked?: SessionLock;
 };
 
 const EMPTY_PRICE: PriceDraft = { onSale: true, price: "", maxUnits: "" };
@@ -146,8 +159,33 @@ export function initialSessionDrafts(sessions?: readonly EditorSession[]): Sessi
         startsAt,
         endsAt,
       },
+      ...(session.lockedFields?.length
+        ? {
+            locked: {
+              fields: session.lockedFields,
+              capacity: session.capacity,
+              onSaleKeys: Object.entries(session.prices)
+                .filter(([, price]) => price.onSale)
+                .map(([key]) => key),
+            },
+          }
+        : {}),
     };
   });
+}
+
+export function isLocked(draft: SessionDraft, field: LockedField): boolean {
+  return draft.locked?.fields.includes(field) ?? false;
+}
+
+/** Tipos com preço travado nesta sessão (estavam à venda e a sessão tem vendas). */
+export function lockedPriceKeys(draft: SessionDraft): ReadonlySet<string> {
+  return new Set(isLocked(draft, "preco") ? draft.locked?.onSaleKeys : []);
+}
+
+/** Tipos com limite travado (reduzir ou criar limite pede o Admin). */
+export function lockedLimitKeys(draft: SessionDraft): ReadonlySet<string> {
+  return new Set(isLocked(draft, "lotacao") ? draft.locked?.onSaleKeys : []);
 }
 
 /** "+ Adicionar sessão": copia lotação, cotas, preços, limites e "à venda" da última. */
@@ -194,7 +232,9 @@ export function applyPricesToAll(
   if (!source) return [...drafts];
   const prices = Object.fromEntries(types.map((type) => [type.key, { ...priceDraftFor(source, type.key) }]));
   return drafts.map((draft) =>
-    draft.key === fromKey ? draft : { ...draft, prices: { ...draft.prices, ...structuredClone(prices) } },
+    draft.key === fromKey || isLocked(draft, "preco") || isLocked(draft, "lotacao")
+      ? draft
+      : { ...draft, prices: { ...draft.prices, ...structuredClone(prices) } },
   );
 }
 

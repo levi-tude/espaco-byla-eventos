@@ -1,11 +1,15 @@
 "use client";
 
 import { Copy, Plus, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   addSessionDraft,
   applyPricesToAll,
+  isLocked,
   limitedTypesForDraft,
+  lockedLimitKeys,
+  lockedPriceKeys,
   priceDraftFor,
   removeSessionDraft,
   type DraftType,
@@ -93,33 +97,70 @@ function ScheduleWarning({ draft }: { draft: SessionDraft }) {
   );
 }
 
+/** Campo travado depois da aprovação (o organizador pede a mudança ao Admin). */
+export const LOCKED_FIELD_CLASS = "read-only:bg-byla-overlay read-only:text-byla-muted";
+
+/** Aviso + "Pedir mudança" embaixo de um grupo de campos travados. */
+export function LockedNote({
+  children,
+  onRequestChange,
+  className,
+}: {
+  children: ReactNode;
+  onRequestChange?: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={cx("grid gap-2 @md:flex @md:items-center @md:justify-between", className)}>
+      <p className="text-sm text-byla-muted">{children}</p>
+      {onRequestChange ? (
+        <Button className="w-full shrink-0 @md:w-auto" onClick={onRequestChange} variant="secondary">
+          Pedir mudança
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 /** Data e hora de uma sessão: no evento de sessão única ficam na grade principal. */
 export function SessionTimeFields({
   draft,
   onChange,
   startLabel = "Data e hora",
+  onRequestChange,
 }: {
   draft: SessionDraft;
   onChange: (patch: Partial<SessionDraft>) => void;
   startLabel?: string;
+  onRequestChange?: () => void;
 }) {
+  const locked = isLocked(draft, "horario");
   return (
     <>
       <Field
+        className={LOCKED_FIELD_CLASS}
         label={startLabel}
         onChange={(change) => onChange({ startsAt: change.target.value })}
+        readOnly={locked}
         required
         type="datetime-local"
         value={draft.startsAt}
       />
       <Field
+        className={LOCKED_FIELD_CLASS}
         hint="Opcional. Ajuda o comprador a se organizar."
         label="Término (opcional)"
         min={draft.startsAt || undefined}
         onChange={(change) => onChange({ endsAt: change.target.value })}
+        readOnly={locked}
         type="datetime-local"
         value={draft.endsAt}
       />
+      {locked ? (
+        <LockedNote className="col-span-full" onRequestChange={onRequestChange}>
+          Esta sessão já tem vendas: para mudar o horário, use “Pedir mudança”.
+        </LockedNote>
+      ) : null}
     </>
   );
 }
@@ -130,13 +171,16 @@ export function SessionQuantityFields({
   checks,
   onChange,
   bordered = true,
+  onRequestChange,
 }: {
   draft: SessionDraft;
   checks: DraftChecks;
   onChange: (patch: Partial<SessionDraft>) => void;
   bordered?: boolean;
+  onRequestChange?: () => void;
 }) {
   const { quotaProblem, summary } = checks;
+  const locked = isLocked(draft, "lotacao");
   return (
     <fieldset
       className={cx("grid gap-4", bordered && "rounded-xl border border-byla-border p-4")}
@@ -148,7 +192,7 @@ export function SessionQuantityFields({
         <Field
           inputMode="numeric"
           label="Total de ingressos"
-          min="1"
+          min={locked && draft.locked ? String(draft.locked.capacity) : "1"}
           onChange={(change) => onChange({ capacity: change.target.value })}
           required
           step="1"
@@ -156,20 +200,30 @@ export function SessionQuantityFields({
           value={draft.capacity}
         />
         <Field
+          className={LOCKED_FIELD_CLASS}
           inputMode="numeric"
           label="Quantidade de inteiras"
           onChange={(change) => onChange({ inteiraQuota: change.target.value })}
           placeholder="Sem quantidade separada"
+          readOnly={locked}
           value={draft.inteiraQuota}
         />
         <Field
+          className={LOCKED_FIELD_CLASS}
           inputMode="numeric"
           label="Quantidade de meias"
           onChange={(change) => onChange({ meiaQuota: change.target.value })}
           placeholder="Sem quantidade separada"
+          readOnly={locked}
           value={draft.meiaQuota}
         />
       </div>
+      {locked ? (
+        <LockedNote onRequestChange={onRequestChange}>
+          Esta sessão já tem vendas: o total só pode aumentar. Para diminuir lugares ou mudar
+          inteiras e meias, use “Pedir mudança”.
+        </LockedNote>
+      ) : null}
       <p className="text-sm text-byla-muted">
         Cada pessoa de Casadinha, Pacote família ou tipo novo conta como inteira. Cortesias
         contam só no total. Deixe em branco para não separar.
@@ -226,6 +280,8 @@ function SessionPrices({
   types: readonly DraftType[];
   onPriceChange: (typeKey: string, patch: Partial<PriceDraft>) => void;
 }) {
+  const priceLocks = lockedPriceKeys(draft);
+  const limitLocks = lockedLimitKeys(draft);
   if (!types.length) {
     return (
       <p className="text-sm text-byla-muted">
@@ -250,6 +306,7 @@ function SessionPrices({
               <input
                 checked={price.onSale}
                 className="mt-0.5 h-5 w-5 shrink-0 accent-byla-action"
+                disabled={price.onSale && priceLocks.has(type.key)}
                 onChange={(event) => onPriceChange(type.key, { onSale: event.target.checked })}
                 type="checkbox"
               />
@@ -265,12 +322,14 @@ function SessionPrices({
                 <PriceField
                   label={type.name}
                   onChange={(next) => onPriceChange(type.key, { price: next })}
+                  readOnly={priceLocks.has(type.key)}
                   value={price.price}
                 />
                 <LimitField
                   label={type.name}
                   onChange={(maxUnits) => onPriceChange(type.key, { maxUnits })}
                   peoplePerUnit={type.peoplePerUnit}
+                  readOnly={limitLocks.has(type.key)}
                   value={price.maxUnits}
                 />
               </div>
@@ -282,6 +341,23 @@ function SessionPrices({
   );
 }
 
+/** Preço e limite travados numa sessão com vendas (sessão única ou cartão). */
+export function PriceLockNote({
+  draft,
+  onRequestChange,
+}: {
+  draft: SessionDraft;
+  onRequestChange?: () => void;
+}) {
+  if (!lockedPriceKeys(draft).size && !lockedLimitKeys(draft).size) return null;
+  return (
+    <LockedNote onRequestChange={onRequestChange}>
+      Esta sessão já tem vendas: os tipos à venda mantêm preço e limite e não saem da venda. Para
+      mudar, use “Pedir mudança”.
+    </LockedNote>
+  );
+}
+
 function SessionCard({
   draft,
   index,
@@ -290,6 +366,7 @@ function SessionCard({
   onChange,
   onApplyPrices,
   onRemove,
+  onRequestChange,
 }: {
   draft: SessionDraft;
   index: number;
@@ -298,10 +375,13 @@ function SessionCard({
   onChange: (patch: Partial<SessionDraft>) => void;
   onApplyPrices: () => void;
   onRemove: () => void;
+  onRequestChange?: (topic: string) => void;
 }) {
   const checks = draftChecks(draft, types, false);
   const label = draftLabel(draft);
   const locked = draft.saved?.liveOrders ?? false;
+  const sessionName = label ? `Sessão ${index + 1} (${label})` : `Sessão ${index + 1}`;
+  const requestFor = (topic: string) => (onRequestChange ? () => onRequestChange(topic) : undefined);
 
   function setPrice(typeKey: string, patch: Partial<PriceDraft>) {
     onChange({
@@ -336,14 +416,26 @@ function SessionCard({
           onChange={(change) => onChange({ name: change.target.value })}
           value={draft.name}
         />
-        <SessionTimeFields draft={draft} onChange={onChange} startLabel="Início" />
+        <SessionTimeFields
+          draft={draft}
+          onChange={onChange}
+          onRequestChange={requestFor(`Horário da ${sessionName}`)}
+          startLabel="Início"
+        />
       </div>
       <ScheduleWarning draft={draft} />
 
-      <SessionQuantityFields bordered={false} checks={checks} draft={draft} onChange={onChange} />
+      <SessionQuantityFields
+        bordered={false}
+        checks={checks}
+        draft={draft}
+        onChange={onChange}
+        onRequestChange={requestFor(`Lugares da ${sessionName}`)}
+      />
 
       <SessionPrices draft={draft} onPriceChange={setPrice} types={types} />
       <LimitSummary checks={checks} className="-mt-2" />
+      <PriceLockNote draft={draft} onRequestChange={requestFor(`Preços da ${sessionName}`)} />
 
       <div className="flex flex-wrap gap-2">
         {total > 1 && types.length ? (
@@ -352,7 +444,11 @@ function SessionCard({
             Aplicar estes preços a todas as sessões
           </Button>
         ) : null}
-        {locked ? (
+        {locked && onRequestChange ? (
+          <LockedNote className="basis-full" onRequestChange={requestFor(`Cancelar a ${sessionName}`)}>
+            Esta sessão tem vendas e não pode ser removida. Para cancelar, use “Pedir mudança”.
+          </LockedNote>
+        ) : locked ? (
           <p className="flex min-h-11 items-center text-sm text-byla-muted">
             Esta sessão tem vendas e não pode ser removida. Para cancelar, escolha a sessão no topo do painel e use “Cancelar sessão”.
           </p>
@@ -409,11 +505,14 @@ export function SessionsEditor({
   types,
   onChange,
   disabled = false,
+  onRequestChange,
 }: {
   drafts: readonly SessionDraft[];
   types: readonly DraftType[];
   onChange: (next: SessionDraft[]) => void;
   disabled?: boolean;
+  /** Área do organizador: abre "Pedir mudança" com o assunto já escrito. */
+  onRequestChange?: (topic: string) => void;
 }) {
   function update(key: string, patch: Partial<SessionDraft>) {
     onChange(drafts.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -451,6 +550,7 @@ export function SessionsEditor({
           onApplyPrices={() => applyPrices(draft, index)}
           onChange={(patch) => update(draft.key, patch)}
           onRemove={() => remove(draft, index)}
+          onRequestChange={onRequestChange}
           total={drafts.length}
           types={types}
         />

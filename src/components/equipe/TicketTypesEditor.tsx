@@ -62,7 +62,7 @@ const PRESET_DETAILS: Record<TicketPreset, string> = {
   familia: "4 pessoas · gera 4 ingressos inteira",
 };
 
-const inputClass = cx(controlClasses, "min-h-12 font-normal");
+const inputClass = cx(controlClasses, "min-h-12 font-normal read-only:bg-byla-overlay read-only:text-byla-muted");
 const fieldLabelClass = "grid gap-1.5 text-sm font-medium text-foreground";
 
 let rowSequence = 0;
@@ -166,11 +166,13 @@ export function LimitField({
   peoplePerUnit,
   value,
   onChange,
+  readOnly,
 }: {
   label: string;
   peoplePerUnit: number;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }) {
   const units = parseLimit(value);
   return (
@@ -182,6 +184,7 @@ export function LimitField({
         inputMode="numeric"
         onChange={(event) => onChange(event.target.value)}
         placeholder="Sem limite"
+        readOnly={readOnly}
         value={value}
       />
       {peoplePerUnit > 1 && units ? (
@@ -198,11 +201,13 @@ export function PriceField({
   value,
   onChange,
   required = true,
+  readOnly,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <label className={fieldLabelClass}>
@@ -213,6 +218,7 @@ export function PriceField({
         inputMode="decimal"
         onChange={(event) => onChange(event.target.value)}
         placeholder="0,00"
+        readOnly={readOnly}
         required={required}
         value={value}
       />
@@ -229,12 +235,26 @@ export type SingleSessionPrices = {
 const SALES_WARNING =
   "já tem vendas. Ele sai da venda, mas os ingressos vendidos continuam válidos e o histórico fica guardado. Continuar?";
 
+/** Travas do organizador depois da aprovação, pela chave do tipo. */
+export type TicketTypeLocks = {
+  /** À venda numa sessão com vendas: não sai da venda. */
+  types: ReadonlySet<string>;
+  /** Sessão única: preço que não muda. */
+  prices: ReadonlySet<string>;
+  /** Sessão única: limite que não diminui. */
+  limits: ReadonlySet<string>;
+};
+
+const LOCKED_TYPE_HINT = "Já vendido: para tirar da venda, use “Pedir mudança”.";
+
 export function TicketTypesEditor({
   value,
   onChange,
   sales,
   prices,
   disabled = false,
+  area = "equipe",
+  locks,
 }: {
   value: TicketTypesState;
   onChange: (next: TicketTypesState) => void;
@@ -243,7 +263,14 @@ export function TicketTypesEditor({
   /** Sessão única: preço e limite na linha do tipo. Ausente = preços em cada sessão. */
   prices?: SingleSessionPrices;
   disabled?: boolean;
+  area?: "equipe" | "organizador";
+  locks?: TicketTypeLocks;
 }) {
+  const courtesyHint =
+    area === "organizador"
+      ? "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
+      : "Cortesias são emitidas pela equipe na lista de ingressos.";
+
   function setPreset(preset: TicketPreset, patch: Partial<PresetRow>) {
     onChange({
       ...value,
@@ -296,8 +323,8 @@ export function TicketTypesEditor({
       <legend className="text-base font-semibold">Tipos de ingresso</legend>
       <p className="mt-1 text-sm text-byla-muted">
         {prices
-          ? "Marque os tipos que serão vendidos e informe o preço. O limite é opcional e conta ingressos: cada limite e a soma deles precisam caber no total (e na quantidade de inteiras ou meias, se houver). Em branco, o tipo divide o que sobrar. Cortesias são emitidas pela equipe na lista de ingressos."
-          : "Marque os tipos que o evento vende. O preço, o limite e se o tipo está à venda ficam em cada sessão, logo abaixo. Cortesias são emitidas pela equipe na lista de ingressos."}
+          ? `Marque os tipos que serão vendidos e informe o preço. O limite é opcional e conta ingressos: cada limite e a soma deles precisam caber no total (e na quantidade de inteiras ou meias, se houver). Em branco, o tipo divide o que sobrar. ${courtesyHint}`
+          : `Marque os tipos que o evento vende. O preço, o limite e se o tipo está à venda ficam em cada sessão, logo abaixo. ${courtesyHint}`}
       </p>
 
       <div className="grid gap-3">
@@ -305,6 +332,7 @@ export function TicketTypesEditor({
           const row = value.presets[preset];
           const key = presetTypeKey(preset);
           const price = prices?.get(key);
+          const typeLocked = row.checked && (locks?.types.has(key) ?? false);
           return (
             <div
               className={cx(
@@ -317,13 +345,14 @@ export function TicketTypesEditor({
                 <input
                   checked={row.checked}
                   className="mt-0.5 h-5 w-5 shrink-0 accent-byla-action"
+                  disabled={typeLocked}
                   onChange={(event) => togglePreset(preset, name, event.target.checked)}
                   type="checkbox"
                 />
                 <span>
                   <span className="block text-base font-semibold">Vender {name}</span>
                   <span className="block text-sm text-byla-muted">
-                    {PRESET_DETAILS[preset]}
+                    {typeLocked ? LOCKED_TYPE_HINT : PRESET_DETAILS[preset]}
                   </span>
                 </span>
               </label>
@@ -333,12 +362,14 @@ export function TicketTypesEditor({
                   <PriceField
                     label={name}
                     onChange={(next) => prices.set(key, { price: next })}
+                    readOnly={locks?.prices.has(key)}
                     value={price.price}
                   />
                   <LimitField
                     label={name}
                     onChange={(maxUnits) => prices.set(key, { maxUnits })}
                     peoplePerUnit={peoplePerUnit}
+                    readOnly={locks?.limits.has(key)}
                     value={price.maxUnits}
                   />
                 </div>
@@ -350,12 +381,15 @@ export function TicketTypesEditor({
 
       {value.customs.length ? (
         <div className="grid gap-3">
-          <p className="text-base font-semibold">Tipos criados pela equipe</p>
+          <p className="text-base font-semibold">
+            {area === "organizador" ? "Tipos criados por você" : "Tipos criados pela equipe"}
+          </p>
           {value.customs.map((row, index) => {
             const rowSales = row.id ? sales[customTypeKey(row.id)] : undefined;
             const label = row.name.trim() || "tipo novo";
             const key = customTypeKey(row.key);
             const price = prices?.get(key);
+            const typeLocked = locks?.types.has(key) ?? false;
             return (
               <div
                 className="grid gap-3 rounded-xl border border-byla-link/50 p-3 sm:p-4"
@@ -404,16 +438,19 @@ export function TicketTypesEditor({
                     <PriceField
                       label={label}
                       onChange={(next) => prices.set(key, { price: next })}
+                      readOnly={locks?.prices.has(key)}
                       value={price.price}
                     />
                     <LimitField
                       label={label}
                       onChange={(maxUnits) => prices.set(key, { maxUnits })}
                       peoplePerUnit={row.peoplePerUnit}
+                      readOnly={locks?.limits.has(key)}
                       value={price.maxUnits}
                     />
                   </div>
                 ) : null}
+                {typeLocked ? <p className="text-sm text-byla-muted">{LOCKED_TYPE_HINT}</p> : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     aria-label={`Subir ${label}`}
@@ -435,6 +472,7 @@ export function TicketTypesEditor({
                   </Button>
                   <button
                     className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-byla-danger/50 px-4 text-base font-semibold text-byla-danger transition hover:bg-byla-danger-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue disabled:opacity-50"
+                    disabled={typeLocked}
                     onClick={() => removeCustom(row)}
                     type="button"
                   >

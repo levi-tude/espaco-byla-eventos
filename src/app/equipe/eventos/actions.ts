@@ -15,9 +15,9 @@ import {
   sessionLabels,
   UUID_PATTERN,
 } from "@/lib/events/event-input";
-import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
-import { COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
-import { mediaObjectExists, removeMediaObjects } from "@/lib/media/storage";
+import { assertCoverUploaded } from "@/lib/media/cover-check";
+import { coverPathFromUrl } from "@/lib/media/paths";
+import { removeMediaObjects } from "@/lib/media/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -77,15 +77,6 @@ function revalidateEventSurfaces(id: string, slug: string) {
 
 function supabaseUrl(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_URL!;
-}
-
-/** Capa do nosso armazenamento precisa ser de `covers/` e existir de fato. */
-async function assertCoverUploaded(coverImageUrl: string | null | undefined) {
-  if (!coverImageUrl || !isOwnMediaUrl(supabaseUrl(), coverImageUrl)) return;
-  const path = coverPathFromUrl(supabaseUrl(), coverImageUrl);
-  if (!path || !(await mediaObjectExists(path))) {
-    throw new ActionError(COVER_NOT_FOUND_MESSAGE);
-  }
 }
 
 export async function createEvent(
