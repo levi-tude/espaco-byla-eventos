@@ -126,3 +126,43 @@ describe("migration organizer_accounts", () => {
     expect(accounts).toMatch(/create trigger audit_log_no_truncate\s+before truncate on public\.audit_log/);
   });
 });
+
+const operations = migration("20261018110000_organizer_operations.sql");
+
+describe("migration organizer_operations", () => {
+  it("não cria tabela nem política nova", () => {
+    expect(operations).not.toMatch(/create table/i);
+    expect(operations).not.toMatch(/create policy/i);
+  });
+
+  it("toda função fixa search_path vazio e só service_role executa", () => {
+    for (const fn of functionBodies(operations)) {
+      expect(fn.text, fn.name).toContain("set search_path = ''");
+      expect(operations, fn.name).not.toMatch(
+        new RegExp(`grant execute on function public\\.${fn.name}\\([^)]*\\) to [^;]*(anon|authenticated)`),
+      );
+    }
+  });
+
+  it("portaria usa actor_event_access e remove a assinatura antiga", () => {
+    expect(operations).toMatch(/drop function if exists public\.check_in_ticket\(uuid, text, uuid\);/);
+    const checkIn = functionBodies(operations).find((fn) => fn.name === "check_in_ticket");
+    expect(checkIn?.text).toContain("public.actor_event_access(p_staff_user_id, p_event_id)");
+  });
+
+  it("lista de compradores nunca devolve telefone, link do pedido, código do ingresso ou IDs do pagamento", () => {
+    const list = functionBodies(operations).find((fn) => fn.name === "organizer_event_orders");
+    for (const column of ["buyer_phone", "public_token", "provider_order_id", "provider_payment_id", "payment_external_id", ".code"]) {
+      expect(list?.text, column).not.toContain(column);
+    }
+  });
+
+  it("pedido de estorno lê o evento do próprio pedido", () => {
+    const fn = functionBodies(operations).find((f) => f.name === "request_order_refund");
+    expect(fn?.text).toMatch(/select \* into v_order from public\.orders o where o\.id = p_order_id/);
+  });
+
+  it("gatilho fecha o pedido de estorno quando o pedido vira estornado", () => {
+    expect(operations).toMatch(/create trigger orders_close_refund_request\s+after update of status on public\.orders/);
+  });
+});
