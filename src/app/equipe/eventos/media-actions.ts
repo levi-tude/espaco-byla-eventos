@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
-import { assertStaff } from "@/lib/auth/staff";
+import { requireActor, requireEventAccess } from "@/lib/auth/actor";
 import {
   buildCoverPath,
   buildGalleryPath,
@@ -22,6 +22,7 @@ import {
   mediaObjectExists,
   removeMediaObjects,
 } from "@/lib/media/storage";
+import { consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type UploadTarget = "cover" | "gallery";
@@ -82,6 +83,7 @@ async function galleryCount(admin: Admin, eventId: string): Promise<number> {
 
 function revalidateGallery(eventId: string, slug: string) {
   revalidatePath(`/equipe/eventos/${eventId}`);
+  revalidatePath(`/organizador/eventos/${eventId}`);
   revalidatePath(`/eventos/${slug}`);
 }
 
@@ -90,15 +92,23 @@ async function requestImageUploadOrThrow(
   contentType: string,
   eventId?: string,
 ): Promise<UploadTicket> {
-  await assertStaff();
-  if (!isImageContentType(contentType)) throw new ActionError(INVALID_IMAGE_TYPE_MESSAGE);
-
   if (target === "cover") {
+    // A capa ainda não tem evento (evento novo): basta estar logado na equipe ou como organizador.
+    const actor = await requireActor();
+    if (!isImageContentType(contentType)) throw new ActionError(INVALID_IMAGE_TYPE_MESSAGE);
+    if (
+      actor.kind === "organizador" &&
+      !(await consumeRateLimit(createAdminClient(), RATE_LIMITS.organizerUploadPerUser, actor.userId))
+    ) {
+      throw new ActionError(RATE_LIMIT_MESSAGE);
+    }
     const path = buildCoverPath(contentType);
     return { path, token: await createUploadToken(path) };
   }
 
   if (target !== "gallery" || !isUuid(eventId)) throw new ActionError("Evento inválido.");
+  await requireEventAccess(eventId);
+  if (!isImageContentType(contentType)) throw new ActionError(INVALID_IMAGE_TYPE_MESSAGE);
   const admin = createAdminClient();
   await requireEventSlug(admin, eventId);
   if ((await galleryCount(admin, eventId)) >= MAX_GALLERY_IMAGES) {
@@ -112,10 +122,10 @@ async function addEventImageOrThrow(
   eventId: string,
   path: string,
 ): Promise<{ id: string; url: string }> {
-  await assertStaff();
   if (!isUuid(eventId) || typeof path !== "string" || !isGalleryPathForEvent(path, eventId)) {
     throw new ActionError("Foto inválida.");
   }
+  await requireEventAccess(eventId);
 
   const admin = createAdminClient();
   const slug = await requireEventSlug(admin, eventId);
@@ -144,8 +154,8 @@ async function addEventImageOrThrow(
 }
 
 async function removeEventImageOrThrow(eventId: string, imageId: string): Promise<undefined> {
-  await assertStaff();
   if (!isUuid(eventId) || !isUuid(imageId)) throw new ActionError("Foto inválida.");
+  await requireEventAccess(eventId);
 
   const admin = createAdminClient();
   const { data, error } = await admin

@@ -24,6 +24,13 @@ export const RATE_LIMITS = {
   sessionNoticesPerStaff: { bucket: "session-notices:staff", limit: 60, windowSeconds: 600 },
   sessionCancelPerStaff: { bucket: "session-cancel:staff", limit: 10, windowSeconds: 600 },
   refundBatchPerBatch: { bucket: "refund-batch:batch", limit: 60, windowSeconds: 60 },
+  organizerRequestPerIp: { bucket: "org-request:ip", limit: 3, windowSeconds: 3600 },
+  inviteCheckPerIp: { bucket: "invite-check:ip", limit: 20, windowSeconds: 3600 },
+  inviteCodePerIp: { bucket: "invite-code:ip", limit: 10, windowSeconds: 3600 },
+  inviteCompletePerIp: { bucket: "invite-complete:ip", limit: 10, windowSeconds: 3600 },
+  passwordResetPerIp: { bucket: "password-reset:ip", limit: 10, windowSeconds: 3600 },
+  organizerSavePerUser: { bucket: "org-save:user", limit: 120, windowSeconds: 3600 },
+  organizerUploadPerUser: { bucket: "org-upload:user", limit: 60, windowSeconds: 3600 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =
