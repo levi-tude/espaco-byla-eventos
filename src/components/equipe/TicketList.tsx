@@ -49,6 +49,8 @@ export type TicketListItem = {
   publicToken: string;
   /** Sessão do ingresso, mostrada na aba "Todas" de evento com várias sessões. */
   sessionLabel?: string | null;
+  /** Motivo do pedido de estorno pendente feito pelo organizador do evento. */
+  refundRequestReason?: string | null;
 };
 
 type SectionProps = {
@@ -488,6 +490,11 @@ function TicketBadges({ ticket, className }: { ticket: TicketListItem; className
         >
           Novo
         </span>
+      ) : null}
+      {ticket.refundRequestReason ? (
+        <StatusBadge className="whitespace-normal break-words text-left" tone="warning">
+          Estorno pedido pelo organizador: {ticket.refundRequestReason}
+        </StatusBadge>
       ) : null}
     </span>
   );

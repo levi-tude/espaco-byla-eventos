@@ -6,8 +6,11 @@ import { CoverImage } from "@/components/ui/CoverImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { Tone } from "@/components/ui/tone";
+import { requireStaffUser } from "@/lib/auth/staff-user";
 import { eventDateFormatter, formatSessionShort } from "@/lib/datetime";
 import { isPastEventDay } from "@/lib/domain/past-events";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 const dateFormatter = eventDateFormatter({
@@ -27,7 +30,45 @@ type EventRow = {
   sessionStarts: string[];
   /** Fim (ou início, sem término) da última sessão ativa. */
   lastSessionAt: string | null;
+  organizer_id: string | null;
+  approval_status: string;
+  /** Nome público do organizador (eventos de organizador). */
+  producerName: string | null;
 };
+
+/** Evento de organizador ainda não aprovado: o estado substitui o selo de vendas. */
+const APPROVAL_BADGES: Record<string, { label: string; tone: Tone }> = {
+  rascunho: { label: "Rascunho", tone: "neutral" },
+  em_analise: { label: "Em análise", tone: "info" },
+  recusado: { label: "Recusado", tone: "danger" },
+};
+
+const PRODUCER_NAMES_BATCH = 200;
+
+/** Nomes públicos dos organizadores, pela função do banco (só service_role). Falha = sem nomes. */
+async function loadProducerNames(eventIds: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (!eventIds.length) return names;
+  const staff = await requireStaffUser().catch(() => null);
+  if (!staff) return names;
+
+  const admin = createAdminClient();
+  const batches: string[][] = [];
+  for (let start = 0; start < eventIds.length; start += PRODUCER_NAMES_BATCH) {
+    batches.push(eventIds.slice(start, start + PRODUCER_NAMES_BATCH));
+  }
+  const results = await Promise.all(
+    batches.map((ids) => admin.rpc("event_producer_names", { p_event_ids: ids })),
+  );
+  for (const { data, error } of results) {
+    if (error) {
+      console.error("[equipe] Falha ao carregar os nomes dos organizadores.", error.code);
+      continue;
+    }
+    for (const row of data ?? []) names.set(row.event_id, row.public_name);
+  }
+  return names;
+}
 
 /** Evento passa para "Passados" no dia seguinte à última sessão (mesma regra do site). */
 function splitByDate(events: EventRow[]) {
@@ -77,7 +118,11 @@ function EventList({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold text-foreground">{event.name}</p>
                 <p className="mt-0.5 text-sm text-byla-muted">{whenLine(event)}</p>
-                {past ? (
+                {APPROVAL_BADGES[event.approval_status] && event.organizer_id ? (
+                  <StatusBadge className="mt-2" tone={APPROVAL_BADGES[event.approval_status].tone}>
+                    {APPROVAL_BADGES[event.approval_status].label}
+                  </StatusBadge>
+                ) : past ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     <StatusBadge>Encerrado</StatusBadge>
                     {event.published_at && event.hidden_from_past ? (
@@ -89,6 +134,13 @@ function EventList({
                     {event.sales_open ? "Venda aberta" : "Venda fechada"}
                   </StatusBadge>
                 )}
+                {event.organizer_id ? (
+                  <div className="mt-2">
+                    <StatusBadge className="max-w-full truncate" tone="info">
+                      {event.producerName ? `Organizador: ${event.producerName}` : "Organizador"}
+                    </StatusBadge>
+                  </div>
+                ) : null}
               </div>
               <ChevronRight
                 aria-hidden
@@ -107,17 +159,23 @@ export default async function EquipePage() {
   const { data: rows, error } = await supabase
     .from("events")
     .select(
-      "id, name, starts_at, sales_open, published_at, hidden_from_past, cover_image_url, event_sessions(starts_at, ends_at, status, archived_at)",
+      "id, name, starts_at, sales_open, published_at, hidden_from_past, cover_image_url, organizer_id, approval_status, deleted_at, event_sessions(starts_at, ends_at, status, archived_at)",
     )
     .order("starts_at", { ascending: true });
 
-  const events: EventRow[] = (rows ?? []).map(({ event_sessions: sessions, ...event }) => {
+  const visibleRows = (rows ?? []).filter((row) => row.deleted_at === null);
+  const producerNames = await loadProducerNames(
+    visibleRows.filter((row) => row.organizer_id !== null).map((row) => row.id),
+  );
+
+  const events: EventRow[] = visibleRows.map(({ event_sessions: sessions, ...event }) => {
     const active = (sessions ?? []).filter(
       (session) => session.status === "ativa" && session.archived_at === null,
     );
     const byTime = (a: string, b: string) => Date.parse(a) - Date.parse(b);
     return {
       ...event,
+      producerName: producerNames.get(event.id) ?? null,
       sessionStarts: active.map((session) => session.starts_at).sort(byTime),
       lastSessionAt:
         active.map((session) => session.ends_at ?? session.starts_at).sort(byTime).at(-1) ?? null,

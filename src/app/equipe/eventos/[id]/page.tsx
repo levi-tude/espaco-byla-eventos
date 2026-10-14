@@ -7,6 +7,7 @@ import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventFinancePanel } from "@/components/equipe/EventFinancePanel";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
+import { OrganizerRefundRequests } from "@/components/equipe/OpsRequestCard";
 import { PastVisibilityToggle } from "@/components/equipe/PastVisibilityToggle";
 import { RefundHistory } from "@/components/equipe/RefundHistory";
 import { SalesToggle } from "@/components/equipe/SalesToggle";
@@ -22,6 +23,7 @@ import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Tone } from "@/components/ui/tone";
 import { getFinanceAccess } from "@/lib/auth/finance-admin";
+import { requireStaffUser } from "@/lib/auth/staff-user";
 import {
   eventDateFormatter,
   formatSessionLabel,
@@ -54,6 +56,44 @@ const teamSales: Record<ReturnType<typeof salesState>, { label: string; tone: To
 };
 
 const dateFormatter = eventDateFormatter({ dateStyle: "full", timeStyle: "short" });
+const shortDateFormatter = eventDateFormatter({ dateStyle: "short", timeStyle: "short" });
+
+/** Evento de organizador ainda não aprovado. */
+const approvalBadges: Record<string, { label: string; tone: Tone }> = {
+  rascunho: { label: "Rascunho", tone: "neutral" },
+  em_analise: { label: "Em análise", tone: "info" },
+  recusado: { label: "Recusado", tone: "danger" },
+};
+
+type OrganizerPanelInfo = {
+  producerName: string | null;
+  refundRequests: { id: string; orderId: string; reason: string; createdAt: string }[];
+};
+
+/** Nome do organizador e pedidos de estorno pendentes (funções do banco, só service_role). */
+async function loadOrganizerPanelInfo(eventId: string): Promise<OrganizerPanelInfo> {
+  const empty: OrganizerPanelInfo = { producerName: null, refundRequests: [] };
+  const staff = await requireStaffUser().catch(() => null);
+  if (!staff) return empty;
+  const admin = createAdminClient();
+  const [names, requests] = await Promise.all([
+    admin.rpc("event_producer_names", { p_event_ids: [eventId] }),
+    admin.rpc("list_ops_requests", { p_staff: staff.userId, p_status: "pendente", p_event_id: eventId }),
+  ]);
+  if (names.error) console.error("[painel] Falha ao carregar o nome do organizador.", names.error.code);
+  if (requests.error) console.error("[painel] Falha ao carregar os pedidos do organizador.", requests.error.code);
+  return {
+    producerName: names.data?.[0]?.public_name ?? null,
+    refundRequests: (requests.data ?? [])
+      .filter((request) => request.kind === "estorno" && request.order_id)
+      .map((request) => ({
+        id: request.id,
+        orderId: request.order_id as string,
+        reason: request.reason,
+        createdAt: shortDateFormatter.format(new Date(request.created_at)),
+      })),
+  };
+}
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -152,6 +192,7 @@ export default async function EventoEquipePage({
     availabilities,
     financeSummary,
     { data: financeOrders, error: financeOrdersError },
+    organizerInfo,
   ] = await Promise.all([
     loadEventGallery(supabase, event.id),
     sessionIds.length
@@ -174,7 +215,12 @@ export default async function EventoEquipePage({
           .gt("service_fee_cents", 0)
           .order("paid_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    event.organizer_id ? loadOrganizerPanelInfo(event.id) : Promise.resolve(null),
   ]);
+  const refundReasonByOrder = new Map(
+    (organizerInfo?.refundRequests ?? []).map((request) => [request.orderId, request.reason]),
+  );
+  const approvalBadge = event.organizer_id ? approvalBadges[event.approval_status] : undefined;
   const availabilityBySession = new Map<string, EventAvailabilityWithTypes | null>(
     sessions.map((session, index) => [session.id, availabilities[index]]),
   );
@@ -262,6 +308,7 @@ export default async function EventoEquipePage({
         checkedInAt: ticket.checked_in_at,
         publicToken: order.public_token,
         sessionLabel: multi && !selected ? (labels.get(ticket.session_id) ?? null) : null,
+        refundRequestReason: refundReasonByOrder.get(ticket.order_id) ?? null,
       };
     });
   const validTickets = listItems.filter(
@@ -393,7 +440,16 @@ export default async function EventoEquipePage({
           <h1 className="min-w-0 break-words font-display text-4xl tracking-wide text-foreground sm:text-5xl">
             {event.name}
           </h1>
-          <StatusBadge tone={sales.tone}>{sales.label}</StatusBadge>
+          {approvalBadge ? (
+            <StatusBadge tone={approvalBadge.tone}>{approvalBadge.label}</StatusBadge>
+          ) : (
+            <StatusBadge tone={sales.tone}>{sales.label}</StatusBadge>
+          )}
+          {event.organizer_id ? (
+            <StatusBadge className="max-w-full whitespace-normal break-words" tone="info">
+              {organizerInfo?.producerName ? `Organizador: ${organizerInfo.producerName}` : "Organizador"}
+            </StatusBadge>
+          ) : null}
         </div>
         <p className="mt-2 text-base text-byla-muted">
           {multi
@@ -419,7 +475,9 @@ export default async function EventoEquipePage({
             <ExternalLink aria-hidden className="h-4 w-4" />
             <span className="sr-only">(abre em nova aba)</span>
           </ButtonLink>
-          <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
+          {approvalBadge || event.deleted_at ? null : (
+            <SalesToggle eventId={event.id} salesOpen={event.sales_open} />
+          )}
         </div>
         {event.published_at ? (
           <PastVisibilityToggle
@@ -429,6 +487,25 @@ export default async function EventoEquipePage({
           />
         ) : null}
       </header>
+
+      {event.deleted_at ? (
+        <Notice className="mt-6" live={false} tone="warning">
+          Este evento foi excluído: não aparece no site nem na lista de eventos.
+        </Notice>
+      ) : null}
+
+      {organizerInfo?.refundRequests.length ? (
+        <div className="mt-6">
+          <OrganizerRefundRequests
+            requests={organizerInfo.refundRequests.map((request) => ({
+              id: request.id,
+              buyerName: (tickets ?? []).find((ticket) => ticket.order_id === request.orderId)?.buyer_name ?? null,
+              reason: request.reason,
+              createdAt: request.createdAt,
+            }))}
+          />
+        </div>
+      ) : null}
 
       {multi ? (
         <nav aria-label="Sessões do evento" className="mt-6">
