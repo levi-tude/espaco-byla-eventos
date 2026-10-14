@@ -31,6 +31,9 @@ export const RATE_LIMITS = {
   passwordResetPerIp: { bucket: "password-reset:ip", limit: 10, windowSeconds: 3600 },
   organizerSavePerUser: { bucket: "org-save:user", limit: 120, windowSeconds: 3600 },
   organizerUploadPerUser: { bucket: "org-upload:user", limit: 60, windowSeconds: 3600 },
+  /** Avisos da área do organizador: teto próprio para sobrar cota para os ingressos. */
+  organizerNoticeEmailPerDay: { bucket: "email-org:day", limit: 10, windowSeconds: 86_400 },
+  organizerSignupNotice: { bucket: "org-notice:signup", limit: 1, windowSeconds: 21_600 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =
