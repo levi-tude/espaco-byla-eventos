@@ -17,7 +17,14 @@ const nextConfig: NextConfig = {
   // Permite HMR/assets do Next quando o site é aberto via túnel (ngrok etc.)
   allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app", "*.loca.lt"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Links com token depois do "#": nada de Referer para outros sites. Vem depois para sobrescrever.
+      ...["/convite", "/redefinir-senha"].map((source) => ({
+        source,
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      })),
+    ];
   },
 };
 

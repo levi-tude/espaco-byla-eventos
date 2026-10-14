@@ -1,0 +1,148 @@
+import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+  updateUserById: vi.fn(),
+  areaEnabled: vi.fn(),
+  order: [] as string[],
+}));
+
+vi.mock("server-only", () => ({}));
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-real-ip": "203.0.113.9" }),
+}));
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("NEXT_HTTP_ERROR_FALLBACK;404");
+  },
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: ReactNode }) =>
+    createElement("a", { href, ...rest }, children),
+}));
+vi.mock("@/components/brand/SiteHeader", () => ({ SiteHeader: () => null }));
+vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: vi.fn() }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    rpc: mocks.rpc,
+    auth: { admin: { updateUserById: mocks.updateUserById } },
+  }),
+}));
+vi.mock("@/lib/organizer/settings", () => ({
+  ORGANIZER_AREA_UNAVAILABLE_MESSAGE: "Esta área está indisponível no momento.",
+  organizerAreaEnabled: mocks.areaEnabled,
+}));
+
+import { resetPasswordWithLink } from "@/app/redefinir-senha/actions";
+import ResetPasswordPage, { metadata as resetMetadata } from "@/app/redefinir-senha/page";
+import { hashInviteToken, newInviteToken } from "@/lib/organizer/invite-token";
+import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
+
+const LINK_INVALID = "Este link não vale mais. Peça um novo ao Espaço Byla.";
+const TOKEN = newInviteToken();
+const USER_ID = "00000000-0000-4000-8000-0000000000bb";
+const PASSWORD = "outra-senha-comprida";
+
+function database({ limit = true, reset }: { limit?: boolean; reset?: { data?: unknown; error?: { message: string } } } = {}) {
+  mocks.rpc.mockImplementation(async (fn: string) => {
+    mocks.order.push(fn);
+    if (fn === "consume_rate_limit") return { data: limit, error: null };
+    if (fn === "use_password_reset_invite") return { data: reset?.data ?? USER_ID, error: reset?.error ?? null };
+    return { data: null, error: { message: "inesperado" } };
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.order.length = 0;
+  mocks.areaEnabled.mockResolvedValue(true);
+  mocks.updateUserById.mockImplementation(async () => {
+    mocks.order.push("updateUserById");
+    return { data: { user: { id: USER_ID } }, error: null };
+  });
+  database();
+});
+
+describe("resetPasswordWithLink", () => {
+  it.each([["vazio", ""], ["curto", "abc"], ["não texto", null]])("link fora do formato (%s) recusa sem banco", async (_caso, token) => {
+    expect(await resetPasswordWithLink(token as string, PASSWORD)).toEqual({ ok: false, error: LINK_INVALID });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("com a área desligada recusa sem banco", async () => {
+    mocks.areaEnabled.mockResolvedValue(false);
+    expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({ ok: false, error: "Esta área está indisponível no momento." });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("senha fraca volta com a mensagem do campo e não gasta o link", async () => {
+    expect(await resetPasswordWithLink(TOKEN, "curta")).toEqual({
+      ok: false,
+      error: "A senha precisa ter pelo menos 12 caracteres.",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("acima do limite por IP não usa o link", async () => {
+    database({ limit: false });
+    expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
+    expect(mocks.rpc).toHaveBeenCalledWith("consume_rate_limit", {
+      p_bucket: "password-reset:ip",
+      p_key_hash: hashRateLimitKey("203.0.113.9"),
+      p_limit: 10,
+      p_window_seconds: 3600,
+    });
+    expect(mocks.order).not.toContain("use_password_reset_invite");
+  });
+
+  it.each(["ORG_CONVITE: Link inválido.", "ORG_ACESSO: Acesso negado.", "qualquer outra coisa"])(
+    "banco recusando (%s) volta genérico e não troca a senha",
+    async (message) => {
+      database({ reset: { error: { message } } });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({ ok: false, error: LINK_INVALID });
+      expect(mocks.updateUserById).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sucesso: usa o link (só o hash) e depois troca a senha da conta do link", async () => {
+    expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({ ok: true, data: undefined });
+    expect(mocks.rpc).toHaveBeenCalledWith("use_password_reset_invite", { p_token_hash: hashInviteToken(TOKEN) });
+    expect(mocks.updateUserById).toHaveBeenCalledWith(USER_ID, { password: PASSWORD });
+    expect(mocks.order).toEqual(["consume_rate_limit", "use_password_reset_invite", "updateUserById"]);
+    expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain(TOKEN);
+  });
+
+  it("troca de senha falhando volta com mensagem genérica, sem a senha no log", async () => {
+    mocks.updateUserById.mockResolvedValue({ data: { user: null }, error: { message: "Password should be different" } });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({
+      ok: false,
+      error: "Não foi possível trocar a senha. Fale com o Espaço Byla.",
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toContain(PASSWORD);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+  });
+});
+
+describe("página /redefinir-senha", () => {
+  it("com a área desligada responde 404", async () => {
+    mocks.areaEnabled.mockResolvedValue(false);
+    await expect(ResetPasswordPage()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
+  it("não aparece em buscadores", () => {
+    expect(resetMetadata.robots).toMatchObject({ index: false });
+  });
+
+  it("mostra o campo de senha nova com a regra simples", async () => {
+    const html = renderToStaticMarkup(await ResetPasswordPage());
+    expect(html).toContain("Mínimo de 12 caracteres. Não use a mesma senha de outro site.");
+    expect(html).toMatch(/autocomplete="new-password"/i);
+    for (const word of ["supabase", "resend", "cloudflare", "google"]) expect(html.toLowerCase()).not.toContain(word);
+  });
+});
