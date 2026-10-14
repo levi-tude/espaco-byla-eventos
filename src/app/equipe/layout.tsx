@@ -10,7 +10,26 @@ import { buttonClasses } from "@/components/ui/Button";
 import { getFinanceAccess } from "@/lib/auth/finance-admin";
 import { readLoginState } from "@/lib/auth/login-verification";
 import { STAFF_LOGIN_PATH, STAFF_VERIFY_PATH } from "@/lib/auth/staff-gate";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
+
+/** Pendências de Aprovações (eventos, mudanças e exclusões). Falha = sem número. */
+async function pendingApprovals(adminId: string): Promise<number | null> {
+  try {
+    const { data, error } = await createAdminClient().rpc("team_pending_counts", { p_staff: adminId });
+    if (error) {
+      console.error("[equipe] Falha ao contar pendências do menu.", error.code);
+      return null;
+    }
+    const counts = data?.[0];
+    if (!counts) return null;
+    const total = counts.approvals + counts.changes + counts.deletions;
+    return Number.isFinite(total) && total > 0 ? total : null;
+  } catch {
+    console.error("[equipe] Falha ao contar pendências do menu.");
+    return null;
+  }
+}
 
 export default async function EquipeLayout({
   children,
@@ -28,10 +47,19 @@ export default async function EquipeLayout({
   if (state.status !== "verificado") redirect(STAFF_LOGIN_PATH);
 
   const finance = await getFinanceAccess();
-  const links = [
-    { href: "/equipe", label: "Eventos" },
-    ...(finance ? [{ href: "/equipe/taxa-servico", label: "Taxa de serviço" }] : []),
-  ];
+  const approvals = finance ? await pendingApprovals(finance.userId) : null;
+  const links = finance
+    ? [
+        { href: "/equipe", label: "Eventos" },
+        { href: "/equipe/aprovacoes", label: approvals ? `Aprovações (${approvals})` : "Aprovações" },
+        { href: "/equipe/organizadores", label: "Organizadores" },
+        { href: "/equipe/taxa-servico", label: "Taxa de serviço" },
+        { href: "/equipe/seguranca", label: "Segurança" },
+      ]
+    : [
+        { href: "/equipe", label: "Eventos" },
+        { href: "/equipe/seguranca", label: "Segurança" },
+      ];
 
   return (
     <div className="min-h-screen bg-byla-bg text-foreground">
@@ -47,7 +75,7 @@ export default async function EquipeLayout({
           {/* No celular o menu ocupa a linha de baixo inteira para não apertar "Sair". */}
           <nav
             aria-label="Navegação da equipe"
-            className="col-span-2 row-start-2 flex gap-x-3 sm:col-span-1 sm:pl-11"
+            className="col-span-2 row-start-2 flex flex-wrap gap-x-3 sm:col-span-1 sm:pl-11"
           >
             {links.map((link) => (
               <Link
