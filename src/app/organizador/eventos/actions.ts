@@ -14,7 +14,12 @@ import {
   sessionLabels,
   UUID_PATTERN,
 } from "@/lib/events/event-input";
-import { assertCoverNotShared, assertCoverUploaded, removeReplacedCover } from "@/lib/media/cover-check";
+import {
+  assertCoverIsOwnUpload,
+  assertCoverNotShared,
+  assertCoverUploaded,
+  removeReplacedCover,
+} from "@/lib/media/cover-check";
 import { isGalleryPathForEvent } from "@/lib/media/paths";
 import { removeMediaObjects } from "@/lib/media/storage";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
@@ -168,6 +173,7 @@ async function createOrganizerEventOrThrow(input: EventInput): Promise<{ id: str
   const admin = createAdminClient();
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
+  assertCoverIsOwnUpload(normalized.coverImageUrl);
   await assertCoverUploaded(normalized.coverImageUrl);
   await assertCoverNotShared(admin, normalized.coverImageUrl);
   const slug = await uniqueSlug(admin, normalized.name);
@@ -200,6 +206,7 @@ async function updateOrganizerEventOrThrow(id: string, input: EventInput): Promi
   const admin = createAdminClient();
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
+  assertCoverIsOwnUpload(normalized.coverImageUrl);
   await assertCoverUploaded(normalized.coverImageUrl);
   await assertCoverNotShared(admin, normalized.coverImageUrl, id);
   const previous = await loadEvent(admin, id);

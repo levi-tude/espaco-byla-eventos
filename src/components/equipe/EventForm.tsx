@@ -317,7 +317,11 @@ export function EventForm({ event, area = "equipe", lockedFields = [], inReview 
 
           <TextAreaField defaultValue={event?.description} label="Descrição" name="description" />
 
-          <CoverField defaultValue={event?.coverImageUrl ?? null} onBusyChange={setCoverBusy} />
+          <CoverField
+            allowLink={!organizer}
+            defaultValue={event?.coverImageUrl ?? null}
+            onBusyChange={setCoverBusy}
+          />
         </fieldset>
 
         {message ? (

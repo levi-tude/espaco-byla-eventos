@@ -26,8 +26,13 @@ vi.mock("@/app/organizador/eventos/actions", () => ({
   requestEventChange: mocks.requestEventChange,
 }));
 vi.mock("@/components/equipe/CoverField", () => ({
-  CoverField: ({ defaultValue }: { defaultValue: string | null }) =>
-    createElement("input", { defaultValue: defaultValue ?? "", name: "coverImageUrl", type: "hidden" }),
+  CoverField: ({ defaultValue, allowLink = true }: { defaultValue: string | null; allowLink?: boolean }) =>
+    createElement("input", {
+      "data-allow-link": String(allowLink),
+      defaultValue: defaultValue ?? "",
+      name: "coverImageUrl",
+      type: "hidden",
+    }),
 }));
 
 import { EventForm } from "@/components/equipe/EventForm";
@@ -164,6 +169,10 @@ function checkbox(text: string, within?: string): HTMLInputElement {
   return input;
 }
 
+function coverAllowsLink(): string | null | undefined {
+  return container.querySelector('input[name="coverImageUrl"]')?.getAttribute("data-allow-link");
+}
+
 function buttons(label: string): HTMLButtonElement[] {
   return [...container.querySelectorAll("button")].filter((b) => (b.textContent ?? "").trim() === label);
 }
@@ -196,6 +205,11 @@ describe("EventForm da equipe continua igual", () => {
     expect(pageText()).toContain("Cortesias são emitidas pela equipe");
   });
 
+  it("capa da equipe aceita link colado", async () => {
+    await render({});
+    expect(coverAllowsLink()).toBe("true");
+  });
+
   it("evento da equipe com vendas não trava nada", async () => {
     await render({ event: event([session(SESSION_A)]) });
     expect(field("Data e hora").readOnly).toBe(false);
@@ -206,6 +220,11 @@ describe("EventForm da equipe continua igual", () => {
 });
 
 describe("EventForm do organizador", () => {
+  it("capa só pelo envio de imagem (sem Colar link)", async () => {
+    await render({ area: "organizador" });
+    expect(coverAllowsLink()).toBe("false");
+  });
+
   it("evento novo: salva rascunho pela ação do organizador e abre a página dele", async () => {
     await render({ area: "organizador" });
     expect(buttons("Criar evento")).toHaveLength(0);

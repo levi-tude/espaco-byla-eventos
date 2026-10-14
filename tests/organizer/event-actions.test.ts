@@ -75,7 +75,7 @@ import {
   updateOrganizerEvent,
   withdrawEventSubmission,
 } from "@/app/organizador/eventos/actions";
-import { COVER_IN_USE_MESSAGE, COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
+import { COVER_IN_USE_MESSAGE, COVER_NOT_FOUND_MESSAGE, COVER_UPLOAD_ONLY_MESSAGE } from "@/lib/media/rules";
 import { RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
 const USER_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -307,11 +307,27 @@ describe("createOrganizerEvent", () => {
     expect(adminCalls("create_organizer_event")).toEqual([]);
   });
 
-  it("capa por link externo não consulta outros eventos", async () => {
-    expect(await createOrganizerEvent({ ...input, coverImageUrl: "https://exemplo.com/capa.jpg" })).toMatchObject({
-      ok: true,
+  it.each([
+    ["link externo", "https://exemplo.com/capa.jpg"],
+    ["link externo que imita o caminho", "https://exemplo.com/storage/v1/object/public/event-media/covers/11111111-1111-4111-8111-111111111111.webp"],
+    ["foto da galeria, fora de covers/", `${MEDIA}/events/${EVENT_ID}/11111111-1111-4111-8111-111111111111.webp`],
+    ["arquivo solto no armazenamento", `${MEDIA}/qualquer.webp`],
+  ])("capa por %s é recusada sem consultar nem gravar nada", async (_name, coverImageUrl) => {
+    expect(await createOrganizerEvent({ ...input, coverImageUrl })).toEqual({
+      ok: false,
+      error: COVER_UPLOAD_ONLY_MESSAGE,
     });
+    expect(wroteAnything()).toBe(false);
     expect(coverQueries()).toEqual([]);
+    expect(mocks.mediaObjectExists).not.toHaveBeenCalled();
+  });
+
+  it("sem capa continua permitido (a capa é cobrada só ao enviar para aprovação)", async () => {
+    expect(await createOrganizerEvent({ ...input, coverImageUrl: "" })).toEqual({
+      ok: true,
+      data: { id: NEW_EVENT_ID },
+    });
+    expect(adminCalls("create_organizer_event")[0]).toMatchObject({ p_cover_image_url: null });
   });
 
   it("dados inválidos não chegam ao banco", async () => {
@@ -392,6 +408,16 @@ describe("updateOrganizerEvent", () => {
       pattern === OLD_PATTERN ? { data: [], error: null } : { data: [{ id: NEW_EVENT_ID }], error: null };
     expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({ ok: false, error: COVER_IN_USE_MESSAGE });
     expect(adminCalls("save_event_with_sessions")).toEqual([]);
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
+  it("capa por link externo é recusada sem gravar nem apagar nada", async () => {
+    state.previousCover = OLD_COVER;
+    expect(await updateOrganizerEvent(EVENT_ID, { ...input, coverImageUrl: "https://exemplo.com/capa.jpg" })).toEqual({
+      ok: false,
+      error: COVER_UPLOAD_ONLY_MESSAGE,
+    });
+    expect(wroteAnything()).toBe(false);
     expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
   });
 

@@ -16,6 +16,8 @@ import { uploadImage } from "@/lib/media/upload-client";
 type CoverFieldProps = {
   defaultValue: string | null;
   onBusyChange: (busy: boolean) => void;
+  /** `false` esconde "Colar link": a capa só entra pelo envio de imagem (o servidor também recusa link). */
+  allowLink?: boolean;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -23,10 +25,10 @@ const tabClass =
   "min-h-11 flex-1 rounded-lg border border-byla-border px-4 text-base font-medium text-byla-muted transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue aria-pressed:border-byla-link aria-pressed:bg-byla-overlay aria-pressed:text-foreground sm:flex-none";
 const secondaryButtonClass = buttonClasses({ variant: "secondary" });
 
-export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
+export function CoverField({ defaultValue, onBusyChange, allowLink = true }: CoverFieldProps) {
   const [url, setUrl] = useState(defaultValue ?? "");
   const [mode, setMode] = useState<"upload" | "link">(
-    defaultValue && !isOwnMediaUrl(supabaseUrl, defaultValue) ? "link" : "upload",
+    allowLink && defaultValue && !isOwnMediaUrl(supabaseUrl, defaultValue) ? "link" : "upload",
   );
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,26 +65,28 @@ export function CoverField({ defaultValue, onBusyChange }: CoverFieldProps) {
     <fieldset className="grid gap-3">
       <legend className="mb-2 text-base font-semibold">Capa do evento (opcional)</legend>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          aria-pressed={mode === "upload"}
-          className={tabClass}
-          onClick={() => setMode("upload")}
-          type="button"
-        >
-          Enviar imagem
-        </button>
-        <button
-          aria-pressed={mode === "link"}
-          className={tabClass}
-          onClick={() => setMode("link")}
-          type="button"
-        >
-          Colar link
-        </button>
-      </div>
+      {allowLink ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            aria-pressed={mode === "upload"}
+            className={tabClass}
+            onClick={() => setMode("upload")}
+            type="button"
+          >
+            Enviar imagem
+          </button>
+          <button
+            aria-pressed={mode === "link"}
+            className={tabClass}
+            onClick={() => setMode("link")}
+            type="button"
+          >
+            Colar link
+          </button>
+        </div>
+      ) : null}
 
-      {mode === "link" ? (
+      {allowLink && mode === "link" ? (
         <input
           aria-label="Link da capa"
           autoCapitalize="none"

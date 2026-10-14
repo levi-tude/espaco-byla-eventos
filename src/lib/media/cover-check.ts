@@ -2,7 +2,7 @@ import "server-only";
 
 import { ActionError } from "@/lib/action-result";
 import { coverPathFromUrl, isOwnMediaUrl } from "@/lib/media/paths";
-import { COVER_IN_USE_MESSAGE, COVER_NOT_FOUND_MESSAGE } from "@/lib/media/rules";
+import { COVER_IN_USE_MESSAGE, COVER_NOT_FOUND_MESSAGE, COVER_UPLOAD_ONLY_MESSAGE } from "@/lib/media/rules";
 import { mediaObjectExists, removeMediaObjects } from "@/lib/media/storage";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -10,6 +10,15 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 function supabaseUrl(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_URL!;
+}
+
+/**
+ * Organizador só usa capa enviada para `covers/` do nosso armazenamento: link externo
+ * poderia trocar de imagem depois da aprovação e expõe o comprador a outro site.
+ */
+export function assertCoverIsOwnUpload(coverImageUrl: string | null | undefined) {
+  if (!coverImageUrl) return;
+  if (!coverPathFromUrl(supabaseUrl(), coverImageUrl)) throw new ActionError(COVER_UPLOAD_ONLY_MESSAGE);
 }
 
 /** Capa do nosso armazenamento precisa ser de `covers/` e existir de fato. */
