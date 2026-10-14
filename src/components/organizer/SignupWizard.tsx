@@ -142,7 +142,8 @@ function StepTitle({ children }: { children: ReactNode }) {
   return <h2 className="text-xl font-semibold tracking-tight text-foreground">{children}</h2>;
 }
 
-export function SignupWizard() {
+/** `terms`: texto completo dos Termos do organizador, renderizado no servidor pela página. */
+export function SignupWizard({ terms }: { terms?: ReactNode }) {
   const router = useRouter();
   const humanCheck = useHumanCheck("org_invite");
   const started = useRef(false);
@@ -524,7 +525,12 @@ export function SignupWizard() {
       {step === STEP.termos ? (
         <form className="grid gap-4" onSubmit={submitTerms}>
           <StepTitle>Termos do organizador</StepTitle>
-          <div className="max-h-64 overflow-y-auto rounded-xl border border-byla-border bg-byla-bg p-4 text-base leading-relaxed text-foreground">
+          <div
+            aria-label="Termos do organizador"
+            className="max-h-80 overflow-y-auto rounded-xl border border-byla-border bg-byla-bg p-4 text-base leading-relaxed text-foreground"
+            role="region"
+            tabIndex={0}
+          >
             <p>
               Os Termos do organizador explicam como funcionam a aprovação dos eventos, as vendas, os
               estornos e o repasse do dinheiro. Leia com calma antes de criar a conta.
@@ -536,7 +542,7 @@ export function SignupWizard() {
                 rel="noopener"
                 target="_blank"
               >
-                Ler os Termos do organizador
+                {terms ? "Abrir os Termos do organizador em outra aba" : "Ler os Termos do organizador"}
               </Link>
             </p>
             <p>
@@ -549,6 +555,7 @@ export function SignupWizard() {
                 Ler a Política de Privacidade
               </Link>
             </p>
+            {terms ? <div className="mt-4 border-t border-byla-border pt-4">{terms}</div> : null}
           </div>
           <Checkbox
             checked={form.terms}

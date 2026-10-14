@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { OrganizerTermsText } from "@/components/legal/OrganizerTermsText";
 import { SignupWizard } from "@/components/organizer/SignupWizard";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
@@ -24,7 +25,7 @@ export default async function InvitePage() {
           Com a conta você cria seus eventos no site do Espaço Byla e acompanha as vendas.
         </p>
         <div className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6">
-          <SignupWizard />
+          <SignupWizard terms={<OrganizerTermsText />} />
         </div>
       </div>
     </main>

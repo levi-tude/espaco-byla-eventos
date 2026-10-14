@@ -112,15 +112,15 @@ async function fillProfile() {
   await type("email", "fulana@exemplo.com");
 }
 
-async function reachCodeStep() {
+async function reachCodeStep(terms?: ReactNode) {
   openAt(`/convite#${TOKEN}`);
-  await render(createElement(SignupWizard));
+  await render(createElement(SignupWizard, { terms }));
   await fillProfile();
   await submit();
 }
 
-async function reachTermsStep() {
-  await reachCodeStep();
+async function reachTermsStep(terms?: ReactNode) {
+  await reachCodeStep(terms);
   await type("code", "123456");
   await submit();
   await type("password", "senha-bem-comprida");
@@ -287,6 +287,16 @@ describe("SignupWizard", () => {
 
     await click("Continuar");
     expect(mocks.replace).toHaveBeenCalledWith("/organizador/verificar");
+  });
+
+  it("termos: mostra o texto completo dentro da caixa com rolagem", async () => {
+    await reachTermsStep(createElement("p", { "data-testid": "termos" }, "1. Quem somos … 16. Foro"));
+
+    const box = container.querySelector('[data-testid="termos"]')?.closest(".overflow-y-auto");
+    expect(box).not.toBeNull();
+    expect(box?.getAttribute("tabindex")).toBe("0");
+    expect(box?.textContent).toContain("16. Foro");
+    expect(box?.querySelector('a[href="/termos-organizador"]')).not.toBeNull();
   });
 
   it("erro ao criar a conta fica no passo dos termos, sem tentar entrar", async () => {
