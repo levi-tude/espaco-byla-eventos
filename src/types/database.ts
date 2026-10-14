@@ -30,10 +30,12 @@ export type Database = {
           cover_image_url: string | null;
           created_at: string;
           description: string;
+          hidden_from_past: boolean;
           id: string;
           inteira_quota: number | null;
           meia_quota: number | null;
           name: string;
+          published_at: string | null;
           sales_open: boolean;
           slug: string;
           starts_at: string;
@@ -45,10 +47,12 @@ export type Database = {
           cover_image_url?: string | null;
           created_at?: string;
           description?: string;
+          hidden_from_past?: boolean;
           id?: string;
           inteira_quota?: number | null;
           meia_quota?: number | null;
           name: string;
+          published_at?: string | null;
           sales_open?: boolean;
           slug: string;
           starts_at: string;
@@ -60,10 +64,12 @@ export type Database = {
           cover_image_url?: string | null;
           created_at?: string;
           description?: string;
+          hidden_from_past?: boolean;
           id?: string;
           inteira_quota?: number | null;
           meia_quota?: number | null;
           name?: string;
+          published_at?: string | null;
           sales_open?: boolean;
           slug?: string;
           starts_at?: string;
@@ -848,6 +854,22 @@ export type Database = {
       event_sessions_summary: {
         Args: { p_event_id: string };
         Returns: Json;
+      };
+      event_is_past: {
+        Args: { p_event_id: string };
+        Returns: boolean;
+      };
+      public_past_events: {
+        Args: { p_limit: number };
+        Returns: {
+          cover_image_url: string | null;
+          id: string;
+          last_session_at: string;
+          name: string;
+          session_starts: string[];
+          slug: string;
+          venue: string;
+        }[];
       };
       session_availability: {
         Args: { p_session_id: string };
