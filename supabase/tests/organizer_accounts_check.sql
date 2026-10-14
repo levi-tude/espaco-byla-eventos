@@ -127,14 +127,14 @@ begin
     set local role service_role;
     perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
     begin
-      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71999998888',
+      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71900000001',
         'cpf', '52998224724', 'Organizador Ensaio', '52998224724', '2026-10-14');
       r := r || ' c4_cpf_invalido=falhou';
     exception when others then
       r := r || ' c4_cpf_invalido=' || case when sqlerrm like 'ORG_DADOS%' then 'ok' else 'falhou' end;
     end;
     begin
-      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71999998888',
+      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71900000001',
         'cpf', '52998224725', 'Organizador Ensaio', '52998224725', '2026-10-14');
       r := r || ' c4_aceite=ok';
     exception when others then
@@ -142,7 +142,7 @@ begin
     end;
     r := r || ' c4_convite_usado=' || case when public.check_organizer_invite(v_hash) = 'invalido' then 'ok' else 'falhou' end;
     begin
-      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71999998888',
+      perform public.accept_organizer_invite(v_hash, v_org, 'Organizador Ensaio', 'Produtora Ensaio', '71900000001',
         'cpf', '52998224725', 'Organizador Ensaio', '52998224725', '2026-10-14');
       r := r || ' c4_segundo_aceite=falhou';
     exception when others then

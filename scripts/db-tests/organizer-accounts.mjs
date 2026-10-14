@@ -174,7 +174,7 @@ try {
     const id = await newUser(email);
     await q(`insert into public.organizer_profiles (user_id, full_name, public_name, phone, pix_key_type, pix_key,
       pix_holder_name, pix_holder_document, terms_version, terms_accepted_at, invite_id, status, status_reason)
-      values ($1, 'Fulana de Tal', $2, '71999998888', 'cpf', '52998224725', 'Fulana de Tal', '52998224725',
+      values ($1, 'Fulana de Tal', $2, '71900000001', 'cpf', '52998224725', 'Fulana de Tal', '52998224725',
               '2026-10-14', now(), gen_random_uuid(), $3, case when $3 = 'ativo' then null else 'Conta de teste parada' end)`,
     [id, publicName, status]);
     return { id, sid: await newSession(id, true) };
@@ -239,7 +239,7 @@ try {
     const unit = kind === "cortesia" ? 0 : 5000;
     const order = (await one(
       `insert into public.orders (event_id, session_id, buyer_name, buyer_email, buyer_phone, total_cents, status, public_token, paid_at, expires_at)
-       values ($1, $2, 'Comprador Teste', 'comprador@exemplo.com', '71988887777', $3, $4::public.order_status, $5,
+       values ($1, $2, 'Comprador Teste', 'comprador@exemplo.com', '71900000002', $3, $4::public.order_status, $5,
                case when $4::text = 'pago' then now() end, $6) returning id`,
       [eventId, sess, unit * tickets, status, randomUUID(), expires])).id;
     const item = (await one(
@@ -297,7 +297,7 @@ try {
   await rejects("2. conta da equipe não vira organizador: ORG_ACESSO",
     () => q(`insert into public.organizer_profiles (user_id, full_name, public_name, phone, pix_key_type, pix_key,
              pix_holder_name, pix_holder_document, terms_version, terms_accepted_at, invite_id)
-             values ($1, 'Fulana de Tal', 'X', '71999998888', 'cpf', '52998224725', 'Fulana de Tal', '52998224725',
+             values ($1, 'Fulana de Tal', 'X', '71900000001', 'cpf', '52998224725', 'Fulana de Tal', '52998224725',
                      '2026-10-14', now(), gen_random_uuid())`, [sec.id]), /ORG_ACESSO/);
   await rejects("2. organizador não vira equipe: ORG_ACESSO",
     () => q("insert into public.staff_profiles (user_id, display_name) values ($1, 'X')", [orgA.id]), /ORG_ACESSO/);
@@ -366,7 +366,7 @@ try {
   const startCode = (hash, email, code) => scalar("select public.start_invite_email_code($1, $2, $3) as v", [hash, email, code]);
   const verifyCode = (hash, code) => scalar("select public.verify_invite_email_code($1, $2) as v", [hash, code]);
   const accept = (hash, userId, { type = "cpf", key = "52998224725", doc = "52998224725" } = {}) => svc(
-    `select public.accept_organizer_invite($1, $2, 'Fulana de Tal', 'Produtora C', '71999998888', $3, $4,
+    `select public.accept_organizer_invite($1, $2, 'Fulana de Tal', 'Produtora C', '71900000001', $3, $4,
             'Fulana de Tal', $5, '2026-10-14')`, [hash, userId, type, key, doc]);
 
   await rejects("4. hash fora do formato: ORG_CONVITE", () => invite("abc"), /^ORG_CONVITE/);
@@ -915,7 +915,7 @@ try {
   await rejects("10. dono do banco não apaga: TAXA_IMUTAVEL", () => q("delete from public.audit_log"), /TAXA_IMUTAVEL/);
   await rejects("10. truncate: TAXA_IMUTAVEL", () => q("truncate public.audit_log"), /TAXA_IMUTAVEL/);
   check("10. histórico sem e-mail, telefone, CPF/CNPJ", (await one(
-    "select count(*)::int as n from public.audit_log where details::text ~ '@|52998224725|11222333000181|71999998888'")).n === 0);
+    "select count(*)::int as n from public.audit_log where details::text ~ '@|52998224725|11222333000181|71900000001'")).n === 0);
 
   // ======================= 11) PERMISSÕES DAS FUNÇÕES NOVAS =======================
   const fnNames = new Set();

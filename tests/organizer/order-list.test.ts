@@ -86,12 +86,12 @@ describe("OrganizerOrderList", () => {
     }
     const extra = {
       ...order(),
-      buyerPhone: "71999990000",
+      buyerPhone: "71900000003",
       publicToken: "tok_segredo",
       ticketCodes: ["11111111-1111-4111-8111-111111111111"],
     };
     const html = renderOrders([extra]);
-    expect(html).not.toContain("71999990000");
+    expect(html).not.toContain("71900000003");
     expect(html).not.toContain("tok_segredo");
     expect(html).not.toContain("11111111-1111-4111-8111-111111111111");
     expect(html).not.toContain("/pedidos/");

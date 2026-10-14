@@ -69,7 +69,7 @@ const USER_ID = "00000000-0000-4000-8000-0000000000aa";
 const validProfile = {
   fullName: "Fulana de Tal",
   publicName: "Produções Fulana",
-  phone: "(71) 99999-0000",
+  phone: "(71) 90000-0003",
   pixKeyType: "cpf",
   pixKey: "529.982.247-25",
   pixHolderName: "Fulana de Tal",
@@ -356,7 +356,7 @@ describe("completeOrganizerSignup", () => {
       p_user_id: USER_ID,
       p_full_name: "Fulana de Tal",
       p_public_name: "Produções Fulana",
-      p_phone: "71999990000",
+      p_phone: "71900000003",
       p_pix_key_type: "cpf",
       p_pix_key: "52998224725",
       p_pix_holder_name: "Fulana de Tal",

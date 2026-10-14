@@ -108,7 +108,7 @@ afterEach(async () => {
 async function fillProfile() {
   await type("fullName", "Fulana de Tal");
   await type("publicName", "Produções Fulana");
-  await type("phone", "71999990000");
+  await type("phone", "71900000003");
   await type("email", "fulana@exemplo.com");
 }
 
@@ -270,7 +270,7 @@ describe("SignupWizard", () => {
       profile: {
         fullName: "Fulana de Tal",
         publicName: "Produções Fulana",
-        phone: "71999990000",
+        phone: "71900000003",
         pixKeyType: "cpf",
         pixKey: "529.982.247-25",
         pixHolderName: "Fulana de Tal",

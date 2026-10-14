@@ -11,7 +11,7 @@ import {
 const profile = {
   fullName: "Fulana de Tal",
   publicName: "Coletivo Exemplo",
-  phone: "(71) 99999-0000",
+  phone: "(71) 90000-0003",
   pixKeyType: "cpf",
   pixKey: "529.982.247-25",
   pixHolderName: "Fulana de Tal",
@@ -20,19 +20,19 @@ const profile = {
 
 describe("validação", () => {
   it("pedido público: tamanhos do spec", () => {
-    expect(parseSignupRequest({ name: "Fu", contact: "71999990000", idea: "Peça de teatro infantil", approxDate: "", privacyAccepted: true }).ok).toBe(true);
-    expect(parseSignupRequest({ name: "F", contact: "71999990000", idea: "Peça de teatro", privacyAccepted: true }).ok).toBe(false);
-    expect(parseSignupRequest({ name: "Fulana", contact: "71999990000", idea: "curta", privacyAccepted: true }).ok).toBe(false);
-    expect(parseSignupRequest({ name: "Fulana", contact: "71999990000", idea: "Peça de teatro", privacyAccepted: false }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fu", contact: "71900000003", idea: "Peça de teatro infantil", approxDate: "", privacyAccepted: true }).ok).toBe(true);
+    expect(parseSignupRequest({ name: "F", contact: "71900000003", idea: "Peça de teatro", privacyAccepted: true }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fulana", contact: "71900000003", idea: "curta", privacyAccepted: true }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fulana", contact: "71900000003", idea: "Peça de teatro", privacyAccepted: false }).ok).toBe(false);
   });
   it("pedido público: apara textos, data vazia vira null e limites altos", () => {
     expect(
       parseSignupRequest({ name: "  Fulana  ", contact: " fulana@exemplo.com ", idea: " Peça de teatro ", approxDate: "  ", privacyAccepted: true }),
     ).toEqual({ ok: true, value: { name: "Fulana", contact: "fulana@exemplo.com", idea: "Peça de teatro", approxDate: null } });
-    expect(parseSignupRequest({ name: "Fulana", contact: "71999990000", idea: "Peça de teatro", approxDate: "dezembro", privacyAccepted: true })).toEqual(
+    expect(parseSignupRequest({ name: "Fulana", contact: "71900000003", idea: "Peça de teatro", approxDate: "dezembro", privacyAccepted: true })).toEqual(
       { ok: true, value: expect.objectContaining({ approxDate: "dezembro" }) },
     );
-    const base = { name: "Fulana", contact: "71999990000", idea: "Peça de teatro", privacyAccepted: true };
+    const base = { name: "Fulana", contact: "71900000003", idea: "Peça de teatro", privacyAccepted: true };
     expect(parseSignupRequest({ ...base, name: "x".repeat(121) }).ok).toBe(false);
     expect(parseSignupRequest({ ...base, contact: "1234" }).ok).toBe(false);
     expect(parseSignupRequest({ ...base, contact: "x".repeat(161) }).ok).toBe(false);
@@ -43,7 +43,7 @@ describe("validação", () => {
   });
   it("perfil: normaliza telefone e documento, exige chave CPF igual ao titular", () => {
     const ok = parseOrganizerProfile(profile);
-    expect(ok).toEqual({ ok: true, value: expect.objectContaining({ phone: "71999990000", pixKey: "52998224725", pixHolderDocument: "52998224725" }) });
+    expect(ok).toEqual({ ok: true, value: expect.objectContaining({ phone: "71900000003", pixKey: "52998224725", pixHolderDocument: "52998224725" }) });
     expect(parseOrganizerProfile({ ...profile, pixKey: "111.444.777-35" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, pixHolderDocument: "529.982.247-24" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "email", pixKey: "fulana@exemplo.com" }).ok).toBe(true);
@@ -61,13 +61,13 @@ describe("validação", () => {
       parseOrganizerProfile({ ...profile, pixKeyType: "cnpj", pixKey: "11.222.333/0001-81", pixHolderDocument: "11.222.333/0001-81" }),
     ).toEqual({ ok: true, value: expect.objectContaining({ pixKey: "11222333000181", pixHolderDocument: "11222333000181" }) });
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "cnpj", pixKey: "529.982.247-25" }).ok).toBe(false);
-    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "(71) 99999-0000" })).toEqual({
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "(71) 90000-0003" })).toEqual({
       ok: true,
-      value: expect.objectContaining({ pixKey: "+5571999990000" }),
+      value: expect.objectContaining({ pixKey: "+5571900000003" }),
     });
-    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "+55 71 99999-0000" })).toEqual({
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "+55 71 90000-0003" })).toEqual({
       ok: true,
-      value: expect.objectContaining({ pixKey: "+5571999990000" }),
+      value: expect.objectContaining({ pixKey: "+5571900000003" }),
     });
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "123" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "email", pixKey: " Fulana@Exemplo.com " })).toEqual({
@@ -81,8 +81,8 @@ describe("validação", () => {
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "boleto" }).ok).toBe(false);
   });
   it("perfil: telefone de 10 a 13 dígitos, nomes aparados e titular com documento válido", () => {
-    expect(parseOrganizerProfile({ ...profile, phone: "7199999" }).ok).toBe(false);
-    expect(parseOrganizerProfile({ ...profile, phone: "55719999900001" }).ok).toBe(false);
+    expect(parseOrganizerProfile({ ...profile, phone: "7190000" }).ok).toBe(false);
+    expect(parseOrganizerProfile({ ...profile, phone: "55719000000030" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, fullName: "  Fulana de Tal  " })).toEqual({
       ok: true,
       value: expect.objectContaining({ fullName: "Fulana de Tal" }),

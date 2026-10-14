@@ -404,7 +404,7 @@ describe("Minha conta", () => {
       data: {
         full_name: "Fulana de Tal",
         public_name: "Coletivo Exemplo",
-        phone: "71999998888",
+        phone: "71900000001",
         pix_key_type: "cpf",
         pix_key: "52998224725",
         pix_holder_name: "Fulana de Tal",
@@ -445,7 +445,7 @@ describe("Minha conta", () => {
     expect(page).toContain("Minha conta");
     expect(page).toContain("Fulana de Tal");
     expect(page).toContain("Coletivo Exemplo");
-    expect(page).toContain("(71) 99999-8888");
+    expect(page).toContain("(71) 90000-0001");
     expect(page).toContain("fu***@ex***.com");
     expect(html).not.toContain("fulana@exemplo.com");
 
@@ -498,7 +498,7 @@ describe("maskPixKey", () => {
     ["cpf", "52998224725", "•••.982.247-••"],
     ["cnpj", "11222333000181", "••.•••.333/0001-••"],
     ["email", "pix.fulana@exemplo.com.br", "•••@•••.br"],
-    ["telefone", "+5571999998888", "(••) •••••-8888"],
+    ["telefone", "+5571900000001", "(••) •••••-0001"],
     ["aleatoria", "123e4567-e89b-12d3-a456-426614174000", "••••••••-••••-••••-••••-••••••••4000"],
     ["outro", "qualquer", "•••"],
     ["email", "sem-arroba", "•••"],

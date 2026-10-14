@@ -1136,7 +1136,7 @@ import { parseOrganizerProfile, parsePassword, parseReason, parseSignupRequest }
 const profile = {
   fullName: "Fulana de Tal",
   publicName: "Coletivo Exemplo",
-  phone: "(71) 99999-0000",
+  phone: "(71) 90000-0003",
   pixKeyType: "cpf",
   pixKey: "529.982.247-25",
   pixHolderName: "Fulana de Tal",
@@ -1145,14 +1145,14 @@ const profile = {
 
 describe("validação", () => {
   it("pedido público: tamanhos do spec", () => {
-    expect(parseSignupRequest({ name: "Fu", contact: "71999990000", idea: "Peça de teatro infantil", approxDate: "", privacyAccepted: true }).ok).toBe(true);
-    expect(parseSignupRequest({ name: "F", contact: "71999990000", idea: "Peça de teatro", privacyAccepted: true }).ok).toBe(false);
-    expect(parseSignupRequest({ name: "Fulana", contact: "71999990000", idea: "curta", privacyAccepted: true }).ok).toBe(false);
-    expect(parseSignupRequest({ name: "Fulana", contact: "71999990000", idea: "Peça de teatro", privacyAccepted: false }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fu", contact: "71900000003", idea: "Peça de teatro infantil", approxDate: "", privacyAccepted: true }).ok).toBe(true);
+    expect(parseSignupRequest({ name: "F", contact: "71900000003", idea: "Peça de teatro", privacyAccepted: true }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fulana", contact: "71900000003", idea: "curta", privacyAccepted: true }).ok).toBe(false);
+    expect(parseSignupRequest({ name: "Fulana", contact: "71900000003", idea: "Peça de teatro", privacyAccepted: false }).ok).toBe(false);
   });
   it("perfil: normaliza telefone e documento, exige chave CPF igual ao titular", () => {
     const ok = parseOrganizerProfile(profile);
-    expect(ok).toEqual({ ok: true, value: expect.objectContaining({ phone: "71999990000", pixKey: "52998224725", pixHolderDocument: "52998224725" }) });
+    expect(ok).toEqual({ ok: true, value: expect.objectContaining({ phone: "71900000003", pixKey: "52998224725", pixHolderDocument: "52998224725" }) });
     expect(parseOrganizerProfile({ ...profile, pixKey: "111.444.777-35" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, pixHolderDocument: "529.982.247-24" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "email", pixKey: "fulana@exemplo.com" }).ok).toBe(true);

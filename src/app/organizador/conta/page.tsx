@@ -31,7 +31,7 @@ const PIX_TYPE_LABELS: Record<string, string> = {
   aleatoria: "Chave aleatória",
 };
 
-/** "(71) 99999-8888"; com o 55 do país na frente, tira o 55. */
+/** "(71) 90000-0001"; com o 55 do país na frente, tira o 55. */
 function formatPhone(phone: string): string {
   let digits = onlyDigits(phone);
   if (digits.length > 11 && digits.startsWith("55")) digits = digits.slice(2);
