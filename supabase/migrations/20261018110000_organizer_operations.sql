@@ -180,7 +180,11 @@ begin
   if public.actor_event_access(p_actor, p_event_id) is distinct from 'dono' then
     raise exception 'ORG_DONO: Evento não encontrado.';
   end if;
-  select e.approval_status into v_approval from public.events e where e.id = p_event_id for update;
+  select e.approval_status into v_approval
+  from public.events e where e.id = p_event_id and e.deleted_at is null for update;
+  if not found then
+    raise exception 'ORG_DONO: Evento não encontrado.';
+  end if;
   if v_approval is distinct from 'aprovado' then
     raise exception 'ORG_ESTADO:nao_aprovado';
   end if;
@@ -220,7 +224,10 @@ begin
   if public.actor_event_access(p_actor, p_event_id) is distinct from 'dono' then
     raise exception 'ORG_DONO: Evento não encontrado.';
   end if;
-  select * into v_event from public.events e where e.id = p_event_id for update;
+  select * into v_event from public.events e where e.id = p_event_id and e.deleted_at is null for update;
+  if not found then
+    raise exception 'ORG_DONO: Evento não encontrado.';
+  end if;
   if char_length(v_reason) not between 5 and 500 then
     raise exception 'ORG_DADOS: Motivo obrigatório (5 a 500 caracteres).';
   end if;
@@ -362,6 +369,7 @@ returns void language plpgsql volatile security definer set search_path = '' as 
 declare
   v_event_id uuid;
   v_request public.organizer_ops_requests%rowtype;
+  v_other public.organizer_ops_requests%rowtype;
   v_organizer uuid;
 begin
   if not public.staff_is_admin(p_admin) then
@@ -396,6 +404,22 @@ begin
   set status = 'atendido', decided_by = p_admin, decided_at = now()
   where r.id = v_request.id;
 
+  -- Os outros pedidos pendentes do evento excluído saem da fila.
+  for v_other in
+    select * from public.organizer_ops_requests r
+    where r.event_id = v_event_id and r.status = 'pendente'
+    order by r.id
+    for update
+  loop
+    update public.organizer_ops_requests r
+    set status = 'cancelado', decided_by = p_admin, decided_at = now()
+    where r.id = v_other.id;
+    perform public.log_audit(
+      p_admin, 'pedido_cancelado', v_event_id, v_other.order_id, v_organizer,
+      jsonb_build_object('request_id', v_other.id, 'kind', v_other.kind)
+    );
+  end loop;
+
   perform public.log_audit(
     p_admin, 'evento_excluido', v_event_id, null, v_organizer,
     jsonb_build_object('modo', 'pedido', 'request_id', v_request.id)
@@ -421,7 +445,10 @@ begin
   if public.actor_event_access(p_actor, p_event_id) is distinct from 'dono' then
     raise exception 'ORG_DONO: Evento não encontrado.';
   end if;
-  select * into v_event from public.events e where e.id = p_event_id for update;
+  select * into v_event from public.events e where e.id = p_event_id and e.deleted_at is null for update;
+  if not found then
+    raise exception 'ORG_DONO: Evento não encontrado.';
+  end if;
   if lower(btrim(coalesce(p_confirm_name, ''))) <> lower(btrim(v_event.name)) then
     raise exception 'ORG_DADOS: O nome digitado não confere.';
   end if;
@@ -491,7 +518,11 @@ begin
   if p_open is null then
     raise exception 'ORG_DADOS: Valor inválido.';
   end if;
-  select e.approval_status into v_approval from public.events e where e.id = p_event_id for update;
+  select e.approval_status into v_approval
+  from public.events e where e.id = p_event_id and e.deleted_at is null for update;
+  if not found then
+    raise exception 'ORG_DONO: Evento não encontrado.';
+  end if;
   if v_approval is distinct from 'aprovado' then
     raise exception 'ORG_ESTADO:nao_aprovado';
   end if;
@@ -518,7 +549,8 @@ $$;
 
 -- 5) Listas -------------------------------------------------------------------------------
 
--- Fila da equipe. Secretaria vê só os pedidos de estorno.
+-- Fila da equipe. Secretaria vê só os pedidos de estorno. Pendentes de evento excluído
+-- ficam fora (os já decididos continuam no histórico).
 create function public.list_ops_requests(p_staff uuid, p_status text, p_event_id uuid default null)
 returns table (
   id uuid,
@@ -556,6 +588,7 @@ begin
   where r.status = p_status
     and (p_event_id is null or r.event_id = p_event_id)
     and (v_admin or r.kind = 'estorno')
+    and (p_status <> 'pendente' or e.deleted_at is null)
   order by r.created_at desc, r.id
   limit 200;
 end;
@@ -642,15 +675,18 @@ begin
     ) else 0 end,
     case when v_admin then (
       select count(*)::integer from public.organizer_ops_requests r
-      where r.kind = 'mudanca' and r.status = 'pendente'
+      join public.events e on e.id = r.event_id
+      where r.kind = 'mudanca' and r.status = 'pendente' and e.deleted_at is null
     ) else 0 end,
     case when v_admin then (
       select count(*)::integer from public.organizer_ops_requests r
-      where r.kind = 'exclusao' and r.status = 'pendente'
+      join public.events e on e.id = r.event_id
+      where r.kind = 'exclusao' and r.status = 'pendente' and e.deleted_at is null
     ) else 0 end,
     (
       select count(*)::integer from public.organizer_ops_requests r
-      where r.kind = 'estorno' and r.status = 'pendente'
+      join public.events e on e.id = r.event_id
+      where r.kind = 'estorno' and r.status = 'pendente' and e.deleted_at is null
     ),
     case when v_admin then (
       select count(*)::integer from public.organizer_signup_requests sr where sr.status = 'nova'

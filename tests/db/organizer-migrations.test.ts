@@ -144,6 +144,21 @@ describe("migration organizer_operations", () => {
     }
   });
 
+  it("toda função (das duas migrations) tem revoke de public/anon/authenticated", () => {
+    const all = functionBodies(operations);
+    expect(all.length).toBeGreaterThan(10);
+    for (const fn of all) {
+      expect(operations, fn.name).toMatch(
+        new RegExp(`revoke all on function public\\.${fn.name}\\([^)]*\\) from public, anon, authenticated`),
+      );
+    }
+    for (const fn of functionBodies(accounts)) {
+      expect(accounts, fn.name).toMatch(
+        new RegExp(`revoke all on function public\\.${fn.name}\\([^)]*\\) from public, anon, authenticated`),
+      );
+    }
+  });
+
   it("portaria usa actor_event_access e remove a assinatura antiga", () => {
     expect(operations).toMatch(/drop function if exists public\.check_in_ticket\(uuid, text, uuid\);/);
     const checkIn = functionBodies(operations).find((fn) => fn.name === "check_in_ticket");
