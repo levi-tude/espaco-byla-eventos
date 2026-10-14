@@ -83,7 +83,7 @@ Spec: `docs/superpowers/specs/2026-10-13-contas-organizador-design.md`, decisão
 
 ### Task 2: Regras puras (`src/lib/auth/login-code.ts`)
 
-- [ ] Testes (`tests/auth/login-code.test.ts`): `generateLoginCode()` sempre 6 dígitos (zeros à esquerda); `normalizeLoginCode(" 12 34-56 ")` → `"123456"`, rejeita letras/5 ou 7 dígitos; `maskEmail("levi@gmail.com")` → `"le***@gm***.com"` (e casos curtos/sem ponto); `deviceLabel(userAgent)` → `"Chrome no Android"`, `"Safari no iPhone"`, `"Navegador"` quando desconhecido, máximo 60; `newDeviceToken()` com 43 caracteres base64url. Ver falhar → implementar → passar.
+- [ ] Testes (`tests/auth/login-code.test.ts`): `generateLoginCode()` sempre 6 dígitos (zeros à esquerda); `normalizeLoginCode(" 12 34-56 ")` → `"123456"`, rejeita letras/5 ou 7 dígitos; `maskEmail("fulano@exemplo.com")` → `"fu***@ex***.com"` (e casos curtos/sem ponto); `deviceLabel(userAgent)` → `"Chrome no Android"`, `"Safari no iPhone"`, `"Navegador"` quando desconhecido, máximo 60; `newDeviceToken()` com 43 caracteres base64url. Ver falhar → implementar → passar.
 
 ### Task 3: E-mail do código
 

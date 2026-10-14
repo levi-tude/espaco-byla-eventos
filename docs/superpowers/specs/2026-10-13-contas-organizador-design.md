@@ -715,7 +715,7 @@ Tabelas (RLS ligada, **sem nenhuma política**: só funções `security definer`
 
 ### 11.2 Telas
 
-- **Entrar:** e-mail e senha (sem mudança) → `/equipe/verificar` (organizador: `/organizador/verificar`): "Enviamos um código de 6 dígitos para o seu e-mail" com o e-mail mascarado (`le***@gm***.com`), campo numérico com preenchimento automático do celular, caixa "Lembrar este aparelho por 30 dias", "Reenviar código" (espera de 60 s) e "Sair".
+- **Entrar:** e-mail e senha (sem mudança) → `/equipe/verificar` (organizador: `/organizador/verificar`): "Enviamos um código de 6 dígitos para o seu e-mail" com o e-mail mascarado (`fu***@ex***.com`), campo numérico com preenchimento automático do celular, caixa "Lembrar este aparelho por 30 dias", "Reenviar código" (espera de 60 s) e "Sair".
 - **Meus aparelhos** (fase 2, junto com a área do organizador): lista dos aparelhos lembrados (navegador e data) com "Esquecer"; Admin pode esquecer os de outra conta. Até lá, o dono usa o SQL do plano (seção "Emergência").
 
 ### 11.3 Onde é conferido

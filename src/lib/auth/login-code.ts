@@ -26,7 +26,7 @@ function maskPart(part: string): string {
   return `${part.slice(0, part.length > 2 ? 2 : 1)}***`;
 }
 
-/** "le***@gm***.com": suficiente para a pessoa reconhecer o próprio e-mail. */
+/** "fu***@ex***.com": suficiente para a pessoa reconhecer o próprio e-mail. */
 export function maskEmail(email: string | null | undefined): string {
   const value = email?.trim().toLowerCase() ?? "";
   const at = value.lastIndexOf("@");

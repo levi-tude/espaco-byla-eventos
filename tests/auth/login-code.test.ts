@@ -33,7 +33,7 @@ describe("normalizeLoginCode", () => {
 
 describe("maskEmail", () => {
   it("mostra só o começo do nome e do domínio", () => {
-    expect(maskEmail("levi@gmail.com")).toBe("le***@gm***.com");
+    expect(maskEmail("fulano@exemplo.com")).toBe("fu***@ex***.com");
     expect(maskEmail("Contato.Espaco@empresa.com.br")).toBe("co***@em***.br");
   });
 
