@@ -83,6 +83,44 @@ describe("migration organizer_accounts", () => {
     }
   });
 
+  it("nome e local comparados e gravados sem espaços nas pontas (dono)", () => {
+    const fns = functionBodies(accounts);
+    const violations = fns.find((fn) => fn.name === "organizer_change_violations");
+    expect(violations?.text).toContain("btrim(coalesce(p_name, '')) is distinct from btrim(coalesce(v_event.name, ''))");
+    expect(violations?.text).toContain("btrim(coalesce(p_venue, '')) is distinct from btrim(coalesce(v_event.venue, ''))");
+    const create = fns.find((fn) => fn.name === "create_organizer_event");
+    expect(create?.text).toMatch(/p_slug, btrim\(p_name\), btrim\(p_venue\)/);
+    const save = fns.find((fn) => fn.name === "save_event_with_sessions");
+    expect(save?.text).toContain("name = case when v_access = 'dono' then btrim(p_name) else p_name end");
+    expect(save?.text).toContain("venue = case when v_access = 'dono' then btrim(p_venue) else p_venue end");
+  });
+
+  it("endereço repetido do evento vira ORG_DADOS:slug", () => {
+    const create = functionBodies(accounts).find((fn) => fn.name === "create_organizer_event");
+    expect(create?.text).toMatch(/exception when unique_violation then\s+raise exception 'ORG_DADOS:slug';/);
+  });
+
+  it("aprovar reconfere os critérios do envio", () => {
+    const fns = functionBodies(accounts);
+    for (const name of ["submit_event_for_approval", "decide_event_approval"]) {
+      expect(fns.find((fn) => fn.name === name)?.text, name).toContain(
+        "public.organizer_submission_problem(p_event_id)",
+      );
+    }
+    const problem = fns.find((fn) => fn.name === "organizer_submission_problem");
+    for (const code of ["ORG_ESTADO:capa", "ORG_ESTADO:sem_sessao_futura", "ORG_LOTACAO:", "ORG_ESTADO:sem_preco"]) {
+      expect(problem?.text).toContain(code);
+    }
+    expect(accounts).not.toMatch(/grant execute on function public\.organizer_submission_problem/);
+  });
+
+  it("esquecer aparelho derruba as outras sessões verificadas e mantém a atual", () => {
+    const forget = functionBodies(accounts).find((fn) => fn.name === "forget_my_device");
+    expect(forget?.text).toMatch(
+      /delete from public\.verified_sessions v\s+where v\.user_id = \(select auth\.uid\(\)\)\s+and v\.session_id is distinct from public\.current_session_id\(\);/,
+    );
+  });
+
   it("histórico é imutável", () => {
     expect(accounts).toMatch(/create trigger audit_log_immutable\s+before update or delete on public\.audit_log/);
     expect(accounts).toMatch(/create trigger audit_log_no_truncate\s+before truncate on public\.audit_log/);

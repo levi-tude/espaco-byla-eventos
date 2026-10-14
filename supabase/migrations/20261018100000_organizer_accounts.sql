@@ -949,7 +949,16 @@ begin
   update public.trusted_devices d
   set revoked_at = now()
   where d.id = p_device_id and d.user_id = (select auth.uid()) and d.revoked_at is null;
-  return found;
+  if not found then
+    return false;
+  end if;
+  -- verified_sessions não guarda qual aparelho verificou cada sessão: derruba todas as
+  -- outras da conta (o aparelho perdido para na hora). Navegadores ainda lembrados se
+  -- verificam de novo sozinhos pelo cookie; o esquecido precisa do código no e-mail.
+  delete from public.verified_sessions v
+  where v.user_id = (select auth.uid())
+    and v.session_id is distinct from public.current_session_id();
+  return true;
 end;
 $$;
 
@@ -1035,8 +1044,12 @@ declare
   v_pos integer := 0;
 begin
   select * into v_event from public.events e where e.id = p_event_id;
-  if btrim(coalesce(p_name, '')) is distinct from v_event.name then v_out := array_append(v_out, 'nome'); end if;
-  if btrim(coalesce(p_venue, '')) is distinct from v_event.venue then v_out := array_append(v_out, 'local'); end if;
+  if btrim(coalesce(p_name, '')) is distinct from btrim(coalesce(v_event.name, '')) then
+    v_out := array_append(v_out, 'nome');
+  end if;
+  if btrim(coalesce(p_venue, '')) is distinct from btrim(coalesce(v_event.venue, '')) then
+    v_out := array_append(v_out, 'local');
+  end if;
 
   if p_sessions is null or jsonb_typeof(p_sessions) <> 'array' then
     return array(select distinct x from unnest(v_out) x order by x);
@@ -1592,8 +1605,8 @@ begin
   limit 1;
 
   update public.events e
-  set name = p_name,
-      venue = p_venue,
+  set name = case when v_access = 'dono' then btrim(p_name) else p_name end,
+      venue = case when v_access = 'dono' then btrim(p_venue) else p_venue end,
       description = p_description,
       cover_image_url = p_cover_image_url,
       starts_at = v_first.starts_at,
@@ -1768,18 +1781,22 @@ begin
   end if;
 
   perform set_config('byla.organizer_flow', 'on', true);
-  insert into public.events (
-    slug, name, venue, description, cover_image_url, starts_at, capacity, sales_open,
-    organizer_id, approval_status
-  ) values (
-    p_slug, p_name, p_venue, coalesce(p_description, ''), p_cover_image_url, v_starts, v_capacity, false,
-    p_actor, 'rascunho'
-  )
-  returning id into v_id;
+  begin
+    insert into public.events (
+      slug, name, venue, description, cover_image_url, starts_at, capacity, sales_open,
+      organizer_id, approval_status
+    ) values (
+      p_slug, btrim(p_name), btrim(p_venue), coalesce(p_description, ''), p_cover_image_url, v_starts, v_capacity, false,
+      p_actor, 'rascunho'
+    )
+    returning id into v_id;
+  exception when unique_violation then
+    raise exception 'ORG_DADOS:slug';
+  end;
   perform set_config('byla.organizer_flow', '', true);
 
   perform public.save_event_with_sessions(
-    v_id, p_name, p_venue, p_description, p_cover_image_url, p_ticket_types, p_sessions, p_actor
+    v_id, btrim(p_name), btrim(p_venue), p_description, p_cover_image_url, p_ticket_types, p_sessions, p_actor
   );
 
   perform public.log_audit(p_actor, 'evento_criado', v_id, null, p_actor, '{}'::jsonb);
@@ -1787,36 +1804,33 @@ begin
 end;
 $$;
 
-create function public.submit_event_for_approval(p_actor uuid, p_event_id uuid)
-returns void language plpgsql volatile security definer set search_path = '' as $$
+-- Critérios para enviar e para aprovar (o evento pode ter mudado de situação entre um e
+-- outro: sessão que já passou, limite de lotação reduzido). Nulo = tudo certo; senão o
+-- erro exato (ORG_ESTADO:capa, ORG_ESTADO:sem_sessao_futura, ORG_LOTACAO:<max>,
+-- ORG_ESTADO:sem_preco), nesta ordem.
+create function public.organizer_submission_problem(p_event_id uuid)
+returns text language plpgsql stable security definer set search_path = '' as $$
 declare
-  v_event public.events%rowtype;
-  v_max integer;
+  v_cover text;
+  v_max integer := public.organizer_max_capacity();
 begin
-  if public.actor_event_access(p_actor, p_event_id) is distinct from 'dono' then
-    raise exception 'ORG_DONO: Evento de outro organizador.';
-  end if;
-  select * into v_event from public.events e where e.id = p_event_id for update;
-  if v_event.approval_status not in ('rascunho', 'recusado') then
-    raise exception 'ORG_ESTADO:estado';
-  end if;
-  if nullif(btrim(coalesce(v_event.cover_image_url, '')), '') is null then
-    raise exception 'ORG_ESTADO:capa';
+  select e.cover_image_url into v_cover from public.events e where e.id = p_event_id;
+  if nullif(btrim(coalesce(v_cover, '')), '') is null then
+    return 'ORG_ESTADO:capa';
   end if;
   if not exists (
     select 1 from public.event_sessions s
     where s.event_id = p_event_id and s.status = 'ativa' and s.archived_at is null
       and s.starts_at > now()
   ) then
-    raise exception 'ORG_ESTADO:sem_sessao_futura';
+    return 'ORG_ESTADO:sem_sessao_futura';
   end if;
-  v_max := public.organizer_max_capacity();
   if exists (
     select 1 from public.event_sessions s
     where s.event_id = p_event_id and s.status = 'ativa' and s.archived_at is null
       and s.capacity > v_max
   ) then
-    raise exception 'ORG_LOTACAO:%', v_max;
+    return 'ORG_LOTACAO:' || v_max;
   end if;
   if exists (
     select 1 from public.event_sessions s
@@ -1829,7 +1843,28 @@ begin
           and tt.archived_at is null and tt.active and tt.kind <> 'cortesia'
       )
   ) then
-    raise exception 'ORG_ESTADO:sem_preco';
+    return 'ORG_ESTADO:sem_preco';
+  end if;
+  return null;
+end;
+$$;
+
+create function public.submit_event_for_approval(p_actor uuid, p_event_id uuid)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_event public.events%rowtype;
+  v_problem text;
+begin
+  if public.actor_event_access(p_actor, p_event_id) is distinct from 'dono' then
+    raise exception 'ORG_DONO: Evento de outro organizador.';
+  end if;
+  select * into v_event from public.events e where e.id = p_event_id for update;
+  if v_event.approval_status not in ('rascunho', 'recusado') then
+    raise exception 'ORG_ESTADO:estado';
+  end if;
+  v_problem := public.organizer_submission_problem(p_event_id);
+  if v_problem is not null then
+    raise exception '%', v_problem;
   end if;
 
   perform set_config('byla.organizer_flow', 'on', true);
@@ -1877,6 +1912,7 @@ declare
   v_event public.events%rowtype;
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
   v_publish boolean := coalesce(p_publish, false);
+  v_problem text;
 begin
   if not public.staff_is_admin(p_admin) then
     raise exception 'ORG_ACESSO: Acesso negado.';
@@ -1893,6 +1929,10 @@ begin
   if p_decision = 'aprovar' then
     if not public.organizer_is_active(v_event.organizer_id) then
       raise exception 'ORG_ESTADO:organizador_inativo';
+    end if;
+    v_problem := public.organizer_submission_problem(p_event_id);
+    if v_problem is not null then
+      raise exception '%', v_problem;
     end if;
     perform set_config('byla.organizer_flow', 'on', true);
     update public.events e
@@ -2075,6 +2115,7 @@ revoke all on function public.save_event_with_sessions(uuid, text, text, text, t
 revoke all on function public.set_session_sales_open(uuid, boolean, uuid) from public, anon, authenticated;
 revoke all on function public.event_is_past(uuid) from public, anon, authenticated;
 revoke all on function public.create_organizer_event(uuid, text, text, text, text, text, jsonb, jsonb) from public, anon, authenticated;
+revoke all on function public.organizer_submission_problem(uuid) from public, anon, authenticated, service_role;
 revoke all on function public.submit_event_for_approval(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.withdraw_event_submission(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.decide_event_approval(uuid, uuid, text, boolean, text) from public, anon, authenticated;
