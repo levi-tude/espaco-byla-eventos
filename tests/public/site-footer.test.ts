@@ -11,12 +11,20 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
 
-import { SiteFooter } from "@/components/brand/SiteFooter";
 import { OrganizerCallout } from "@/components/public/OrganizerCallout";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { TERMS_PATH } from "@/lib/legal/terms";
 
 const REQUEST_PATH = "/quero-fazer-meu-evento";
+
+let SiteFooter: typeof import("@/components/brand/SiteFooter").SiteFooter;
+let organizerAreaEnabled: typeof import("@/lib/organizer/settings").organizerAreaEnabled;
+
+/** A chave guarda a última resposta no módulo: cada teste começa sem nenhuma. */
+async function freshModules() {
+  vi.resetModules();
+  ({ SiteFooter } = await import("@/components/brand/SiteFooter"));
+  ({ organizerAreaEnabled } = await import("@/lib/organizer/settings"));
+}
 
 /** O cliente devolve um construtor de consulta; a chave da área é lida com prazo (abortSignal). */
 const client = {
@@ -28,12 +36,13 @@ function text(html: string): string {
 }
 
 describe("organizerAreaEnabled", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "chave-de-servico");
     mocks.createClient.mockReturnValue(client);
+    await freshModules();
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -58,10 +67,15 @@ describe("organizerAreaEnabled", () => {
     errorLog.mockRestore();
   });
 
-  it("exceção ou resposta estranha = false", async () => {
+  it("exceção = false", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.rpc.mockRejectedValue(new Error("fora do ar"));
     expect(await organizerAreaEnabled()).toBe(false);
+    errorLog.mockRestore();
+  });
+
+  it("resposta estranha = false", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.rpc.mockResolvedValue({ data: "true", error: null });
     expect(await organizerAreaEnabled()).toBe(false);
     errorLog.mockRestore();
@@ -75,11 +89,12 @@ describe("organizerAreaEnabled", () => {
 });
 
 describe("rodapé", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
     mocks.createClient.mockReturnValue(client);
+    await freshModules();
   });
   afterEach(() => vi.unstubAllEnvs());
 
