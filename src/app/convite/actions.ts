@@ -156,7 +156,8 @@ export async function completeOrganizerSignup(
     if (input?.termsAccepted !== true) throw new ActionError(TERMS_REQUIRED_MESSAGE);
     const profile = parseOrganizerProfile(input.profile);
     if (!profile.ok) throw new ActionError(profile.error);
-    const password = parsePassword(input.password);
+    const names = [profile.value.fullName, profile.value.publicName];
+    const password = parsePassword(input.password, { names });
     if (!password.ok) throw new ActionError(password.error);
 
     const admin = createAdminClient();
@@ -168,6 +169,8 @@ export async function completeOrganizerSignup(
       throw new ActionError(FALLBACK_MESSAGE);
     }
     if (typeof email !== "string" || !email) throw new ActionError(EMAIL_NOT_CONFIRMED_MESSAGE);
+    const withEmail = parsePassword(input.password, { email, names });
+    if (!withEmail.ok) throw new ActionError(withEmail.error);
 
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,

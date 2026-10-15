@@ -123,8 +123,8 @@ async function reachTermsStep(terms?: ReactNode) {
   await reachCodeStep(terms);
   await type("code", "123456");
   await submit();
-  await type("password", "senha-bem-comprida");
-  await type("passwordConfirm", "senha-bem-comprida");
+  await type("password", "Maracuja-azul-2026");
+  await type("passwordConfirm", "Maracuja-azul-2026");
   await submit();
   await type("pixKeyType", "cpf");
   await type("pixHolderName", "Fulana de Tal");
@@ -227,12 +227,27 @@ describe("SignupWizard", () => {
     await type("code", "123456");
     await submit();
 
-    expect(pageText()).toContain("Mínimo de 12 caracteres. Não use a mesma senha de outro site.");
+    expect(pageText()).toContain("Mínimo de 12 caracteres, com letras e números.");
     expect(input("password").getAttribute("autocomplete")).toBe("new-password");
-    await type("password", "senha-bem-comprida");
+    await type("password", "Maracuja-azul-2026");
     await type("passwordConfirm", "senha-diferente!!");
     await submit();
     expect(pageText()).toContain("As senhas não são iguais.");
+    expect(pageText()).toContain("Passo 4 de 7");
+  });
+
+  it.each([
+    ["123456789123", "Use letras e números na senha."],
+    ["Fulana festa 2026", "Não use seu nome nem seu e-mail na senha."],
+  ])("senha fraca (%s) avisa no navegador e não avança", async (password, message) => {
+    await reachCodeStep();
+    await type("code", "123456");
+    await submit();
+
+    await type("password", password);
+    await type("passwordConfirm", password);
+    await submit();
+    expect(pageText()).toContain(message);
     expect(pageText()).toContain("Passo 4 de 7");
   });
 
@@ -240,8 +255,8 @@ describe("SignupWizard", () => {
     await reachCodeStep();
     await type("code", "123456");
     await submit();
-    await type("password", "senha-bem-comprida");
-    await type("passwordConfirm", "senha-bem-comprida");
+    await type("password", "Maracuja-azul-2026");
+    await type("passwordConfirm", "Maracuja-azul-2026");
     await submit();
 
     expect(pageText()).toContain(
@@ -276,10 +291,10 @@ describe("SignupWizard", () => {
         pixHolderName: "Fulana de Tal",
         pixHolderDocument: "529.982.247-25",
       },
-      password: "senha-bem-comprida",
+      password: "Maracuja-azul-2026",
       termsAccepted: true,
     });
-    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: "fulana@exemplo.com", password: "senha-bem-comprida" });
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: "fulana@exemplo.com", password: "Maracuja-azul-2026" });
     expect(mocks.startOrganizerLoginAction).toHaveBeenCalledTimes(1);
     expect(pageText()).toContain("Passo 7 de 7");
     expect(pageText()).toContain("Sua conta está pronta. Crie seu primeiro evento.");
@@ -327,11 +342,11 @@ describe("ResetPasswordForm", () => {
     await render(createElement(ResetPasswordForm));
     expect(window.location.hash).toBe("");
 
-    await type("password", "outra-senha-comprida");
-    await type("passwordConfirm", "outra-senha-comprida");
+    await type("password", "Outra frase comprida 47");
+    await type("passwordConfirm", "Outra frase comprida 47");
     await submit();
 
-    expect(mocks.resetPasswordWithLink).toHaveBeenCalledWith(TOKEN, "outra-senha-comprida");
+    expect(mocks.resetPasswordWithLink).toHaveBeenCalledWith(TOKEN, "Outra frase comprida 47");
     expect(pageText()).toContain("Senha nova salva.");
     expect(container.querySelector('a[href="/organizador/entrar"]')).not.toBeNull();
   });

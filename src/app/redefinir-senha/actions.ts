@@ -19,6 +19,7 @@ export async function resetPasswordWithLink(token: string, password: string): Pr
   return runAction(async () => {
     if (!isInviteTokenFormat(token)) throw new ActionError(LINK_INVALID_MESSAGE);
     if (!(await organizerAreaEnabled())) throw new ActionError(ORGANIZER_AREA_UNAVAILABLE_MESSAGE);
+    // Nome e e-mail da conta só aparecem depois de gastar o link: aqui vale a regra sem eles.
     const parsed = parsePassword(password);
     if (!parsed.ok) throw new ActionError(parsed.error);
 

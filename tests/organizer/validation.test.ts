@@ -91,16 +91,19 @@ describe("validação", () => {
     expect(parseOrganizerProfile({ ...profile, pixHolderName: "x".repeat(121) }).ok).toBe(false);
     expect(parseOrganizerProfile(undefined).ok).toBe(false);
   });
-  it("senha: mínimo 12, máximo 72", () => {
+  it("senha: usa a regra de senha forte", () => {
     expect(parsePassword("curta").ok).toBe(false);
-    expect(parsePassword("uma frase longa ok").ok).toBe(true);
-    expect(parsePassword("x".repeat(73)).ok).toBe(false);
+    expect(parsePassword("uma frase longa 47")).toEqual({ ok: true, value: "uma frase longa 47" });
+    expect(parsePassword("123456789123")).toEqual({ ok: false, error: "Use letras e números na senha." });
+    expect(parsePassword("é".repeat(37))).toEqual({ ok: false, error: "A senha pode ter no máximo 72 caracteres." });
     expect(parsePassword(12345678901234).ok).toBe(false);
   });
-  it("senha: os 72 contam em bytes (acento ocupa 2)", () => {
-    expect(parsePassword("é".repeat(36)).ok).toBe(true);
-    expect(parsePassword("é".repeat(37))).toEqual({ ok: false, error: "A senha pode ter no máximo 72 caracteres." });
-    expect(parsePassword("a".repeat(72)).ok).toBe(true);
+  it("senha: recusa nome ou e-mail quando informados", () => {
+    expect(parsePassword("Fulana festa 2026", { names: ["Fulana de Tal"] })).toEqual({
+      ok: false,
+      error: "Não use seu nome nem seu e-mail na senha.",
+    });
+    expect(parsePassword("Fulana festa 2026").ok).toBe(true);
   });
   it("motivo: 5 a 500", () => {
     expect(parseReason("ok").ok).toBe(false);

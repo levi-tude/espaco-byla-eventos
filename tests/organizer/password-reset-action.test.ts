@@ -44,7 +44,7 @@ import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit"
 const LINK_INVALID = "Este link não vale mais. Peça um novo ao Espaço Byla.";
 const TOKEN = newInviteToken();
 const USER_ID = "00000000-0000-4000-8000-0000000000bb";
-const PASSWORD = "outra-senha-comprida";
+const PASSWORD = "Outra frase comprida 47";
 
 function database({ limit = true, reset }: { limit?: boolean; reset?: { data?: unknown; error?: { message: string } } } = {}) {
   mocks.rpc.mockImplementation(async (fn: string) => {
@@ -85,6 +85,17 @@ describe("resetPasswordWithLink", () => {
       error: "A senha precisa ter pelo menos 12 caracteres.",
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["123456789123", "Use letras e números na senha."],
+    ["Senha@2026!!", "Essa senha é muito comum e fácil de adivinhar. Escolha outra."],
+    ["qwerty2026casa", "Evite sequências fáceis, como 12345, abcde ou qwerty."],
+    ["aaaaaaaa2026", "A senha está repetitiva demais (como aaaa, 1111 ou abcabc). Misture mais letras e números."],
+  ])("senha fraca (%s) não gasta o link nem troca a senha", async (password, error) => {
+    expect(await resetPasswordWithLink(TOKEN, password)).toEqual({ ok: false, error });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
   it("acima do limite por IP não usa o link", async () => {
@@ -141,7 +152,7 @@ describe("página /redefinir-senha", () => {
 
   it("mostra o campo de senha nova com a regra simples", async () => {
     const html = renderToStaticMarkup(await ResetPasswordPage());
-    expect(html).toContain("Mínimo de 12 caracteres. Não use a mesma senha de outro site.");
+    expect(html).toContain("Mínimo de 12 caracteres, com letras e números.");
     expect(html).toMatch(/autocomplete="new-password"/i);
     for (const word of ["supabase", "resend", "cloudflare", "google"]) expect(html.toLowerCase()).not.toContain(word);
   });

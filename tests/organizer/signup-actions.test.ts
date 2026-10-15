@@ -290,7 +290,7 @@ describe("verifyInviteEmailCode", () => {
 });
 
 describe("completeOrganizerSignup", () => {
-  const input = { profile: validProfile, password: "senha-bem-comprida", termsAccepted: true };
+  const input = { profile: validProfile, password: "Maracuja-azul-2026", termsAccepted: true };
 
   function happyDatabase(overrides: RpcReplies = {}) {
     database({
@@ -329,6 +329,27 @@ describe("completeOrganizerSignup", () => {
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["123456789123", "Use letras e números na senha."],
+    ["espacobyla2026", "Essa senha é muito comum e fácil de adivinhar. Escolha outra."],
+    ["Festa123456x", "Evite sequências fáceis, como 12345, abcde ou qwerty."],
+    ["Fulana festa 2026", "Não use seu nome nem seu e-mail na senha."],
+  ])("senha fraca (%s) recusa antes do banco", async (password, error) => {
+    happyDatabase();
+    expect(await completeOrganizerSignup(TOKEN, { ...input, password })).toEqual({ ok: false, error });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("senha com o e-mail confirmado no banco não cria conta", async () => {
+    happyDatabase({ invite_verified_email: { data: "festeira.bahia@exemplo.com" } });
+    expect(await completeOrganizerSignup(TOKEN, { ...input, password: "Festeira azul 2026" })).toEqual({
+      ok: false,
+      error: "Não use seu nome nem seu e-mail na senha.",
+    });
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
   it("acima do limite por IP não cria conta", async () => {
     database({ invite_verified_email: { data: "fulana@exemplo.com" } }, false);
     expect(await completeOrganizerSignup(TOKEN, input)).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
@@ -354,7 +375,7 @@ describe("completeOrganizerSignup", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("invite_verified_email", { p_token_hash: TOKEN_HASH });
     expect(mocks.createUser).toHaveBeenCalledTimes(1);
     const [attributes] = mocks.createUser.mock.calls[0] as [Record<string, unknown>];
-    expect(attributes).toEqual({ email: "fulana@exemplo.com", password: "senha-bem-comprida", email_confirm: true });
+    expect(attributes).toEqual({ email: "fulana@exemplo.com", password: "Maracuja-azul-2026", email_confirm: true });
     expect(attributes).not.toHaveProperty("user_metadata");
     expect(mocks.rpc).toHaveBeenCalledWith("accept_organizer_invite", {
       p_token_hash: TOKEN_HASH,
@@ -396,7 +417,7 @@ describe("completeOrganizerSignup", () => {
     expect(mocks.deleteUser).toHaveBeenCalledWith(USER_ID);
     expect(mocks.alertTeamOrphanAccount).not.toHaveBeenCalled();
     const logged = JSON.stringify(log.mock.calls);
-    for (const secret of ["fulana@exemplo.com", "52998224725", TOKEN, "senha-bem-comprida"]) expect(logged).not.toContain(secret);
+    for (const secret of ["fulana@exemplo.com", "52998224725", TOKEN, "Maracuja-azul-2026"]) expect(logged).not.toContain(secret);
   });
 
   it.each([

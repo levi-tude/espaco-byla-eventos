@@ -1,4 +1,5 @@
 import { isValidTaxDocument, onlyDigits } from "@/lib/organizer/documents";
+import { checkPassword, type PasswordPersonalInfo } from "@/lib/security/password-policy";
 
 export type FieldResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -48,11 +49,8 @@ export function parseEmail(value: unknown): FieldResult<string> {
   return email.length <= 254 && EMAIL_PATTERN.test(email) ? { ok: true, value: email } : fail(error);
 }
 
-export function parsePassword(value: unknown): FieldResult<string> {
-  if (typeof value !== "string" || value.length < 12) return fail("A senha precisa ter pelo menos 12 caracteres.");
-  // O limite do login é 72 bytes: acento conta 2.
-  if (new TextEncoder().encode(value).length > 72) return fail("A senha pode ter no máximo 72 caracteres.");
-  return { ok: true, value };
+export function parsePassword(value: unknown, personal?: PasswordPersonalInfo): FieldResult<string> {
+  return checkPassword(value, personal);
 }
 
 export function parseReason(value: unknown): FieldResult<string> {

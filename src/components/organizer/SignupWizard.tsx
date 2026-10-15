@@ -35,7 +35,8 @@ const INVITE_INVALID_MESSAGE = "Este convite não vale mais. Peça um novo ao Es
 const NO_TOKEN_MESSAGE = "Abra de novo o link do convite que você recebeu. Se não funcionar, peça um novo ao Espaço Byla.";
 const GENERIC_ERROR = "Não foi possível continuar agora. Tente de novo em alguns minutos.";
 const TERMS_REQUIRED_MESSAGE = "Marque que leu e aceita os Termos do organizador e a Política de Privacidade.";
-export const PASSWORD_HINT = "Mínimo de 12 caracteres. Não use a mesma senha de outro site.";
+export const PASSWORD_HINT =
+  "Mínimo de 12 caracteres, com letras e números. Não use seu nome, seu e-mail, sequências como 123456 nem a mesma senha de outro site.";
 export const PASSWORD_MISMATCH_MESSAGE = "As senhas não são iguais.";
 
 /**
@@ -248,7 +249,10 @@ export function SignupWizard({ terms }: { terms?: ReactNode }) {
 
   function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const password = parsePassword(form.password);
+    const password = parsePassword(form.password, {
+      email: verifiedEmail ?? form.email,
+      names: [form.fullName, form.publicName],
+    });
     if (!password.ok) {
       setError(password.error);
       return;
