@@ -320,7 +320,7 @@ create unique index on public.organizer_pix_change_requests (organizer_id) where
 
 - Gatilho `forbid_staff_and_organizer`: recusa inserir em `organizer_profiles` quem está em `staff_profiles`, e o inverso.
 - RLS `organizer_profiles`: `select` para `authenticated` quando `user_id = auth.uid() and public.is_organizer()` (o próprio, com o login verificado por código). Admin lê por função (não por RLS), para a chave PIX não ficar exposta a toda a equipe.
-- Troca de chave PIX: o organizador pede (com o login verificado), recebe e-mail de aviso, e o Admin confirma em **Organizadores → Contas** antes do próximo repasse. Defesa contra quem roubar a conta e trocar a chave.
+- Troca de chave PIX: o organizador pede (com o login verificado), recebe e-mail de aviso, e o Admin confirma em **Organizadores → Contas** antes do próximo repasse. Defesa contra quem roubar a conta e trocar a chave. **Período de espera de 24 h** entre o pedido e a confirmação do Admin (decidido pelo dono em 2026-10-15, opção A).
 - CPF/CNPJ do titular (decisão 14): validado pelos dígitos verificadores no servidor; nas telas aparece mascarado (`•••.456.789-••`), completo só na tela de repasse do Admin não desenvolvedor; nunca em logs, e-mails ou planilhas. O Admin confere, ao confirmar a conta ou a troca de chave, que o titular é o organizador ou a empresa dele.
 
 ### 7.3 Convites e pedidos do site
@@ -1075,7 +1075,7 @@ Teste do banco de pagamento (seção 9) → `order_payment_fees` e captura → p
 
 ## 21. Perguntas para o dono
 
-Nenhuma pergunta em aberto. As perguntas 1 a 9 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A, 8A, 9A) e viraram as decisões 12 a 20 (seção 2.1). As 3 perguntas do plano da fase 2 foram respondidas em 2026-10-14 (1A, 2A, 3B) e viraram as decisões 21 a 23.
+Nenhuma pergunta em aberto. As perguntas 1 a 9 foram respondidas em 2026-10-13 (1A, 2C, 3A, 4A, 5A, 6A, 7A, 8A, 9A) e viraram as decisões 12 a 20 (seção 2.1). As 3 perguntas do plano da fase 2 foram respondidas em 2026-10-14 (1A, 2A, 3B) e viraram as decisões 21 a 23. A pergunta do plano da fase 3 (período de espera da troca de chave PIX) foi respondida em 2026-10-15: **24 horas** (opção A).
 
 ### 21.1 Revisões recomendadas antes do primeiro evento real de organizador (jurídico e contador)
 
