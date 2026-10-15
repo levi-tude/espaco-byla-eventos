@@ -27,7 +27,8 @@ export type TeamAlertKind =
 export type TeamSetupAlertKind =
   | "webhook_sem_chave"
   | "antirrobo_sem_chave"
-  | "antirrobo_indisponivel";
+  | "antirrobo_indisponivel"
+  | "pix_devolucao_sem_chave";
 
 const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   valor_divergente: "Pagamento com valor diferente do pedido",
@@ -47,6 +48,7 @@ const SETUP_ALERT_SUBJECTS: Record<TeamSetupAlertKind, string> = {
   webhook_sem_chave: "Avisos de pagamento recusados: falta a chave secreta do Mercado Pago",
   antirrobo_sem_chave: "Compras bloqueadas: falta configurar a verificação anti-robô",
   antirrobo_indisponivel: "Verificação anti-robô fora do ar: compras recusadas",
+  pix_devolucao_sem_chave: "Organizador com devolução pendente: falta configurar a chave PIX do Espaço",
 };
 
 /** A página do pedido reconsulta o pagamento a cada poucos segundos: 1 alerta por pedido/tipo por dia. */

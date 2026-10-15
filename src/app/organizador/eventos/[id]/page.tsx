@@ -10,6 +10,7 @@ import { ApprovalBanner } from "@/components/organizer/ApprovalBanner";
 import { DeleteEventSection } from "@/components/organizer/DeleteEventSection";
 import { OpsRequestList, type OrganizerOpsRequest } from "@/components/organizer/OpsRequestList";
 import { organizerEventStatus } from "@/components/organizer/OrganizerEventCard";
+import { OrganizerFinancePanel } from "@/components/organizer/OrganizerFinancePanel";
 import { OrganizerNoAccess } from "@/components/organizer/OrganizerNoAccess";
 import { type OrganizerOrder, OrganizerOrderList } from "@/components/organizer/OrganizerOrderList";
 import { OrganizerSalesPanel, type OrganizerSalesSession } from "@/components/organizer/OrganizerSalesPanel";
@@ -18,6 +19,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { alertTeamSetup } from "@/lib/alerts/team-alert";
 import { getActor, requireEventAccess } from "@/lib/auth/actor";
 import { eventDateFormatter, formatSessionLabel } from "@/lib/datetime";
 import type { EventAvailabilityWithTypes } from "@/lib/domain/availability";
@@ -25,6 +27,8 @@ import { loadEventSessions, loadSessionAvailability } from "@/lib/domain/event-a
 import { orderStatsFor, sessionOrderStats, sumAvailability } from "@/lib/domain/session-panel";
 import { orderNumber, sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { loadEventGallery } from "@/lib/media/gallery";
+import { payoutSituation } from "@/lib/organizer/finance";
+import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { lockedFieldsFor } from "@/lib/organizer/post-approval";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,6 +49,7 @@ const TABS = [
   { id: "pedidos", label: "Pedidos" },
   { id: "portaria", label: "Portaria" },
   { id: "pedidos-equipe", label: "Pedidos à equipe" },
+  { id: "financeiro", label: "Financeiro" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -304,6 +309,16 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   const tab: TabId = TABS.some((item) => item.id === query.aba) ? (query.aba as TabId) : "evento";
   const shownOnMobile = (section: TabId) => (tab === section ? "" : "hidden lg:block");
 
+  // Só consulta o dinheiro quando a aba está aberta.
+  const finance = tab === "financeiro" ? await loadOrganizerEventFinance(actor.userId, event.id) : null;
+  let refundPixKey: string | null = null;
+  if (finance && payoutSituation(finance).kind === "devolucao") {
+    refundPixKey = process.env.ORGANIZER_REFUND_PIX_KEY?.trim() || null;
+    if (!refundPixKey) {
+      await alertTeamSetup(admin, "pix_devolucao_sem_chave", "Configure ORGANIZER_REFUND_PIX_KEY no ambiente do site.");
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-2 sm:px-6 sm:pt-4">
       <BackLink href="/organizador">Meus eventos</BackLink>
@@ -444,6 +459,23 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
                 <Notice tone="danger">Não foi possível carregar os pedidos. Atualize a página.</Notice>
               ) : (
                 <OrganizerOrderList orders={orders} />
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="financeiro-titulo" className={shownOnMobile("financeiro")}>
+            <h2 className="text-xl font-semibold text-foreground" id="financeiro-titulo">
+              Financeiro
+            </h2>
+            <div className="mt-3">
+              {tab !== "financeiro" ? (
+                <ButtonLink fullWidth href={`/organizador/eventos/${event.id}?aba=financeiro`} variant="secondary">
+                  Ver vendas, tarifas e repasse
+                </ButtonLink>
+              ) : finance ? (
+                <OrganizerFinancePanel finance={finance} refundPixKey={refundPixKey} />
+              ) : (
+                <Notice tone="danger">Não foi possível carregar o financeiro. Atualize a página.</Notice>
               )}
             </div>
           </section>

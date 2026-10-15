@@ -390,6 +390,25 @@ export function situationLabel(s: PayoutSituation, audience: "organizador" | "eq
   }
 }
 
+export function situationTone(s: PayoutSituation): "success" | "warning" | "danger" | "info" | "neutral" {
+  switch (s.kind) {
+    case "atrasado":
+      return "danger";
+    case "devolucao":
+      return s.overdue ? "danger" : "warning";
+    case "a_pagar":
+    case "conferindo":
+    case "desconto":
+      return "warning";
+    case "pago":
+      return "success";
+    case "andamento":
+      return "info";
+    case "sem_valor":
+      return "neutral";
+  }
+}
+
 // ------------------------------------------------------------------ recusas do banco
 
 const GENERIC = "Não foi possível concluir. Tente de novo.";
