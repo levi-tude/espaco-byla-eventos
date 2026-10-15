@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { runSessionNotices } from "@/lib/notices/process";
 import { NOTICE_CRON_LIMIT } from "@/lib/notices/rules";
+import { runOrganizerFinanceDaily } from "@/lib/organizer/daily";
 import { captureMissingFees } from "@/lib/payments/capture-fee";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -74,6 +75,10 @@ export async function GET(request: Request) {
   } catch {
     console.error("[keep-alive] falha ao buscar as tarifas pendentes");
   }
+
+  // Depois das tarifas: devoluções dos organizadores e resumo da equipe (nunca lança).
+  const finance = await runOrganizerFinanceDaily(supabase);
+  if (finance.devolucoes > 0 || finance.resumo) console.warn("[keep-alive] avisos de repasse", finance);
 
   return NextResponse.json({ ok: true, notices });
 }

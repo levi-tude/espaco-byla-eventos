@@ -14,6 +14,8 @@ export const ORGANIZER_NOTICE_KINDS = [
   "org_pix_troca_confirmada",
   "org_pix_troca_recusada",
   "equipe_pix_troca_pedida",
+  "org_devolucao_pendente",
+  "equipe_repasses_resumo",
 ] as const;
 
 export type OrganizerNoticeKind = (typeof ORGANIZER_NOTICE_KINDS)[number];
@@ -36,6 +38,17 @@ export type OrganizerNoticeData = {
   organizerName?: string;
   /** ISO: quando a troca de chave PIX pode ser confirmada. */
   confirmAfter?: string;
+  /** Chave PIX do Espaço Byla para receber devoluções (não é dado de organizador). */
+  espacoPixKey?: string;
+  /** Resumo diário da equipe: só contagens e somas. */
+  summary?: {
+    latePayouts: number;
+    latePayoutsCents: number;
+    lateRefunds: number;
+    feesPending: number;
+    /** Ano seguinte sem feriados cadastrados (a partir de 1º/11). */
+    calendarMissingYear: number | null;
+  };
   link: string;
 };
 
@@ -286,6 +299,51 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
           ["Confira o titular e decida em Organizadores, na área da equipe."],
         ],
         buttonLabel: "Ver e decidir",
+        footer: TEAM_FOOTER,
+      };
+    }
+    case "org_devolucao_pendente": {
+      const amount =
+        Number.isSafeInteger(data.amountCents) && (data.amountCents as number) > 0
+          ? formatMoney(data.amountCents as number)
+          : "o valor indicado na sua área";
+      const day = data.day && /^\d{4}-\d{2}-\d{2}$/.test(data.day) ? data.day.slice(5).split("-").reverse().join("/") : null;
+      const key = singleLine(data.espacoPixKey, 77);
+      return {
+        subject: "Devolução ao Espaço Byla",
+        title: "Devolução ao Espaço Byla",
+        paragraphs: [
+          ["Estornos ou contestações do evento ", event, " depois do repasse deixaram um valor a devolver."],
+          [`Devolva ${amount} por PIX ao Espaço Byla${day ? ` até ${day}` : ""}.`],
+          key ? ["Chave PIX do Espaço Byla: ", { strong: key }] : ["O Espaço Byla vai te mandar a chave PIX para a devolução."],
+          ["Enquanto a devolução estiver atrasada, não dá para enviar novos eventos para aprovação."],
+        ],
+        buttonLabel: "Ver financeiro",
+        footer: ORGANIZER_FOOTER,
+      };
+    }
+    case "equipe_repasses_resumo": {
+      const s = data.summary;
+      const lines: Paragraph[] = [];
+      if (s && s.latePayouts > 0) {
+        lines.push([
+          `${s.latePayouts} ${s.latePayouts === 1 ? "repasse atrasado" : "repasses atrasados"} (${formatMoney(s.latePayoutsCents)})`,
+        ]);
+      }
+      if (s && s.lateRefunds > 0) {
+        lines.push([`${s.lateRefunds} ${s.lateRefunds === 1 ? "devolução atrasada" : "devoluções atrasadas"}`]);
+      }
+      if (s && s.feesPending > 0) {
+        lines.push([`${s.feesPending} ${s.feesPending === 1 ? "tarifa a conferir" : "tarifas a conferir"} há mais de 2 dias`]);
+      }
+      if (s?.calendarMissingYear) {
+        lines.push([`Feriados de ${s.calendarMissingYear} ainda não cadastrados: peça ao desenvolvedor.`]);
+      }
+      return {
+        subject: "Repasses: pendências de hoje",
+        title: "Repasses: pendências de hoje",
+        paragraphs: [...lines, ["Confira na página Repasses, na área da equipe."]],
+        buttonLabel: "Ver repasses",
         footer: TEAM_FOOTER,
       };
     }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   runSessionNotices: vi.fn(),
   captureMissingFees: vi.fn(),
+  runOrganizerFinanceDaily: vi.fn(),
   provider: { name: "mercadopago" },
   queryError: null as unknown,
   purgeError: null as unknown,
@@ -14,6 +15,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNotices }));
 vi.mock("@/lib/payments/capture-fee", () => ({ captureMissingFees: mocks.captureMissingFees }));
 vi.mock("@/lib/payments/provider", () => ({ getPaymentProvider: () => mocks.provider }));
+vi.mock("@/lib/organizer/daily", () => ({ runOrganizerFinanceDaily: mocks.runOrganizerFinanceDaily }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     const result = () => Promise.resolve({ data: [], error: mocks.queryError });
@@ -48,6 +50,7 @@ describe("GET /api/cron/keep-alive", () => {
     vi.stubEnv("CRON_SECRET", secret);
     mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 2, sent: 2, failed: 0, pausedUntil: null });
     mocks.captureMissingFees.mockResolvedValue({ salvo: 1, falhou: 0, alertados: 0 });
+    mocks.runOrganizerFinanceDaily.mockResolvedValue({ devolucoes: 0, resumo: false });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -141,5 +144,25 @@ describe("GET /api/cron/keep-alive", () => {
     expect(mocks.rpcNames).toContain("purge_organizer_records");
     expect(mocks.runSessionNotices).toHaveBeenCalled();
     expect(logged).toHaveBeenCalled();
+  });
+
+  it("depois das tarifas, roda os avisos de repasse dos organizadores", async () => {
+    const order: string[] = [];
+    mocks.captureMissingFees.mockImplementation(async () => {
+      order.push("tarifas");
+      return { salvo: 0, falhou: 0, alertados: 0 };
+    });
+    mocks.runOrganizerFinanceDaily.mockImplementation(async () => {
+      order.push("repasses");
+      return { devolucoes: 0, resumo: false };
+    });
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    expect(order).toEqual(["tarifas", "repasses"]);
+  });
+
+  it("sem segredo certo não roda os avisos de repasse", async () => {
+    await GET(request("Bearer errado"));
+    expect(mocks.runOrganizerFinanceDaily).not.toHaveBeenCalled();
   });
 });

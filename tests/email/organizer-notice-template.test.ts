@@ -145,6 +145,31 @@ describe("buildOrganizerNotice", () => {
     expect(refused.text).toContain("Motivo: Titular diferente");
   });
 
+  it("devolução pendente traz valor, prazo e chave do Espaço (ou diz que ela vai chegar)", () => {
+    const withKey = buildOrganizerNotice("org_devolucao_pendente", {
+      eventName: "Festa",
+      amountCents: 4739,
+      day: "2026-12-09",
+      espacoPixKey: "financeiro@espaco.example",
+      link,
+    });
+    expect(withKey.text).toContain("Devolva R$\u00a047,39 por PIX ao Espaço Byla até 09/12.");
+    expect(withKey.text).toContain("Chave PIX do Espaço Byla: financeiro@espaco.example");
+    const withoutKey = buildOrganizerNotice("org_devolucao_pendente", { eventName: "Festa", amountCents: 4739, link });
+    expect(withoutKey.text).toContain("O Espaço Byla vai te mandar a chave PIX");
+  });
+
+  it("resumo da equipe só com contagens", () => {
+    const notice = buildOrganizerNotice("equipe_repasses_resumo", {
+      summary: { latePayouts: 3, latePayoutsCents: 123456, lateRefunds: 1, feesPending: 2, calendarMissingYear: 2027 },
+      link,
+    });
+    expect(notice.text).toContain("3 repasses atrasados (R$\u00a01.234,56)");
+    expect(notice.text).toContain("1 devolução atrasada");
+    expect(notice.text).toContain("2 tarifas a conferir");
+    expect(notice.text).toContain("Feriados de 2027");
+  });
+
   it("acerto sem PIX não mostra valor nem data", () => {
     const notice = buildOrganizerNotice("org_repasse_registrado", { eventName: "Festa", amountCents: 0, link });
     expect(notice.text).toContain("sem PIX");
