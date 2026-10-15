@@ -52,8 +52,8 @@ describe("migration payment_fees_calendar", () => {
     const fns = functionBodies(fees);
     expect(fns.map((fn) => fn.name).sort()).toEqual([
       "business_calendar_last_year", "event_fee_pending_orders", "event_payout_due_date", "nth_business_day",
-      "order_has_bank_fee", "orders_missing_fee", "record_payment_fee", "record_payment_fee_failure",
-      "record_payment_fee_manual",
+      "order_has_bank_fee", "orders_missing_fee", "record_event_fee_total", "record_payment_fee",
+      "record_payment_fee_failure", "record_payment_fee_manual",
     ]);
     for (const fn of fns) {
       expect(fn.text, fn.name).toContain("security definer");
@@ -115,6 +115,37 @@ describe("migration payment_fees_calendar", () => {
     expect(manual?.text).toContain("'tarifa_lancada'");
     const pending = functionBodies(fees).find((fn) => fn.name === "event_fee_pending_orders");
     expect(pending?.text).toContain("public.assert_finance_admin(p_admin, false)");
+  });
+
+  it("tarifa automática: 'manual' antes das checagens de valor, tarifa menor que o bruto e detalhamento limitado", () => {
+    const auto = functionBodies(fees).find((fn) => fn.name === "record_payment_fee")?.text ?? "";
+    const manualCheck = auto.indexOf("v_current.source = 'manual'");
+    expect(manualCheck).toBeGreaterThan(0);
+    expect(manualCheck).toBeLessThan(auto.indexOf("TARIFA_VALOR"));
+    expect(auto).toContain("p_fee_cents >= p_gross_cents");
+    expect(auto).toContain("octet_length(p_breakdown::text) > 2000");
+    expect(auto).toMatch(/for update/);
+  });
+
+  it.each(["record_payment_fee", "record_payment_fee_manual", "record_event_fee_total"])(
+    "%s só marca a reconferência de estorno em pedido já estornado",
+    (name) => {
+      const fn = functionBodies(fees).find((f) => f.name === name)?.text ?? "";
+      expect(fn).toMatch(/case when [^;]*= 'estornado'[^;]* then now\(\) end/);
+      expect(fn).not.toMatch(/refund_checked_at = now\(\)/);
+    },
+  );
+
+  it("tarifa do evento pelo extrato: Admin que grava, trava o organizador e histórico só com valores", () => {
+    const total = functionBodies(fees).find((fn) => fn.name === "record_event_fee_total")?.text ?? "";
+    expect(total).toContain("public.assert_finance_admin(p_admin, true)");
+    expect(total).toContain("pg_advisory_xact_lock(hashtextextended('organizer_payout:' || v_organizer::text, 0))");
+    expect(total).toContain("public.order_has_bank_fee(o.id)");
+    expect(total).toContain("for update");
+    for (const code of ["TARIFA_VALOR", "TARIFA_NOTA", "TARIFA_NADA"]) expect(total).toContain(code);
+    expect(total).toContain("'tarifa_lancada'");
+    expect(total).toContain("jsonb_build_object('total_fee_cents', p_total_fee_cents, 'orders', v_count)");
+    expect(total).toContain("source = 'manual'");
   });
 
   it("valores em centavos inteiros (sem numeric/float)", () => {

@@ -1418,6 +1418,10 @@ export type Database = {
         Args: { p_order_id: string; p_code: string };
         Returns: number;
       };
+      record_event_fee_total: {
+        Args: { p_admin: string; p_event_id: string; p_total_fee_cents: number; p_note: string };
+        Returns: Json;
+      };
       orders_missing_fee: {
         Args: { p_limit: number };
         Returns: {
