@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { forgetMyDeviceAction } from "@/app/organizador/conta/actions";
 import { DevicesList, type RememberedDevice } from "@/components/auth/DevicesList";
 import { OrganizerNoAccess } from "@/components/organizer/OrganizerNoAccess";
+import { CancelPixChangeButton, PixChangeButton } from "@/components/organizer/PixChangeDialog";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { getActor } from "@/lib/auth/actor";
@@ -12,7 +13,10 @@ import { AREAS } from "@/lib/auth/area";
 import { maskEmail } from "@/lib/auth/login-code";
 import { eventDateFormatter } from "@/lib/datetime";
 import { maskPixKey, maskTaxDocument, onlyDigits } from "@/lib/organizer/documents";
+import { formatWaitUntil } from "@/lib/organizer/finance";
+import { parsePixChangeState } from "@/lib/organizer/pix-change";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -57,7 +61,7 @@ export default async function OrganizerAccountPage() {
 
   const supabase = await createServerClient();
   const deviceToken = (await cookies()).get(AREAS.organizador.deviceCookie)?.value;
-  const [profileResult, devicesResult, userResult] = await Promise.all([
+  const [profileResult, devicesResult, userResult, pixStateResult] = await Promise.all([
     supabase
       .from("organizer_profiles")
       .select(
@@ -69,10 +73,13 @@ export default async function OrganizerAccountPage() {
       p_current_token: deviceToken && DEVICE_TOKEN_PATTERN.test(deviceToken) ? deviceToken : null,
     }),
     supabase.auth.getUser(),
+    createAdminClient().rpc("organizer_pix_change_state", { p_actor: actor.userId }),
   ]);
 
   const profile = profileResult.data;
   if (profileResult.error) console.error("[conta] Falha ao ler o perfil.", profileResult.error.code);
+  if (pixStateResult.error) console.error("[conta] Falha ao ler a troca de chave PIX.", pixStateResult.error.code);
+  const pixState = pixStateResult.error ? null : parsePixChangeState(pixStateResult.data);
   if (devicesResult.error) console.error("[conta] Falha ao listar os aparelhos.", devicesResult.error.code);
 
   // Só valores mascarados seguem para a página: a chave e o documento completos não saem do servidor.
@@ -127,9 +134,34 @@ export default async function OrganizerAccountPage() {
               <Item label="Titular da chave">{account.pixHolderName}</Item>
               <Item label="CPF/CNPJ do titular">{account.pixHolderDocument}</Item>
             </dl>
-            <p className="mt-4 text-sm text-byla-muted">
-              Para trocar a chave PIX, fale com o Espaço Byla.
-            </p>
+            <div className="mt-4 grid gap-3">
+              {!pixState ? (
+                <p className="text-sm text-byla-muted">
+                  Não foi possível conferir pedidos de troca agora. Atualize a página para trocar a chave PIX.
+                </p>
+              ) : pixState.pending && pixState.requestId ? (
+                <>
+                  <Notice live={false} tone="info">
+                    Troca pedida para a chave {pixState.newMasked ?? "nova"}.
+                    {pixState.confirmAfter && formatWaitUntil(pixState.confirmAfter)
+                      ? ` O Espaço confirma a partir de ${formatWaitUntil(pixState.confirmAfter)}.`
+                      : ""}{" "}
+                    Até lá, os repasses ficam na chave atual.
+                  </Notice>
+                  <CancelPixChangeButton requestId={pixState.requestId} />
+                </>
+              ) : (
+                <>
+                  {pixState.lastDecision?.status === "recusada" ? (
+                    <Notice live={false} tone="warning">
+                      O último pedido de troca foi recusado
+                      {pixState.lastDecision.note ? `: ${pixState.lastDecision.note}` : "."}
+                    </Notice>
+                  ) : null}
+                  <PixChangeButton />
+                </>
+              )}
+            </div>
           </Card>
 
           <Card className="mt-4">

@@ -136,6 +136,17 @@ export function parseOrganizerProfile(input: unknown): FieldResult<OrganizerProf
   if (!publicName.ok) return publicName;
   const phone = parsePhoneDigits(data.phone);
   if (!phone) return fail("Informe o WhatsApp com DDD.");
+  const pix = parsePixDetails(data);
+  if (!pix.ok) return pix;
+  return { ok: true, value: { fullName: fullName.value, publicName: publicName.value, phone, ...pix.value } };
+}
+
+export type PixDetailsInput = Pick<OrganizerProfileInput, "pixKeyType" | "pixKey" | "pixHolderName" | "pixHolderDocument">;
+
+/** Só os campos de recebimento (cadastro e troca de chave PIX). */
+export function parsePixDetails(input: unknown): FieldResult<PixDetailsInput> {
+  const data = record(input);
+  if (!data) return fail("Confira os dados e tente de novo.");
   const pixKeyType = data.pixKeyType;
   if (typeof pixKeyType !== "string" || !(PIX_KEY_TYPES as readonly string[]).includes(pixKeyType)) {
     return fail("Escolha o tipo da chave PIX.");
@@ -149,9 +160,6 @@ export function parseOrganizerProfile(input: unknown): FieldResult<OrganizerProf
   return {
     ok: true,
     value: {
-      fullName: fullName.value,
-      publicName: publicName.value,
-      phone,
       pixKeyType: pixKeyType as PixKeyType,
       pixKey: pixKey.value,
       pixHolderName: pixHolderName.value,

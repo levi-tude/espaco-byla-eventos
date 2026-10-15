@@ -36,6 +36,11 @@ describe("buildOrganizerNotice", () => {
       "Resposta ao seu pedido",
     ],
     ["org_conta_suspensa", {}, "Sua conta foi suspensa"],
+    ["org_repasse_registrado", { eventName: "Festa Junina", amountCents: 100 }, "Repasse registrado"],
+    ["org_pix_troca_pedida", {}, "Pedido de troca da chave PIX"],
+    ["org_pix_troca_confirmada", {}, "Chave PIX trocada"],
+    ["org_pix_troca_recusada", { note: "Titular diferente" }, "Troca da chave PIX recusada"],
+    ["equipe_pix_troca_pedida", { organizerName: "Produtora X" }, "Troca de chave PIX pedida: Produtora X"],
   ] as const)("%s tem o assunto do spec", (kind, data, subject) => {
     expect(buildOrganizerNotice(kind, { ...data, link }).subject).toBe(subject);
   });
@@ -125,6 +130,19 @@ describe("buildOrganizerNotice", () => {
     expect(notice.text).toContain("Festa");
     expect(notice.text).toContain("29/10/2026");
     expect(notice.text).not.toMatch(/chave|CPF|CNPJ/i);
+  });
+
+  it("troca de PIX: organizador sabe o que fazer se não foi ele; equipe vê quando pode confirmar", () => {
+    const own = buildOrganizerNotice("org_pix_troca_pedida", { link });
+    expect(own.text).toContain("Se não foi você, cancele na sua conta e avise o Espaço Byla.");
+    const team = buildOrganizerNotice("equipe_pix_troca_pedida", {
+      organizerName: "Produtora X",
+      confirmAfter: "2026-10-16T18:30:00Z",
+      link,
+    });
+    expect(team.text).toContain("pode ser confirmada a partir de 16/10 às 15:30");
+    const refused = buildOrganizerNotice("org_pix_troca_recusada", { note: "Titular diferente", link });
+    expect(refused.text).toContain("Motivo: Titular diferente");
   });
 
   it("acerto sem PIX não mostra valor nem data", () => {

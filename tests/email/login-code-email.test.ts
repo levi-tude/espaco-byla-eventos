@@ -63,6 +63,18 @@ describe("buildLoginCodeEmail", () => {
     );
   });
 
+  it("troca de PIX: diz para que serve, vale 10 minutos e não traz o código no assunto", () => {
+    const email = buildLoginCodeEmail({ code: "042917", purpose: "troca_pix" });
+    expect(email.subject).toMatch(/trocar a chave PIX/);
+    expect(email.subject).not.toContain("042917");
+    for (const body of [email.html, email.text]) {
+      expect(body).toContain("042917");
+      expect(body).toMatch(/troca da chave PIX dos seus repasses/);
+      expect(body).toMatch(/10 minutos/);
+      expect(body).toMatch(/chave atual continua valendo/);
+    }
+  });
+
   it("finalidade desconhecida é recusada", () => {
     expect(() => buildLoginCodeEmail({ code: "042917", purpose: "admin" as never })).toThrow();
   });

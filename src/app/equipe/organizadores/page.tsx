@@ -9,6 +9,7 @@ import {
   RevokeInviteButton,
   SignupRequestActions,
 } from "@/app/equipe/organizadores/OrganizerAdminControls";
+import { PixChangeDecision } from "@/components/equipe/PixChangeDecision";
 import { cx } from "@/components/ui/cx";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
@@ -127,7 +128,7 @@ export default async function OrganizadoresPage({ searchParams }: Props) {
         <div className="mt-6">
           {tab === "pedidos" ? <RequestsSection adminId={actor.userId} filter={filter} /> : null}
           {tab === "convites" ? <InvitesSection adminId={actor.userId} /> : null}
-          {tab === "contas" ? <AccountsSection adminId={actor.userId} /> : null}
+          {tab === "contas" ? <AccountsSection adminId={actor.userId} canDecide={!actor.isDeveloper} /> : null}
         </div>
       </main>
     </LinkDialogProvider>
@@ -257,9 +258,19 @@ async function InvitesSection({ adminId }: { adminId: string }) {
   );
 }
 
-async function AccountsSection({ adminId }: { adminId: string }) {
-  const { data, error } = await createAdminClient().rpc("list_organizers", { p_admin: adminId });
+async function AccountsSection({ adminId, canDecide }: { adminId: string; canDecide: boolean }) {
+  const admin = createAdminClient();
+  const [{ data, error }, pixRequests] = await Promise.all([
+    admin.rpc("list_organizers", { p_admin: adminId }),
+    admin.rpc("list_pix_change_requests", { p_admin: adminId }),
+  ]);
   if (error) console.error("[organizadores] Falha ao listar contas.", error.code);
+  if (pixRequests.error) console.error("[organizadores] Falha ao listar trocas de PIX.", pixRequests.error.code);
+  const pendingPix = new Map(
+    (pixRequests.data ?? [])
+      .filter((request) => request.status === "pendente")
+      .map((request) => [request.organizer_id, request]),
+  );
   // Só campos já mascarados pelo banco chegam à tela: chave PIX e documento completos nunca saem do servidor.
   const accounts = (data ?? []).map((row) => ({
     userId: row.user_id,
@@ -290,12 +301,23 @@ async function AccountsSection({ adminId }: { adminId: string }) {
         <ul className="grid gap-3">
           {accounts.map((account) => {
             const status = ACCOUNT_STATUS[account.status] ?? { label: account.status, tone: "neutral" as Tone };
+            const pix = pendingPix.get(account.userId);
             return (
               <li className="grid gap-3 rounded-2xl border border-byla-border bg-byla-surface p-4" key={account.userId}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="break-words text-lg font-semibold">{account.publicName}</p>
                   <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  {pix ? <StatusBadge tone="warning">Troca de PIX pedida</StatusBadge> : null}
                 </div>
+                {pix ? (
+                  <div className="grid gap-2 rounded-xl border border-byla-border p-3">
+                    <p className="break-words text-base">
+                      Chave nova pedida: {PIX_TYPE_LABEL[pix.new_key_type] ?? pix.new_key_type} {pix.new_key_masked} ·
+                      titular {pix.new_document_masked}. Os repasses deste organizador ficam travados até a decisão.
+                    </p>
+                    {canDecide ? <PixChangeDecision requestId={pix.request_id} /> : null}
+                  </div>
+                ) : null}
                 <dl className="grid gap-x-6 gap-y-2 text-base sm:grid-cols-2">
                   <div className="min-w-0">
                     <dt className="text-sm text-byla-muted">Responsável</dt>

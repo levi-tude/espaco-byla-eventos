@@ -414,6 +414,11 @@ describe("Minha conta", () => {
         ...overrides,
       },
     };
+    mocks.adminRpc.mockImplementation(async (fn: string) =>
+      fn === "organizer_pix_change_state"
+        ? { data: { pending: false, request_id: null, new_masked: null, confirm_after: null, last_decision: null }, error: null }
+        : { data: null, error: { message: "inesperado" } },
+    );
     mocks.rpc.mockImplementation(async (fn: string) =>
       fn === "list_my_devices"
         ? {
@@ -453,8 +458,8 @@ describe("Minha conta", () => {
     expect(html).not.toContain("52998224725");
     expect(html).not.toContain("529.982.247-25");
 
-    expect(page).toContain("Para trocar a chave PIX, fale com o Espaço Byla");
-    expect(page).not.toMatch(/Trocar chave PIX/);
+    expect(page).toContain("Trocar chave PIX");
+    expect(mocks.adminRpc).toHaveBeenCalledWith("organizer_pix_change_state", { p_actor: USER_ID });
 
     expect(page).toContain("Versão 2026-10-14");
     expect(page).toContain("14/10/2026");
@@ -463,6 +468,29 @@ describe("Minha conta", () => {
     expect(page).toContain("Chrome no Android");
     expect(page).toContain("Esquecer");
     expect(mocks.rpc).toHaveBeenCalledWith("list_my_devices", { p_current_token: DEVICE_TOKEN });
+  });
+
+  it("troca de PIX pendente mostra a chave nova mascarada, quando libera e o botão de cancelar", async () => {
+    profile();
+    mocks.adminRpc.mockImplementation(async (fn: string) =>
+      fn === "organizer_pix_change_state"
+        ? {
+            data: {
+              pending: true,
+              request_id: "00000000-0000-4000-8000-0000000000cc",
+              new_masked: "•••@exemplo.com",
+              confirm_after: "2026-10-16T18:30:00Z",
+              last_decision: null,
+            },
+            error: null,
+          }
+        : { data: null, error: { message: "inesperado" } },
+    );
+    const page = text(render(await AccountPage()));
+    expect(page).toContain("Troca pedida para a chave •••@exemplo.com");
+    expect(page).toContain("a partir de 16/10 às 15:30");
+    expect(page).toContain("Cancelar troca");
+    expect(page).not.toContain("Trocar chave PIX");
   });
 
   it("chave PIX de e-mail também mascarada", async () => {

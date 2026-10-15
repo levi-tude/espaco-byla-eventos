@@ -6,7 +6,7 @@ export type LoginCodeEmailContent = {
   text: string;
 };
 
-export type LoginCodePurpose = "equipe" | "organizador" | "cadastro";
+export type LoginCodePurpose = "equipe" | "organizador" | "cadastro" | "troca_pix";
 
 type PurposeCopy = {
   subject: string;
@@ -45,6 +45,15 @@ const COPY: Record<LoginCodePurpose, PurposeCopy> = {
     minutes: SIGNUP_CODE_TTL_MINUTES,
     warning:
       "Se não foi você que pediu este código, não passe ele para ninguém e ignore este e-mail: nenhuma conta será criada sem ele.",
+  },
+  troca_pix: {
+    subject: "Código para trocar a chave PIX - Espaço Byla Eventos",
+    title: "Troca da chave PIX",
+    usage: "Use este código para pedir a troca da chave PIX dos seus repasses:",
+    textIntro: "Código para pedir a troca da chave PIX dos seus repasses no Espaço Byla Eventos:",
+    minutes: LOGIN_CODE_TTL_MINUTES,
+    warning:
+      "Se não foi você que pediu, não passe este código para ninguém: troque sua senha e avise a equipe do Espaço Byla. A chave atual continua valendo.",
   },
 };
 

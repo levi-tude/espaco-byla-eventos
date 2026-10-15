@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/domain/service-fee";
+import { formatWaitUntil } from "@/lib/organizer/finance";
 
 export const ORGANIZER_NOTICE_KINDS = [
   "equipe_pedido_site",
@@ -9,6 +10,10 @@ export const ORGANIZER_NOTICE_KINDS = [
   "org_pedido_respondido",
   "org_conta_suspensa",
   "org_repasse_registrado",
+  "org_pix_troca_pedida",
+  "org_pix_troca_confirmada",
+  "org_pix_troca_recusada",
+  "equipe_pix_troca_pedida",
 ] as const;
 
 export type OrganizerNoticeKind = (typeof ORGANIZER_NOTICE_KINDS)[number];
@@ -27,6 +32,10 @@ export type OrganizerNoticeData = {
   amountCents?: number;
   /** "AAAA-MM-DD" */
   day?: string;
+  /** Nome público do organizador (avisos à equipe). */
+  organizerName?: string;
+  /** ISO: quando a troca de chave PIX pode ser confirmada. */
+  confirmAfter?: string;
   link: string;
 };
 
@@ -233,6 +242,51 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         ],
         buttonLabel: "Ver financeiro",
         footer: ORGANIZER_FOOTER,
+      };
+    }
+    case "org_pix_troca_pedida":
+      return {
+        subject: "Pedido de troca da chave PIX",
+        title: "Pedido de troca da chave PIX",
+        paragraphs: [
+          ["Recebemos um pedido para trocar a chave PIX dos seus repasses."],
+          ["Se não foi você, cancele na sua conta e avise o Espaço Byla."],
+          ["Até a confirmação do Espaço, os repasses continuam na chave atual."],
+        ],
+        buttonLabel: "Ver minha conta",
+        footer: ORGANIZER_FOOTER,
+      };
+    case "org_pix_troca_confirmada":
+      return {
+        subject: "Chave PIX trocada",
+        title: "Chave PIX trocada",
+        paragraphs: [["O Espaço Byla confirmou a troca: os próximos repasses vão para a chave nova."]],
+        buttonLabel: "Ver minha conta",
+        footer: ORGANIZER_FOOTER,
+      };
+    case "org_pix_troca_recusada":
+      return {
+        subject: "Troca da chave PIX recusada",
+        title: "Troca da chave PIX recusada",
+        paragraphs: [
+          ["O Espaço Byla não confirmou a troca da chave PIX. Os repasses continuam na chave atual."],
+          ...(note ? [[`Motivo: ${note}`]] : []),
+        ],
+        buttonLabel: "Ver minha conta",
+        footer: ORGANIZER_FOOTER,
+      };
+    case "equipe_pix_troca_pedida": {
+      const organizer = singleLine(data.organizerName, MAX_EVENT_NAME) || "um organizador";
+      const when = data.confirmAfter ? formatWaitUntil(data.confirmAfter) : null;
+      return {
+        subject: `Troca de chave PIX pedida: ${organizer}`,
+        title: "Troca de chave PIX pedida",
+        paragraphs: [
+          ["Troca de chave PIX pedida por ", { strong: organizer }, when ? `; pode ser confirmada a partir de ${when}.` : "."],
+          ["Confira o titular e decida em Organizadores, na área da equipe."],
+        ],
+        buttonLabel: "Ver e decidir",
+        footer: TEAM_FOOTER,
       };
     }
   }

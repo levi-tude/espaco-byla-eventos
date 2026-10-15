@@ -4,9 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { ActionError, runAction, type ActionResult } from "@/lib/action-result";
 import { requireTeamAdmin } from "@/lib/auth/actor";
+import { requireFinanceAdmin } from "@/lib/auth/finance-admin";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
+import { financeRefusalMessage } from "@/lib/organizer/finance";
 import { hashInviteToken, inviteLink, newInviteToken, whatsappInviteUrl } from "@/lib/organizer/invite-token";
 import { notifyOrganizer, organizerNoticeLink } from "@/lib/organizer/notify";
+import { type PixChangeDetails, parsePixChangeDetails } from "@/lib/organizer/pix-change";
 import { RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -242,4 +245,60 @@ export async function createPasswordResetLink(userId: string): Promise<ActionRes
       expiresAt: new Date(Date.now() + RESET_HOURS * 3_600_000).toISOString(),
     };
   }, RESET_ERROR);
+}
+
+function throwPixError(rpc: string, error: { message: string; code?: string }): never {
+  if (/^(ORG|TAXA)_[A-Z_]+/.test(error.message)) throw new ActionError(financeRefusalMessage(error.message));
+  logRpcError(rpc, error);
+  throw new Error(`${rpc} falhou`);
+}
+
+/** "Ver e decidir": chave atual e nova completas, só para o Admin do Espaço. */
+export async function loadPixChangeDetails(requestId: string): Promise<ActionResult<PixChangeDetails>> {
+  return runAction(async () => {
+    const { userId } = await requireFinanceAdmin({ write: true });
+    if (!isUuid(requestId)) throw new ActionError("Pedido não encontrado. Atualize a página.");
+    const { data, error } = await createAdminClient().rpc("pix_change_details", {
+      p_admin: userId,
+      p_request_id: requestId,
+    });
+    if (error) throwPixError("pix_change_details", error);
+    const details = parsePixChangeDetails(data);
+    if (!details) throw new Error("pix_change_details: resposta inválida");
+    return details;
+  }, "Não foi possível abrir o pedido de troca.");
+}
+
+export async function decidePixChange(input: {
+  requestId: string;
+  approve: boolean;
+  note?: string | null;
+}): Promise<ActionResult<{ status: "confirmada" | "recusada" }>> {
+  return runAction(async () => {
+    const { userId } = await requireFinanceAdmin({ write: true });
+    const raw = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+    if (!isUuid(raw.requestId)) throw new ActionError("Pedido não encontrado. Atualize a página.");
+    if (typeof raw.approve !== "boolean") throw new ActionError("Escolha confirmar ou recusar.");
+    const note = typeof raw.note === "string" ? raw.note.trim() : "";
+    if (!raw.approve && (note.length < REASON_MIN || note.length > REASON_MAX)) throw new ActionError(REASON_MESSAGE);
+    if (note.length > REASON_MAX) throw new ActionError(REASON_MESSAGE);
+
+    const { data, error } = await createAdminClient().rpc("decide_pix_change", {
+      p_admin: userId,
+      p_request_id: raw.requestId,
+      p_approve: raw.approve,
+      p_note: note || null,
+    });
+    if (error) throwPixError("decide_pix_change", error);
+    const result = typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+    const status = raw.approve ? "confirmada" : "recusada";
+    revalidatePath(PAGE_PATH);
+    if (typeof result.organizer_id === "string") {
+      await notifyOrganizer(result.organizer_id, raw.approve ? "org_pix_troca_confirmada" : "org_pix_troca_recusada", {
+        note: raw.approve ? undefined : note,
+        link: organizerNoticeLink("/organizador/conta"),
+      });
+    }
+    return { status };
+  }, "Não foi possível registrar a decisão.");
 }
