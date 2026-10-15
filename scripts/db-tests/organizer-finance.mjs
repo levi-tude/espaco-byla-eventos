@@ -1085,6 +1085,207 @@ try {
   await rejects("R. anônimo não executa organizer_event_finance",
     () => anon("select public.organizer_event_finance($1, $2)", [orgP, e1]), /permission denied/);
 
+  // ======================= C) TROCA DE CHAVE PIX, CÓDIGOS E AVISOS (Migration C) =======================
+  const MIGRATION_PIX = "20261019120000_organizer_pix_limits.sql";
+  check("C. a migration da troca de chave existe", files.includes(MIGRATION_PIX), files.slice(-3).join(","));
+  const issueCode = (actor, code) => scalar("select public.issue_organizer_action_code($1, 'pix_change', $2) as v", [actor, code]);
+  const ageCodes = (actor) => q("update public.organizer_action_codes set created_at = created_at - interval '2 minutes' where user_id = $1", [actor]);
+  const resetPixQuota = () => q("delete from public.rate_limit_hits where bucket like 'pix-code:%'");
+  const requestPix = (actor, code, type, key, holder, doc) => scalar(
+    "select public.request_pix_change($1, $2, $3, $4, $5, $6) as v", [actor, code, type, key, holder, doc]);
+  const decidePix = (actor, id, approve, note = null) => scalar(
+    "select public.decide_pix_change($1, $2, $3, $4) as v", [actor, id, approve, note]);
+  const cancelPix = (actor, id) => svc("select public.cancel_pix_change($1, $2)", [actor, id]);
+  const pixState = (actor) => scalar("select public.organizer_pix_change_state($1) as v", [actor]);
+  const NEW_KEY = ["email", "nova.chave@exemplo.com", "Titular Secreto", "52998224725"];
+
+  // C1) Código: espera de 60 s, 3 por dia, 5 erros, vencido
+  const orgC = await newOrg("c@exemplo.com", "Produtora C", "cpf", "52998224725");
+  check("C1. primeiro código: ok", (await issueCode(orgC, "111111")) === "ok");
+  check("C1. segundo em menos de 60 s: aguarde", (await issueCode(orgC, "222222")) === "aguarde");
+  await ageCodes(orgC);
+  check("C1. depois de 60 s: ok", (await issueCode(orgC, "333333")) === "ok");
+  await ageCodes(orgC);
+  check("C1. terceiro no dia: ok", (await issueCode(orgC, "444444")) === "ok");
+  await ageCodes(orgC);
+  check("C1. quarto no dia: limite", (await issueCode(orgC, "555555")) === "limite");
+  check("C1. código novo invalida os anteriores (só 1 aberto)",
+    (await one("select count(*)::int as n from public.organizer_action_codes where user_id = $1 and used_at is null", [orgC])).n === 1);
+  await rejects("C1. organizador inativo/desconhecido não gera código: ORG_ACESSO", () => issueCode(admin, "123456"), /^ORG_ACESSO/);
+  const codeResults = [];
+  for (let i = 0; i < 5; i += 1) codeResults.push((await requestPix(orgC, "000000", ...NEW_KEY)).status);
+  check("C1. código errado 4 vezes: invalido; na 5ª: bloqueado",
+    JSON.stringify(codeResults) === JSON.stringify(["invalido", "invalido", "invalido", "invalido", "bloqueado"]), JSON.stringify(codeResults));
+  check("C1. depois de bloqueado o código certo não vale", (await requestPix(orgC, "444444", ...NEW_KEY)).status === "expirado");
+  await resetPixQuota();
+  await ageCodes(orgC);
+  await issueCode(orgC, "121212");
+  await q("update public.organizer_action_codes set expires_at = now() - interval '1 minute' where user_id = $1 and used_at is null", [orgC]);
+  check("C1. código certo depois de vencido: expirado", (await requestPix(orgC, "121212", ...NEW_KEY)).status === "expirado");
+  check("C1. nenhuma troca gravada pelas tentativas",
+    (await one("select count(*)::int as n from public.organizer_pix_change_requests where organizer_id = $1", [orgC])).n === 0);
+
+  // C2) Dados da troca
+  await rejects("C2. chave CPF diferente do documento: ORG_DADOS",
+    () => requestPix(orgC, "000000", "cpf", "11144477735", "Titular Secreto", "52998224725"), /^ORG_DADOS/);
+  await rejects("C2. documento inválido: ORG_DADOS",
+    () => requestPix(orgC, "000000", "email", "x@exemplo.com", "Titular Secreto", "11111111111"), /^ORG_DADOS/);
+  await rejects("C2. telefone fora do formato: ORG_DADOS",
+    () => requestPix(orgC, "000000", "telefone", "71988887777", "Titular Secreto", "52998224725"), /^ORG_DADOS/);
+  await rejects("C2. igual à atual: ORG_PIX_IGUAL",
+    () => requestPix(orgC, "000000", "cpf", "52998224725", "Titular Secreto", "52998224725"), /^ORG_PIX_IGUAL/);
+
+  // Repasse antes da troca (guarda a chave antiga)
+  const cA1 = await orgEvent(orgC, "Show C1", addDays(today, -10));
+  await record(await orgOrderOf(cA1), 5250, 52);
+  const cA2 = await orgEvent(orgC, "Show C2", addDays(today, -10));
+  await record(await orgOrderOf(cA2), 5250, 52);
+  await pay(admin, cA1, 4948);
+
+  await ageCodes(orgC);
+  check("C2. código para a troca: ok", (await issueCode(orgC, "343434")) === "ok");
+  const asked = await requestPix(orgC, "343434", ...NEW_KEY);
+  const hours = (new Date(asked.confirm_after).getTime() - Date.now()) / 3600000;
+  check("C2. troca pedida com espera de 24 h", asked.status === "ok" && hours > 23.9 && hours <= 24, JSON.stringify(asked));
+  await rejects("C2. segunda troca pendente: ORG_PIX_PENDENTE",
+    () => requestPix(orgC, "343434", "email", "outra@exemplo.com", "Titular Secreto", "52998224725"), /^ORG_PIX_PENDENTE/);
+
+  // C3) Repasse com troca pendente
+  await rejects("C3. repasse com troca pendente: ORG_PIX_PENDENTE", () => pay(admin, cA2, 4948), /^ORG_PIX_PENDENTE/);
+
+  const stC = await pixState(orgC);
+  check("C3. tela do organizador: pendente com chave nova mascarada",
+    stC.pending === true && stC.new_masked === "•••@exemplo.com" && stC.request_id === asked.request_id, JSON.stringify(stC));
+  const pixListed = await svc("select * from public.list_pix_change_requests($1)", [admin]);
+  check("C3. lista da equipe mascarada (sem chave nem documento completos)",
+    pixListed.some((r) => r.request_id === asked.request_id && r.can_confirm === false)
+      && !JSON.stringify(pixListed).includes("nova.chave") && !JSON.stringify(pixListed).includes("52998224725"), JSON.stringify(pixListed));
+  await rejects("C3. lista pela secretaria: TAXA_ADMIN", () => svc("select * from public.list_pix_change_requests($1)", [sec]), /^TAXA_ADMIN/);
+  await rejects("C3. detalhes pelo desenvolvedor: TAXA_DEV",
+    () => scalar("select public.pix_change_details($1, $2) as v", [dev, asked.request_id]), /^TAXA_DEV/);
+  const det = await scalar("select public.pix_change_details($1, $2) as v", [admin, asked.request_id]);
+  check("C3. detalhes completos para o Admin que grava",
+    det.new.pix_key === "nova.chave@exemplo.com" && det.current.pix_key === "52998224725", JSON.stringify(det));
+
+  // C4/C5) Decisão
+  await rejects("C5. desenvolvedor decidindo: TAXA_DEV", () => decidePix(dev, asked.request_id, true), /^TAXA_DEV/);
+  await rejects("C5. secretaria decidindo: TAXA_ADMIN", () => decidePix(sec, asked.request_id, true), /^TAXA_ADMIN/);
+  await rejects("C5. organizador cancelando pedido de outro: ORG_ACESSO", () => cancelPix(orgQ, asked.request_id), /^ORG_ACESSO/);
+  await rejects("C4. aprovar antes de 24 h: ORG_ESPERA:<data>",
+    () => decidePix(admin, asked.request_id, true), /^ORG_ESPERA:\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  await q("update public.organizer_pix_change_requests set confirm_after = now() - interval '1 minute' where id = $1", [asked.request_id]);
+  const approved = await decidePix(admin, asked.request_id, true);
+  const profC = await one("select * from public.organizer_profiles where user_id = $1", [orgC]);
+  check("C4. aprovada: perfil com a chave nova e data da troca",
+    approved.status === "confirmada" && profC.pix_key_type === "email" && profC.pix_key === "nova.chave@exemplo.com"
+      && profC.pix_key_changed_at !== null, JSON.stringify(approved));
+  await rejects("C4. decidir de novo: ORG_ESTADO", () => decidePix(admin, asked.request_id, false, "Motivo qualquer"), /^ORG_ESTADO/);
+  await pay(admin, cA2, 4948);
+  const snap = async (eventId) => (await one(
+    `select p.pix_key_snapshot, p.pix_key_changed_at_snapshot from public.organizer_payouts p
+     join public.organizer_payout_items i on i.payout_id = p.id where i.event_id = $1 and p.kind = 'repasse'`, [eventId]));
+  const s1 = await snap(cA1);
+  const s2 = await snap(cA2);
+  check("C4. repasse seguinte com a chave nova; o anterior continua com a antiga",
+    s1.pix_key_snapshot === "52998224725" && s1.pix_key_changed_at_snapshot === null
+      && s2.pix_key_snapshot === "nova.chave@exemplo.com" && s2.pix_key_changed_at_snapshot !== null, JSON.stringify({ s1, s2 }));
+
+  // Cancelar e recusar
+  const orgC3 = await newOrg("c3@exemplo.com", "Produtora C3", "email", "c3.chave@exemplo.com");
+  await resetPixQuota();
+  await issueCode(orgC3, "565656");
+  const NEW_KEY3 = ["aleatoria", "123e4567-e89b-12d3-a456-426614174999", "Outro Titular", "11144477735"];
+  const ask3 = await requestPix(orgC3, "565656", ...NEW_KEY3);
+  await cancelPix(orgC3, ask3.request_id);
+  check("C5. organizador cancela a própria troca",
+    (await one("select status from public.organizer_pix_change_requests where id = $1", [ask3.request_id])).status === "cancelada");
+  await rejects("C5. cancelar de novo: ORG_ESTADO", () => cancelPix(orgC3, ask3.request_id), /^ORG_ESTADO/);
+  await ageCodes(orgC3);
+  await issueCode(orgC3, "676767");
+  const ask4 = await requestPix(orgC3, "676767", ...NEW_KEY3);
+  await rejects("C5. recusar sem motivo: ORG_MOTIVO", () => decidePix(admin, ask4.request_id, false), /^ORG_MOTIVO/);
+  await decidePix(admin, ask4.request_id, false, "Chave não confere com o titular");
+  const st3 = await pixState(orgC3);
+  check("C5. recusada: tela mostra a última decisão e nada pendente",
+    st3.pending === false && st3.last_decision?.status === "recusada"
+      && (await one("select pix_key from public.organizer_profiles where user_id = $1", [orgC3])).pix_key === "c3.chave@exemplo.com",
+    JSON.stringify(st3));
+  const pixAudits = await q("select details::text as d from public.audit_log where action like 'pix_troca_%'");
+  check("C5. histórico da troca sem chave nem documento",
+    pixAudits.length === 6 && pixAudits.every((a) => !/chave|exemplo|52998224725|11144477735|123e4567/.test(a.d)), JSON.stringify(pixAudits));
+
+  // C6) Cota de códigos de login
+  await q("delete from public.rate_limit_hits where bucket like 'login-code:%'");
+  const loginCode = async (userId) => {
+    const sid = randomUUID();
+    await q("insert into auth.sessions (id, user_id) values ($1, $2)", [sid, userId]);
+    return scalar("select public.issue_login_code($1, $2, '123456') as v", [userId, sid]);
+  };
+  let staffOk = 0;
+  for (let i = 0; i < 40; i += 1) {
+    if ((await loginCode(await newStaff(`equipe${i}@exemplo.com`, `Equipe ${i}`, "secretaria"))) === "ok") staffOk += 1;
+  }
+  check("C6. 40 códigos da equipe no dia", staffOk === 40, String(staffOk));
+  check("C6. 41º da equipe: limite", (await loginCode(await newStaff("equipe40@exemplo.com", "Equipe 40", "secretaria"))) === "limite");
+  let orgOk = 0;
+  for (let i = 0; i < 20; i += 1) {
+    if ((await loginCode(await newOrg(`login${i}@exemplo.com`, `Produtora L${i}`, "cpf", "52998224725"))) === "ok") orgOk += 1;
+  }
+  check("C6. equipe esgotada não bloqueia organizadores: 20 códigos", orgOk === 20, String(orgOk));
+  check("C6. 21º de organizador: limite",
+    (await loginCode(await newOrg("login20@exemplo.com", "Produtora L20", "cpf", "52998224725"))) === "limite");
+
+  // C7) Aviso de estorno uma vez só
+  const cB = await orgEvent(orgC, "Show Avisos", addDays(today, -3));
+  const askedRefund = await orgOrderOf(cB);
+  await q(`insert into public.organizer_ops_requests (kind, event_id, order_id, reason, requested_by)
+    values ('estorno', $1, $2, 'Cliente pediu', $3)`, [cB, askedRefund, orgC]);
+  await refundOrder(askedRefund);
+  const n1 = await svc("select * from public.claim_refund_request_notice($1)", [askedRefund]);
+  const n2 = await svc("select * from public.claim_refund_request_notice($1)", [askedRefund]);
+  check("C7. aviso do estorno pedido pelo organizador: só a primeira chamada devolve",
+    n1.length === 1 && n1[0].requested_by === orgC && n1[0].event_name === "Show Avisos" && n2.length === 0, JSON.stringify({ n1, n2 }));
+  check("C7. pedido já avisado não volta pelo aviso da equipe",
+    (await svc("select * from public.claim_event_refund_notice($1)", [askedRefund])).length === 0);
+  const teamRefund = await orgOrderOf(cB);
+  check("C7. pedido ainda pago não gera aviso", (await svc("select * from public.claim_event_refund_notice($1)", [teamRefund])).length === 0);
+  await refundOrder(teamRefund);
+  const t1 = await svc("select * from public.claim_event_refund_notice($1)", [teamRefund]);
+  const t2 = await svc("select * from public.claim_event_refund_notice($1)", [teamRefund]);
+  check("C7. aviso do estorno da equipe: só a primeira chamada devolve",
+    t1.length === 1 && t1[0].organizer_id === orgC && t2.length === 0, JSON.stringify({ t1, t2 }));
+  const plainOrder = await addOrder(ev);
+  await q("update public.orders set status = 'estornado' where id = $1", [plainOrder]);
+  check("C7. evento sem organizador: sem aviso", (await svc("select * from public.claim_event_refund_notice($1)", [plainOrder])).length === 0);
+
+  // C8) Permissões
+  for (const table of ["organizer_action_codes", "organizer_pix_change_requests", "organizer_refund_notices"]) {
+    await rejects(`C8. ${table}: anônimo sem acesso`, () => anon(`select 1 from public.${table}`), /permission denied/);
+    await rejects(`C8. ${table}: logado sem acesso`, () => authed(orgC, `select 1 from public.${table}`), /permission denied/);
+    await rejects(`C8. ${table}: servidor sem acesso direto`, () => svc(`select 1 from public.${table}`), /permission denied/);
+    const rls = await one("select relrowsecurity from pg_class where oid = $1::regclass", [`public.${table}`]);
+    const pols = await q("select policyname from pg_policies where schemaname = 'public' and tablename = $1", [table]);
+    check(`C8. ${table}: RLS ligada e sem políticas`, rls.relrowsecurity === true && pols.length === 0);
+  }
+  const pixFnNames = [...new Set([...readFileSync(join(MIGRATIONS, MIGRATION_PIX), "utf8")
+    .matchAll(/create (?:or replace )?function public\.([a-z_0-9]+)\(/g)].map((m) => m[1]))];
+  const pixProcs = await q(
+    `select p.oid::regprocedure::text as sig, p.prosecdef, p.proconfig,
+            has_function_privilege('anon', p.oid, 'execute') as anon,
+            has_function_privilege('authenticated', p.oid, 'execute') as auth,
+            has_function_privilege('service_role', p.oid, 'execute') as svc
+     from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1::text[])`, [pixFnNames]);
+  check("C8. todas as funções da Migration C existem (14, sem sobrecarga)", pixFnNames.length === 14 && pixProcs.length === 14,
+    `${pixProcs.length}/${pixFnNames.length}`);
+  for (const p of pixProcs) {
+    check(`C8. ${p.sig}: definer, search_path vazio, só service_role`,
+      p.prosecdef && JSON.stringify(p.proconfig) === JSON.stringify(['search_path=""']) && !p.anon && !p.auth && p.svc,
+      JSON.stringify(p));
+  }
+  await rejects("C8. logado não executa request_pix_change",
+    () => authed(orgC, "select public.request_pix_change($1, '123456', 'email', 'a@b.com', 'Nome', '52998224725')", [orgC]),
+    /permission denied/);
+
   // ======================= 8) ANO NOVO CADASTRADO =======================
   await q("insert into public.business_holidays (day, name, kind, source) values ('2031-01-01', 'Confraternização Universal', 'nacional', 'Lei 662/1949')");
   check("8. depois de cadastrar 2031 o último ano vira 2031 e o prazo volta",

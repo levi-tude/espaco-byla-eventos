@@ -369,3 +369,94 @@ describe("migration organizer_payouts", () => {
     expect(payouts).not.toMatch(/\b(numeric|real|double precision|float\d?|money)\b/);
   });
 });
+
+const pixLimits = migration("20261019120000_organizer_pix_limits.sql");
+const pixFn = (name: string) => functionBodies(pixLimits).find((fn) => fn.name === name)?.text ?? "";
+const PIX_TABLES = ["organizer_action_codes", "organizer_pix_change_requests", "organizer_refund_notices"];
+
+describe("migration organizer_pix_limits", () => {
+  it("cria só as tabelas de código, troca de chave e aviso de estorno", () => {
+    const tables = [...pixLimits.matchAll(/create table public\.(\w+)/g)].map((m) => m[1]);
+    expect(tables).toEqual(PIX_TABLES);
+  });
+
+  it.each(PIX_TABLES)("%s tem RLS ligada e nenhum acesso direto", (table) => {
+    expect(pixLimits).toContain(`alter table public.${table} enable row level security;`);
+    expect(pixLimits).toContain(`revoke all on table public.${table} from public, anon, authenticated, service_role;`);
+    expect(pixLimits).not.toMatch(new RegExp(`create policy \\w+ on public\\.${table}`));
+    expect(pixLimits).not.toMatch(new RegExp(`grant [^;]* on table public\\.${table}`));
+  });
+
+  it("toda função é security definer, search_path vazio e só service_role executa", () => {
+    const fns = functionBodies(pixLimits);
+    expect(fns.map((fn) => fn.name).sort()).toEqual([
+      "accept_organizer_invite", "cancel_pix_change", "claim_event_refund_notice", "claim_refund_request_notice",
+      "decide_pix_change", "issue_login_code", "issue_organizer_action_code", "list_pix_change_requests",
+      "organizer_pix_change_pending", "organizer_pix_change_state", "pix_change_details", "pix_details_problem",
+      "record_organizer_payout", "request_pix_change",
+    ]);
+    for (const fn of fns) {
+      expect(fn.text, fn.name).toContain("security definer");
+      expect(fn.text, fn.name).toContain("set search_path = ''");
+      expect(pixLimits, fn.name).toMatch(
+        new RegExp(`revoke execute on function public\\.${fn.name}\\([^)]*\\) from public, anon, authenticated;`),
+      );
+      expect(pixLimits, fn.name).toMatch(new RegExp(`grant execute on function public\\.${fn.name}\\([^)]*\\) to service_role;`));
+      expect(pixLimits, fn.name).not.toMatch(
+        new RegExp(`grant execute on function public\\.${fn.name}\\([^)]*\\) to [^;]*(anon|authenticated)`),
+      );
+    }
+  });
+
+  it("hash e sal do código nunca saem de uma função", () => {
+    for (const fn of functionBodies(pixLimits)) {
+      const head = fn.text.slice(0, fn.text.indexOf("$$"));
+      expect(head, fn.name).not.toMatch(/code_hash|code_salt/);
+      expect(fn.text, fn.name).not.toMatch(/'code_(hash|salt)'/);
+    }
+  });
+
+  it("cota de login: equipe 40/dia e organizadores 20/dia separados", () => {
+    const fn = pixFn("issue_login_code");
+    expect(fn).toContain("'login-code:all-day', 'site', 40, 86400");
+    expect(fn).toContain("'login-code:org-day', 'site', 20, 86400");
+  });
+
+  it("código da troca: 60 s, 3 por conta e 10 no site por dia, 10 min de validade", () => {
+    const fn = pixFn("issue_organizer_action_code");
+    expect(fn).toContain("interval '60 seconds'");
+    expect(fn).toContain("'pix-code:user-day', v_key, 3, 86400");
+    expect(fn).toContain("'pix-code:all-day', 'site', 10, 86400");
+    expect(fn).toContain("now() + interval '10 minutes'");
+  });
+
+  it("troca de chave: espera de 24 h, decisão só por Admin que grava", () => {
+    expect(pixFn("request_pix_change")).toContain("now() + interval '24 hours'");
+    expect(pixFn("decide_pix_change")).toContain("public.assert_finance_admin(p_admin, true)");
+    expect(pixFn("decide_pix_change")).toContain("raise exception 'ORG_ESPERA:%'");
+    expect(pixFn("pix_change_details")).toContain("public.assert_finance_admin(p_admin, true)");
+    expect(pixFn("list_pix_change_requests")).toContain("public.assert_finance_admin(p_admin, false)");
+    expect(pixFn("list_pix_change_requests")).not.toMatch(/r\.pix_key[,\s]|op\.pix_key[,\s]|pix_holder_document[,\s]*\n/);
+  });
+
+  it("cadastro e troca usam as mesmas regras do PIX", () => {
+    expect(pixFn("accept_organizer_invite")).toContain("public.pix_details_problem(");
+    expect(pixFn("request_pix_change")).toContain("public.pix_details_problem(");
+    expect(pixFn("decide_pix_change")).toContain("public.pix_details_problem(");
+  });
+
+  it("repasse recusa com troca pendente", () => {
+    const fn = pixFn("record_organizer_payout");
+    expect(fn).toContain("ORG_PIX_PENDENTE");
+    expect(fn).toContain("public.organizer_pix_change_pending(v_event.organizer_id)");
+    expect(fn.indexOf("pg_advisory_xact_lock")).toBeLessThan(fn.indexOf("ORG_PIX_PENDENTE"));
+  });
+
+  it("histórico da troca sem a chave", () => {
+    for (const name of ["request_pix_change", "cancel_pix_change", "decide_pix_change"]) {
+      const audits = [...pixFn(name).matchAll(/log_audit\([\s\S]*?\);/g)].map((m) => m[0]);
+      expect(audits.length, name).toBeGreaterThan(0);
+      for (const audit of audits) expect(audit, name).not.toMatch(/pix_key|holder|document/);
+    }
+  });
+});
