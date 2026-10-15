@@ -58,6 +58,27 @@ describe("sweepOrphanCovers", () => {
     expect(mocks.removeMediaObjects).toHaveBeenCalledWith([cover(2, "jpg")]);
   });
 
+  it("capa salva com outro endereço do banco continua em uso", async () => {
+    const admin = adminWith({
+      data: [{ cover_image_url: `https://outro.example/storage/v1/object/public/event-media/${cover(1)}?v=2` }],
+      error: null,
+    });
+    mocks.listMediaObjects.mockResolvedValue([
+      { path: cover(1), createdAt: old },
+      { path: cover(2), createdAt: old },
+    ]);
+    expect(await sweepOrphanCovers(admin)).toEqual({ checked: 2, deleted: 1 });
+    expect(mocks.removeMediaObjects).toHaveBeenCalledWith([cover(2)]);
+  });
+
+  it("capa com endereço que não dá para entender: não apaga nada", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const admin = adminWith({ data: [{ cover_image_url: `${base}covers/estranho.webp` }], error: null });
+    mocks.listMediaObjects.mockResolvedValue([{ path: cover(2), createdAt: old }]);
+    expect(await sweepOrphanCovers(admin)).toEqual({ checked: 0, deleted: 0 });
+    expect(mocks.removeMediaObjects).not.toHaveBeenCalled();
+  });
+
   it("apaga no máximo o limite por rodada", async () => {
     const admin = adminWith({ data: [], error: null });
     mocks.listMediaObjects.mockResolvedValue(

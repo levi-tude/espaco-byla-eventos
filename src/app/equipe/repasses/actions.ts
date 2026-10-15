@@ -42,8 +42,11 @@ function text(value: unknown): string | null {
 }
 
 /** Recusa conhecida do banco vira mensagem para a tela; o resto fica genérico (e no log só o código). */
-function throwRpcError(rpc: string, message: string): never {
-  if (/^(ORG|TARIFA|TAXA)_[A-Z_]+/.test(message)) throw new ActionError(financeRefusalMessage(message));
+function throwRpcError(rpc: string, error: { message: string; code?: string }): never {
+  if (/^(ORG|TARIFA|TAXA)_[A-Z_]+/.test(error.message)) {
+    throw new ActionError(financeRefusalMessage(error.message));
+  }
+  console.error(`[repasses] ${rpc} falhou.`, error.code ?? "sem-codigo");
   throw new Error(`${rpc} falhou`);
 }
 
@@ -107,7 +110,7 @@ export async function loadPayoutDetails(eventId: string): Promise<ActionResult<P
       p_admin: userId,
       p_event_id: eventId,
     });
-    if (error) throwRpcError("organizer_payout_details", error.message);
+    if (error) throwRpcError("organizer_payout_details", error);
     const details = parseDetails(data);
     if (!details) throw new Error("organizer_payout_details: resposta inválida");
     return details;
@@ -152,7 +155,7 @@ export async function markOrganizerPaid(
       p_pix_date: pixDate,
       p_note: note.note,
     });
-    if (error) throwRpcError("record_organizer_payout", error.message);
+    if (error) throwRpcError("record_organizer_payout", error);
     revalidateEvent(eventId);
 
     const result = asInput(data);
@@ -201,7 +204,7 @@ export async function addOrganizerAdjustment(input: OrganizerAdjustmentInput): P
       p_amount_cents: amount,
       p_reason: reason,
     });
-    if (error) throwRpcError("record_organizer_payout_adjustment", error.message);
+    if (error) throwRpcError("record_organizer_payout_adjustment", error);
     revalidateEvent(raw.eventId);
     return undefined;
   }, "Não foi possível lançar o ajuste.");
@@ -237,7 +240,7 @@ export async function markRefundReceived(
       p_pix_date: raw.pixDate,
       p_note: note.note,
     });
-    if (error) throwRpcError("record_organizer_refund_received", error.message);
+    if (error) throwRpcError("record_organizer_refund_received", error);
     revalidatePath(PAGE_PATH);
     return { remainingCents: int(asInput(data).remaining_cents) };
   }, "Não foi possível registrar a devolução.");
@@ -262,7 +265,7 @@ export async function loadPendingFees(eventId: string): Promise<ActionResult<Pen
       p_admin: userId,
       p_event_id: eventId,
     });
-    if (error) throwRpcError("event_fee_pending_orders", error.message);
+    if (error) throwRpcError("event_fee_pending_orders", error);
     return (data ?? []).map((row) => ({
       orderId: row.order_id,
       orderNumber: orderNumber(row.order_id),
@@ -291,7 +294,7 @@ export async function setManualFee(input: ManualFeeInput): Promise<ActionResult>
       p_fee_cents: raw.feeCents,
       p_note: note.note,
     });
-    if (error) throwRpcError("record_payment_fee_manual", error.message);
+    if (error) throwRpcError("record_payment_fee_manual", error);
     revalidateEvent(raw.eventId);
     return undefined;
   }, "Não foi possível lançar a tarifa.");
@@ -327,7 +330,7 @@ export async function setEventFeeTotal(input: EventFeeTotalInput): Promise<Actio
       p_total_fee_cents: raw.totalFeeCents,
       p_note: note.note,
     });
-    if (error) throwRpcError("record_event_fee_total", error.message);
+    if (error) throwRpcError("record_event_fee_total", error);
     revalidateEvent(raw.eventId);
     return undefined;
   }, "Não foi possível lançar as tarifas.");
