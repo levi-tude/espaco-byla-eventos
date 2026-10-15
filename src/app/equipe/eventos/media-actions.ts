@@ -30,6 +30,8 @@ export type UploadTicket = { path: string; token: string };
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+const DAILY_UPLOAD_LIMIT_MESSAGE = "Limite de envios de hoje atingido. Tente amanhã.";
+
 export async function requestImageUpload(
   target: UploadTarget,
   contentType: string,
@@ -96,11 +98,17 @@ async function requestImageUploadOrThrow(
     // A capa ainda não tem evento (evento novo): basta estar logado na equipe ou como organizador.
     const actor = await requireActor();
     if (!isImageContentType(contentType)) throw new ActionError(INVALID_IMAGE_TYPE_MESSAGE);
-    if (
-      actor.kind === "organizador" &&
-      !(await consumeRateLimit(createAdminClient(), RATE_LIMITS.organizerUploadPerUser, actor.userId))
-    ) {
-      throw new ActionError(RATE_LIMIT_MESSAGE);
+    if (actor.kind === "organizador") {
+      const admin = createAdminClient();
+      if (!(await consumeRateLimit(admin, RATE_LIMITS.organizerUploadPerUser, actor.userId))) {
+        throw new ActionError(RATE_LIMIT_MESSAGE);
+      }
+      if (
+        !(await consumeRateLimit(admin, RATE_LIMITS.organizerUploadPerUserDay, actor.userId)) ||
+        !(await consumeRateLimit(admin, RATE_LIMITS.organizerUploadSiteDay, "site"))
+      ) {
+        throw new ActionError(DAILY_UPLOAD_LIMIT_MESSAGE);
+      }
     }
     const path = buildCoverPath(contentType);
     return { path, token: await createUploadToken(path) };

@@ -31,6 +31,8 @@ export const RATE_LIMITS = {
   passwordResetPerIp: { bucket: "password-reset:ip", limit: 10, windowSeconds: 3600 },
   organizerSavePerUser: { bucket: "org-save:user", limit: 120, windowSeconds: 3600 },
   organizerUploadPerUser: { bucket: "org-upload:user", limit: 60, windowSeconds: 3600 },
+  organizerUploadPerUserDay: { bucket: "org-upload:user-day", limit: 20, windowSeconds: 86_400 },
+  organizerUploadSiteDay: { bucket: "org-upload:all-day", limit: 150, windowSeconds: 86_400 },
   organizerSubmitPerUser: { bucket: "org-submit:user", limit: 10, windowSeconds: 3600 },
   /** Avisos da área do organizador: teto próprio para sobrar cota para os ingressos. */
   organizerNoticeEmailPerDay: { bucket: "email-org:day", limit: 10, windowSeconds: 86_400 },

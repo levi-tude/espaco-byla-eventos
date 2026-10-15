@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   runSessionNotices: vi.fn(),
   captureMissingFees: vi.fn(),
   runOrganizerFinanceDaily: vi.fn(),
+  sweepOrphanCovers: vi.fn(),
   provider: { name: "mercadopago" },
   queryError: null as unknown,
   purgeError: null as unknown,
@@ -16,6 +17,7 @@ vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNot
 vi.mock("@/lib/payments/capture-fee", () => ({ captureMissingFees: mocks.captureMissingFees }));
 vi.mock("@/lib/payments/provider", () => ({ getPaymentProvider: () => mocks.provider }));
 vi.mock("@/lib/organizer/daily", () => ({ runOrganizerFinanceDaily: mocks.runOrganizerFinanceDaily }));
+vi.mock("@/lib/media/orphans", () => ({ sweepOrphanCovers: mocks.sweepOrphanCovers }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     const result = () => Promise.resolve({ data: [], error: mocks.queryError });
@@ -51,6 +53,7 @@ describe("GET /api/cron/keep-alive", () => {
     mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 2, sent: 2, failed: 0, pausedUntil: null });
     mocks.captureMissingFees.mockResolvedValue({ salvo: 1, falhou: 0, alertados: 0 });
     mocks.runOrganizerFinanceDaily.mockResolvedValue({ devolucoes: 0, resumo: false });
+    mocks.sweepOrphanCovers.mockResolvedValue({ checked: 0, deleted: 0 });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -164,5 +167,22 @@ describe("GET /api/cron/keep-alive", () => {
   it("sem segredo certo não roda os avisos de repasse", async () => {
     await GET(request("Bearer errado"));
     expect(mocks.runOrganizerFinanceDaily).not.toHaveBeenCalled();
+    expect(mocks.sweepOrphanCovers).not.toHaveBeenCalled();
+  });
+
+  it("limpa capas sem uso por último, e falha nela não derruba o keep-alive", async () => {
+    const order: string[] = [];
+    mocks.runOrganizerFinanceDaily.mockImplementation(async () => {
+      order.push("repasses");
+      return { devolucoes: 0, resumo: false };
+    });
+    mocks.sweepOrphanCovers.mockImplementation(async () => {
+      order.push("capas");
+      throw new Error("fora");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    expect(order).toEqual(["repasses", "capas"]);
   });
 });

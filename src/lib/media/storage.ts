@@ -19,6 +19,24 @@ export async function mediaObjectExists(path: string): Promise<boolean> {
   return data === true;
 }
 
+export type MediaObject = { path: string; createdAt: string | null };
+
+/** Arquivos de uma pasta do bucket (sem subpastas), do mais antigo ao mais novo. */
+export async function listMediaObjects(
+  prefix: string,
+  options: { limit: number; offset: number },
+): Promise<MediaObject[]> {
+  const { data, error } = await bucket().list(prefix, {
+    limit: options.limit,
+    offset: options.offset,
+    sortBy: { column: "created_at", order: "asc" },
+  });
+  if (error || !data) throw new Error(`Falha ao listar arquivos: ${error?.message}`);
+  return data
+    .filter((item) => item.id !== null)
+    .map((item) => ({ path: `${prefix}/${item.name}`, createdAt: item.created_at ?? null }));
+}
+
 /** Falha ao apagar só vai para o log: não deve desfazer a ação da equipe. */
 export async function removeMediaObjects(paths: string[]): Promise<void> {
   if (!paths.length) return;

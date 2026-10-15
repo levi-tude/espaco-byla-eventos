@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runSessionNotices } from "@/lib/notices/process";
+import { sweepOrphanCovers } from "@/lib/media/orphans";
 import { NOTICE_CRON_LIMIT } from "@/lib/notices/rules";
 import { runOrganizerFinanceDaily } from "@/lib/organizer/daily";
 import { captureMissingFees } from "@/lib/payments/capture-fee";
@@ -79,6 +80,14 @@ export async function GET(request: Request) {
   // Depois das tarifas: devoluções dos organizadores e resumo da equipe (nunca lança).
   const finance = await runOrganizerFinanceDaily(supabase);
   if (finance.devolucoes > 0 || finance.resumo) console.warn("[keep-alive] avisos de repasse", finance);
+
+  // Por último: capas enviadas e nunca usadas (nunca lança; em dúvida, não apaga).
+  try {
+    const covers = await sweepOrphanCovers(supabase);
+    if (covers.deleted > 0) console.warn("[keep-alive] capas sem uso apagadas", covers);
+  } catch {
+    console.error("[keep-alive] falha na limpeza de capas");
+  }
 
   return NextResponse.json({ ok: true, notices });
 }

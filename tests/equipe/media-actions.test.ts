@@ -144,6 +144,28 @@ describe("organizador", () => {
     expect(mocks.createUploadToken).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["org-upload:user-day", 20],
+    ["org-upload:all-day", 150],
+  ])("capa acima do limite do dia (%s) é recusada", async (bucket, limit) => {
+    loggedAs("organizador");
+    const base = mocks.adminRpc.getMockImplementation()!;
+    mocks.adminRpc.mockImplementation(async (name: string, args: { p_bucket?: string }) =>
+      name === "consume_rate_limit" && args?.p_bucket === bucket
+        ? { data: false, error: null }
+        : base(name, args),
+    );
+    expect(await requestImageUpload("cover", "image/webp")).toEqual({
+      ok: false,
+      error: "Limite de envios de hoje atingido. Tente amanhã.",
+    });
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "consume_rate_limit",
+      expect.objectContaining({ p_bucket: bucket, p_limit: limit, p_window_seconds: 86_400 }),
+    );
+    expect(mocks.createUploadToken).not.toHaveBeenCalled();
+  });
+
   it("limite indisponível: falha fechada", async () => {
     loggedAs("organizador");
     const base = mocks.adminRpc.getMockImplementation()!;
