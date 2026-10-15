@@ -1,7 +1,8 @@
 // Matriz do dinheiro do organizador (spec 2026-10-13-contas-organizador-design; plano
-// 2026-10-15-contas-organizador-fase3, tarefas 3 e 5B) num Postgres temporário: aplica todas as
+// 2026-10-15-contas-organizador-fase3, tarefas 3, 5B e 6) num Postgres temporário: aplica todas as
 // migrations em ordem e confere o calendário de dias úteis, a tarifa por pagamento (automática,
-// falhas, fila do cron, lançamento manual e total do evento pelo extrato), os gatilhos de
+// falhas, fila do cron, lançamento manual e total do evento pelo extrato), os repasses ao
+// organizador (saldo, descontos, compensação, devolução, visões e resumo do cron), os gatilhos de
 // imutabilidade e as permissões.
 // Não usa banco real.
 //
@@ -26,6 +27,7 @@ const pg = await load("pg");
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIGRATIONS = process.env.BYLA_MIGRATIONS_DIR ?? join(ROOT, "supabase", "migrations");
 const MIGRATION_FEES = "20261019100000_payment_fees_calendar.sql";
+const MIGRATION_PAYOUTS = "20261019110000_organizer_payouts.sql";
 const PORT = 54915;
 const DATA_DIR = join(TOOLS, "data-organizer-finance");
 const PASSWORD = randomUUID();
@@ -551,6 +553,437 @@ try {
     () => anon("select public.record_event_fee_total($1, $2, 1, 5000, 1, 'x')", [admin, ev]), /permission denied/);
   await rejects("7. logado não executa record_event_fee_total",
     () => authed(admin, "select public.record_event_fee_total($1, $2, 1, 5000, 1, 'x')", [admin, ev]), /permission denied/);
+
+  // ======================= R) REPASSES AO ORGANIZADOR (Migration B) =======================
+  check("R. a migration dos repasses existe", files.includes(MIGRATION_PAYOUTS), files.slice(-3).join(","));
+  const TZ = hasTz ? "America/Sao_Paulo" : "UTC";
+  const today = await scalar(`select (now() at time zone '${TZ}')::date::text as v`);
+  const addDays = (date, n) => {
+    const d = new Date(`${date}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const at19 = (date) => `${date} 22:00:00+00`;
+  await q("update public.organizer_settings set enabled = true");
+
+  const newOrg = async (email, publicName, pixType, pixKey, doc = "52998224725") => {
+    const id = randomUUID();
+    await q("insert into auth.users (id, email) values ($1, $2)", [id, email]);
+    await q(`insert into public.organizer_profiles (user_id, full_name, public_name, phone, pix_key_type, pix_key,
+      pix_holder_name, pix_holder_document, terms_version, terms_accepted_at, invite_id)
+      values ($1, 'Titular Secreto', $2, '71900000001', $3, $4, 'Titular Secreto', $5, '2026-10-14', now(), gen_random_uuid())`,
+    [id, publicName, pixType, pixKey, doc]);
+    return id;
+  };
+  const orgP = await newOrg("p@exemplo.com", "Produtora P", "cpf", "52998224725");
+  const orgQ = await newOrg("q@exemplo.com", "Produtora Q", "email", "chave.secreta@exemplo.com");
+  const orgR = await newOrg("r@exemplo.com", "Produtora R", "telefone", "+5571988887777");
+  const orgS = await newOrg("s@exemplo.com", "Produtora S", "cnpj", "11222333000181", "11222333000181");
+  const orgT = await newOrg("t@exemplo.com", "Produtora T", "aleatoria", "123e4567-e89b-12d3-a456-426614174000");
+
+  let slugN = 0;
+  const orgEvent = async (org, name, startDate, approval = "aprovado") => {
+    slugN += 1;
+    await q("select set_config('byla.organizer_flow', 'on', false)");
+    const id = (await one(
+      `insert into public.events (slug, name, venue, description, starts_at, capacity, sales_open, organizer_id, approval_status)
+       values ($1, $2, 'Espaço', '', $3, 30, false, $4, $5) returning id`,
+      [`org-ev-${slugN}`, name, at19(startDate), org, approval])).id;
+    await q("select set_config('byla.organizer_flow', '', false)");
+    if (!(await one("select 1 as x from public.event_sessions where event_id = $1", [id]))) {
+      await q("insert into public.event_sessions (event_id, starts_at, capacity) values ($1, $2, 30)", [id, at19(startDate)]);
+    }
+    return id;
+  };
+  const orgOrderOf = async (eventId, { status = "pago", subtotal = 5000, svcFee = 250, provider = "mercadopago", createdAt = null } = {}) => (await one(
+    `insert into public.orders (event_id, session_id, buyer_name, buyer_email, buyer_phone, total_cents, tickets_subtotal_cents,
+                                service_fee_cents, status, public_token, paid_at, payment_provider, provider_order_id,
+                                decision_reason, created_at)
+     values ($1, $2, 'Comprador Secreto', 'comprador.secreto@exemplo.com', '71900000002', $3, $4, $5, $6::public.order_status, $7,
+             case when $6::text in ('pago', 'estornado', 'aguardando_decisao') then now() end, $8, $9,
+             case when $6::text = 'aguardando_decisao' then 'sem_vaga' end, coalesce($10::timestamptz, now()))
+     returning id`,
+    [eventId, await sessionOf(eventId), subtotal + svcFee, subtotal, svcFee, status, randomUUID(), provider,
+      `ORD${randomUUID().replaceAll("-", "").slice(0, 20).toUpperCase()}`, createdAt])).id;
+  const refundOrder = async (orderId) => {
+    const o = await one("select total_cents from public.orders where id = $1", [orderId]);
+    await q("update public.orders set status = 'estornado' where id = $1", [orderId]);
+    const refundId = randomUUID();
+    await q(`insert into public.order_refunds (id, order_id, amount_cents, status, idempotency_key, previous_order_status,
+      requested_by_name, reason, completed_at)
+      values ($1, $2, $3, 'concluido', $4, 'pago', 'Admin Teste', 'Estorno de teste', clock_timestamp())`,
+    [refundId, orderId, o.total_cents, refundId]);
+  };
+  const balance = (eventId) => one("select * from public.organizer_event_balance($1)", [eventId]);
+  const pay = (actor, eventId, expected, pixDate = today, note = null) => scalar(
+    "select public.record_organizer_payout($1, $2, $3, $4::date, $5) as v", [actor, eventId, expected, pixDate, note]);
+  const adjust = (actor, eventId, cents, reason) => scalar(
+    "select public.record_organizer_payout_adjustment($1, $2, $3, $4) as v", [actor, eventId, cents, reason]);
+  const received = (actor, org, cents, pixDate = today, note = null) => scalar(
+    "select public.record_organizer_refund_received($1, $2, $3, $4::date, $5) as v", [actor, org, cents, pixDate, note]);
+  const finance = (actor, eventId) => scalar("select public.organizer_event_finance($1, $2) as v", [actor, eventId]);
+  const details = (actor, eventId) => scalar("select public.organizer_payout_details($1, $2) as v", [actor, eventId]);
+  const refresh = () => svc("select * from public.refresh_organizer_balance_flags()");
+  const summary = () => scalar("select public.organizer_finance_daily_summary() as v");
+  const openFlag = (eventId) => one("select * from public.organizer_balance_flags where event_id = $1 and resolved_at is null", [eventId]);
+  const whileLocked = async (orgId, sql, params) => {
+    const locker = new pg.Client({ host: "localhost", port: PORT, user: "postgres", password: PASSWORD, database: "byla" });
+    locker.on("error", () => {});
+    await locker.connect();
+    await locker.query("begin");
+    await locker.query("select pg_advisory_xact_lock(hashtextextended('organizer_payout:' || $1::text, 0))", [orgId]);
+    try {
+      await db.query("begin");
+      try {
+        await db.query("set local role service_role");
+        await db.query("set local lock_timeout = '300ms'");
+        await db.query(sql, params);
+      } finally {
+        await db.query("rollback");
+      }
+    } finally {
+      await locker.query("rollback");
+      await locker.end();
+    }
+  };
+
+  // R1/R2/R11) Exemplo da spec (R$ 439,05), em conferência e pago sem vaga
+  const e1 = await orgEvent(orgP, "Show Um", addDays(today, -10));
+  const e1Orders = [];
+  for (let i = 0; i < 10; i += 1) e1Orders.push(await orgOrderOf(e1));
+  const e1Decision = await orgOrderOf(e1, { status: "aguardando_decisao" });
+  await record(e1Decision, 5250, 52);
+  await orgOrderOf(e1, { status: "pendente" });
+  await orgOrderOf(e1, { subtotal: 0, svcFee: 0, provider: "cortesia" });
+  for (let i = 0; i < 6; i += 1) await record(e1Orders[i], 5250, 52);
+  await record(e1Orders[6], 5250, 261);
+  await record(e1Orders[9], 5250, 261);
+  await refundOrder(e1Orders[9]);
+  await record(e1Orders[9], 5250, 0, { afterRefund: true });
+  let b = await balance(e1);
+  check("R2. dois pedidos sem tarifa: em conferência 2 pedidos / R$ 100,00 e parte só dos outros",
+    b.pending_fee_orders === 2 && Number(b.pending_cents) === 10000 && Number(b.share_cents) === 7 * 5000 - 573
+      && Number(b.balance_cents) === 7 * 5000 - 573, JSON.stringify(b));
+  await record(e1Orders[7], 5250, 261);
+  await record(e1Orders[8], 5250, 261);
+  b = await balance(e1);
+  check("R1. exemplo da spec: parte 43905, tarifa 1095, estornos 5000, taxa de serviço 2250",
+    Number(b.share_cents) === 43905 && Number(b.bank_fee_cents) === 1095 && Number(b.refunded_cents) === 5000
+      && b.refunded_orders === 1 && Number(b.sold_cents) === 50000 && b.sold_orders === 10
+      && Number(b.service_fee_cents) === 2250 && b.pending_fee_orders === 0 && Number(b.pending_cents) === 0
+      && Number(b.paid_out_cents) === 0 && Number(b.balance_cents) === 43905, JSON.stringify(b));
+  check("R2. depois das tarifas a parte sobe", Number(b.share_cents) > 7 * 5000 - 573);
+  check("R11. pago sem vaga fora do vendido e da parte, contado em decision_orders",
+    b.decision_orders === 1 && Number(b.sold_cents) === 50000, JSON.stringify(b));
+
+  // R3) Prazo e data do PIX
+  const eFuture = await orgEvent(orgP, "Show Futuro", addDays(today, 5));
+  const futureOrder = await orgOrderOf(eFuture);
+  await record(futureOrder, 5250, 52);
+  await rejects("R3. repasse antes do dia seguinte à última sessão: ORG_PRAZO",
+    () => pay(admin, eFuture, 4948), /^ORG_PRAZO/);
+  await rejects("R3. data do PIX no futuro: ORG_DATA", () => pay(admin, e1, 43905, addDays(today, 1)), /^ORG_DATA/);
+  await rejects("R3. data do PIX antes do fim do evento: ORG_DATA", () => pay(admin, e1, 43905, addDays(today, -15)), /^ORG_DATA/);
+  await rejects("R3. data do PIX vazia: ORG_DATA", () => pay(admin, e1, 43905, null), /^ORG_DATA/);
+  await rejects("R3. nota com quebra de linha: ORG_NOTA", () => pay(admin, e1, 43905, today, "a\nb"), /^ORG_NOTA/);
+  await rejects("R3. evento sem organizador: ORG_ACESSO", () => pay(admin, ev, 100), /^ORG_ACESSO/);
+
+  // R4) Valor que mudou
+  await rejects("R4. valor esperado diferente: ORG_MUDOU:43905", () => pay(admin, e1, 43000), /^ORG_MUDOU:43905$/);
+  await rejects("R4. valor esperado vazio: ORG_MUDOU:43905", () => pay(admin, e1, null), /^ORG_MUDOU:43905$/);
+
+  // R5) Papéis
+  await rejects("R5. secretaria: TAXA_ADMIN", () => pay(sec, e1, 43905), /^TAXA_ADMIN/);
+  await rejects("R5. Admin desenvolvedor: TAXA_DEV", () => pay(dev, e1, 43905), /^TAXA_DEV/);
+  await rejects("R5. organizador: TAXA_ADMIN", () => pay(orgP, e1, 43905), /^TAXA_ADMIN/);
+  await rejects("R5. ajuste pela secretaria: TAXA_ADMIN", () => adjust(sec, e1, 100, "Motivo do ajuste"), /^TAXA_ADMIN/);
+  await rejects("R5. ajuste pelo desenvolvedor: TAXA_DEV", () => adjust(dev, e1, 100, "Motivo do ajuste"), /^TAXA_DEV/);
+  await rejects("R5. devolução pelo desenvolvedor: TAXA_DEV", () => received(dev, orgP, 100), /^TAXA_DEV/);
+  await rejects("R5. repasse espera a trava do dinheiro do organizador",
+    () => whileLocked(orgP, "select public.record_organizer_payout($1, $2, 43905, current_date, null)", [admin, e1]), /lock timeout/);
+  check("R5. nada gravado pelas tentativas recusadas",
+    (await one("select count(*)::int as n from public.organizer_payout_items where event_id = $1", [e1])).n === 0);
+
+  const d1 = await details(admin, e1);
+  check("R10. detalhes (Admin): chave completa e valor esperado igual ao do registro",
+    d1.pix_key === "52998224725" && d1.pix_holder_document === "52998224725" && d1.pix_key_type === "cpf"
+      && Number(d1.expected_amount_cents) === 43905 && d1.discounts.length === 0, JSON.stringify(d1));
+  const p1 = await pay(admin, e1, 43905, today, "  PIX conferido  ");
+  check("R. repasse registrado: tipo repasse, valor 43905, sem desconto",
+    p1.kind === "repasse" && Number(p1.amount_cents) === 43905 && Number(p1.discount_cents) === 0 && p1.organizer_id === orgP,
+    JSON.stringify(p1));
+  const p1Row = await one("select * from public.organizer_payouts where id = $1", [p1.payout_id]);
+  check("R. repasse guarda a chave PIX do momento, quem registrou e a nota sem espaços",
+    p1Row.pix_key_snapshot === "52998224725" && p1Row.pix_key_type === "cpf" && p1Row.pix_holder_name_snapshot === "Titular Secreto"
+      && p1Row.pix_holder_document_snapshot === "52998224725" && p1Row.created_by === admin
+      && p1Row.created_by_name === "Admin Teste" && p1Row.note === "PIX conferido", JSON.stringify(p1Row));
+  check("R. saldo zerado depois do repasse", Number((await balance(e1)).balance_cents) === 0);
+  await rejects("R. segundo repasse do mesmo evento: ORG_NADA", () => pay(admin, e1, 0), /^ORG_NADA/);
+  const p1Audit = await one("select * from public.audit_log where action = 'repasse_registrado' and event_id = $1", [e1]);
+  check("R. histórico do repasse só com valores",
+    p1Audit?.organizer_id === orgP && p1Audit?.actor_kind === "admin"
+      && JSON.stringify(p1Audit.details) === JSON.stringify({ amount_cents: 43905, discount_cents: 0 }), JSON.stringify(p1Audit));
+
+  // R2b) Tarifa pendente com saldo zero
+  const ePending = await orgEvent(orgS, "Show Pendente", addDays(today, -6));
+  await orgOrderOf(ePending);
+  await rejects("R2. saldo zero com tarifa pendente: ORG_TARIFA_PENDENTE:1", () => pay(admin, ePending, 0), /^ORG_TARIFA_PENDENTE:1$/);
+
+  // R6) Desconto no próximo repasse
+  await refundOrder(e1Orders[0]);
+  await record(e1Orders[0], 5250, 52, { afterRefund: true });
+  check("R6. estorno tardio de PIX (tarifa mantida): saldo de E1 = −5000",
+    Number((await balance(e1)).balance_cents) === -5000, JSON.stringify(await balance(e1)));
+  check("R6. cron abre a marcação de E1 (sem e-mail ainda)",
+    (await refresh()).every((r) => r.event_id !== e1) && (await openFlag(e1))?.negative_since instanceof Date);
+  const e2 = await orgEvent(orgP, "Show Dois", addDays(today, -5));
+  for (let i = 0; i < 4; i += 1) await record(await orgOrderOf(e2), 5250, 0);
+  const d2 = await details(admin, e2);
+  check("R6. detalhes mostram 15000 a pagar e o desconto de E1",
+    Number(d2.expected_amount_cents) === 15000 && d2.discounts.length === 1 && d2.discounts[0].event_name === "Show Um"
+      && Number(d2.discounts[0].cents) === 5000, JSON.stringify(d2));
+  await rejects("R6. tela com o valor sem desconto: ORG_MUDOU:15000", () => pay(admin, e2, 20000), /^ORG_MUDOU:15000$/);
+  const p2 = await pay(admin, e2, 15000);
+  const p2Items = await q("select event_id, amount_cents from public.organizer_payout_items where payout_id = $1", [p2.payout_id]);
+  check("R6. repasse de 15000 com itens E2 +20000 e E1 −5000",
+    Number(p2.amount_cents) === 15000 && Number(p2.discount_cents) === 5000 && p2Items.length === 2
+      && p2Items.find((i) => i.event_id === e2)?.amount_cents === 20000
+      && p2Items.find((i) => i.event_id === e1)?.amount_cents === -5000, JSON.stringify(p2Items));
+  check("R6. E1 volta a 0 e a marcação fecha",
+    Number((await balance(e1)).balance_cents) === 0 && (await openFlag(e1)) === undefined);
+
+  // R7) Compensação sem PIX
+  const e3 = await orgEvent(orgQ, "Show Tres", addDays(today, -20));
+  await rejects("R7. ajuste de valor zero: ORG_VALOR", () => adjust(admin, e3, 0, "Motivo do ajuste"), /^ORG_VALOR/);
+  await rejects("R7. ajuste sem motivo: ORG_MOTIVO", () => adjust(admin, e3, 5000, " abc "), /^ORG_MOTIVO/);
+  await rejects("R7. ajuste em evento da equipe: ORG_ACESSO", () => adjust(admin, ev, 5000, "Motivo do ajuste"), /^ORG_ACESSO/);
+  const adj = await adjust(admin, e3, 5000, "  Cobrança a favor do Espaço  ");
+  check("R7. ajuste a favor do Espaço deixa E3 com −5000",
+    typeof adj === "string" && Number((await balance(e3)).balance_cents) === -5000);
+  const adjAudit = await one("select details from public.audit_log where action = 'repasse_ajuste' and event_id = $1", [e3]);
+  check("R7. histórico do ajuste sem o motivo", JSON.stringify(adjAudit?.details) === JSON.stringify({ amount_cents: 5000 }),
+    JSON.stringify(adjAudit));
+  const e4 = await orgEvent(orgQ, "Show Quatro", addDays(today, -3));
+  for (let i = 0; i < 3; i += 1) await record(await orgOrderOf(e4, { subtotal: 1000, svcFee: 0 }), 1000, 0);
+  await rejects("R7. compensação com valor esperado errado: ORG_MUDOU:0", () => pay(admin, e4, 3000), /^ORG_MUDOU:0$/);
+  const p7 = await pay(admin, e4, 0, null);
+  const p7Row = await one("select * from public.organizer_payouts where id = $1", [p7.payout_id]);
+  const p7Items = await q("select event_id, amount_cents from public.organizer_payout_items where payout_id = $1", [p7.payout_id]);
+  check("R7. compensação: valor 0, sem PIX, itens E4 +3000 e E3 −3000",
+    p7.kind === "compensacao" && Number(p7.amount_cents) === 0 && p7Row.pix_date === null && p7Row.pix_key_snapshot === null
+      && p7Items.find((i) => i.event_id === e4)?.amount_cents === 3000 && p7Items.find((i) => i.event_id === e3)?.amount_cents === -3000,
+    JSON.stringify({ p7, p7Items }));
+  check("R7. E3 fica com −2000 e E4 com 0",
+    Number((await balance(e3)).balance_cents) === -2000 && Number((await balance(e4)).balance_cents) === 0);
+  check("R7. histórico: repasse_compensado",
+    (await one("select count(*)::int as n from public.audit_log where action = 'repasse_compensado' and event_id = $1", [e4])).n === 1);
+
+  // R8) Devolução pendente, atrasada e recebida
+  const e5 = await orgEvent(orgR, "Show Cinco", addDays(today, -40));
+  await adjust(admin, e5, 5000, "Contestação depois do repasse");
+  await refresh();
+  const flag5 = await openFlag(e5);
+  check("R8. marcação aberta hoje, sem prazo de devolução", flag5?.return_due_date === null, JSON.stringify(flag5));
+  await q("update public.organizer_balance_flags set negative_since = $2::date where id = $1", [flag5.id, addDays(today, -30)]);
+  const due8 = await refresh();
+  const row8 = due8.find((r) => r.event_id === e5);
+  const dateText = (d) => (d instanceof Date ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : d);
+  check("R8. 30 dias negativo: cron devolve a linha com prazo hoje + 10",
+    row8 && row8.flag_id === flag5.id && row8.organizer_id === orgR && row8.event_name === "Show Cinco"
+      && Number(row8.owed_cents) === 5000 && dateText(row8.return_due_date) === addDays(today, 10), JSON.stringify(due8));
+  check("R8. histórico devolucao_pendente pelo sistema",
+    (await one("select actor_kind from public.audit_log where action = 'devolucao_pendente' and event_id = $1", [e5]))?.actor_kind === "sistema");
+  await svc("select public.mark_balance_flag_notified($1)", [flag5.id]);
+  check("R8. depois do aviso a linha some do cron", (await refresh()).every((r) => r.event_id !== e5));
+  check("R8. ainda no prazo: nenhuma devolução atrasada",
+    (await scalar("select public.organizer_overdue_refunds($1) as v", [orgR])) === 0);
+  const summaryBefore = await summary();
+  await q("update public.organizer_balance_flags set return_due_date = $2::date where id = $1", [flag5.id, addDays(today, -1)]);
+  check("R8. prazo vencido: organizer_overdue_refunds = 1",
+    (await scalar("select public.organizer_overdue_refunds($1) as v", [orgR])) === 1);
+  const draftR = await orgEvent(orgR, "Rascunho R", addDays(today, 20), "rascunho");
+  await rejects("R8. envio para aprovação com devolução atrasada: ORG_DEVOLUCAO",
+    () => svc("select public.submit_event_for_approval($1, $2)", [orgR, draftR]), /^ORG_DEVOLUCAO/);
+  const summaryLate = await summary();
+  check("R8/resumo: devolução atrasada conta 1", summaryLate.late_refunds === summaryBefore.late_refunds + 1 && summaryLate.late_refunds === 1,
+    JSON.stringify({ summaryBefore, summaryLate }));
+  await rejects("R8. devolução maior que o devido: ORG_VALOR:5000", () => received(admin, orgR, 6000), /^ORG_VALOR:5000$/);
+  await rejects("R8. devolução com data futura: ORG_DATA", () => received(admin, orgR, 1000, addDays(today, 1)), /^ORG_DATA/);
+  await rejects("R8. organizador sem nada a devolver: ORG_NADA", () => received(admin, orgT, 1000), /^ORG_NADA/);
+  const r8a = await received(admin, orgR, 2000);
+  check("R8. devolução parcial: resta 3000 e a marcação continua",
+    Number(r8a.remaining_cents) === 3000 && (await openFlag(e5))?.id === flag5.id, JSON.stringify(r8a));
+  const r8b = await received(admin, orgR, 3000);
+  check("R8. devolução do resto: saldo 0, marcação resolvida, sem atraso",
+    Number(r8b.remaining_cents) === 0 && Number((await balance(e5)).balance_cents) === 0 && (await openFlag(e5)) === undefined
+      && (await scalar("select public.organizer_overdue_refunds($1) as v", [orgR])) === 0);
+  const r8Rows = await q("select kind, amount_cents, pix_date from public.organizer_payouts where organizer_id = $1 and kind = 'devolucao' order by created_at", [orgR]);
+  check("R8. devoluções gravadas negativas com data do PIX",
+    r8Rows.length === 2 && r8Rows[0].amount_cents === -2000 && r8Rows[1].amount_cents === -3000 && r8Rows.every((r) => r.pix_date), JSON.stringify(r8Rows));
+  const r8Audit = await q("select details from public.audit_log where action = 'devolucao_recebida' and organizer_id = $1 order by created_at", [orgR]);
+  check("R8. histórico da devolução só com valores",
+    r8Audit.length === 2 && JSON.stringify(r8Audit[0].details) === JSON.stringify({ owed_cents: 5000, amount_cents: 2000 }), JSON.stringify(r8Audit));
+  let afterRefund = null;
+  try {
+    await svc("select public.submit_event_for_approval($1, $2)", [orgR, draftR]);
+    afterRefund = "ok";
+  } catch (error) {
+    afterRefund = error.message;
+  }
+  check("R8. depois da devolução o envio não esbarra mais em ORG_DEVOLUCAO", !/ORG_DEVOLUCAO/.test(afterRefund), afterRefund);
+  check("R8/resumo: devolução recebida zera o atraso", (await summary()).late_refunds === 0);
+
+  // R9) Imutáveis
+  await rejects("R9. alterar repasse: TAXA_IMUTAVEL",
+    () => q("update public.organizer_payouts set amount_cents = 1 where id = $1", [p1.payout_id]), /TAXA_IMUTAVEL/);
+  await rejects("R9. apagar repasse: TAXA_IMUTAVEL",
+    () => q("delete from public.organizer_payouts where id = $1", [p1.payout_id]), /TAXA_IMUTAVEL/);
+  await rejects("R9. truncate dos repasses: TAXA_IMUTAVEL", () => q("truncate public.organizer_payouts cascade"), /TAXA_IMUTAVEL/);
+  await rejects("R9. alterar item: TAXA_IMUTAVEL",
+    () => q("update public.organizer_payout_items set amount_cents = 1 where payout_id = $1", [p1.payout_id]), /TAXA_IMUTAVEL/);
+  await rejects("R9. apagar item: TAXA_IMUTAVEL",
+    () => q("delete from public.organizer_payout_items where payout_id = $1", [p1.payout_id]), /TAXA_IMUTAVEL/);
+  await rejects("R9. truncate dos itens: TAXA_IMUTAVEL", () => q("truncate public.organizer_payout_items"), /TAXA_IMUTAVEL/);
+  await rejects("R9. repasse sem chave PIX: check", () => q(
+    `insert into public.organizer_payouts (organizer_id, kind, amount_cents, pix_date, created_by, created_by_name)
+     values ($1, 'repasse', 100, current_date, $2, 'X')`, [orgP, admin]), /organizer_payouts_shape_check/);
+
+  // R10) Visões do organizador e da equipe
+  const fOwner = await finance(orgP, e1);
+  const ownerJson = JSON.stringify(fOwner);
+  check("R10. dono: viewer, números e prazo",
+    fOwner.viewer === "dono" && fOwner.event_name === "Show Um" && fOwner.organizer_public_name === "Produtora P"
+      && Number(fOwner.share_cents) === 38905 && Number(fOwner.paid_out_cents) === 38905 && Number(fOwner.balance_cents) === 0
+      && fOwner.start_date === addDays(today, -9) && fOwner.today === today && fOwner.calendar_until === 2030
+      && fOwner.flag === null && fOwner.team === null, ownerJson);
+  check("R10. dono: histórico sem quem registrou",
+    fOwner.history.length === 2 && fOwner.history.every((h) => !("created_by_name" in h) && !("reason" in h))
+      && fOwner.history.some((h) => h.kind === "repasse" && Number(h.item_cents) === 43905 && h.note === "PIX conferido")
+      && fOwner.history.some((h) => Number(h.item_cents) === -5000 && Number(h.payout_cents) === 15000), ownerJson);
+  const orderNumber = e1Orders[0].replaceAll("-", "").slice(0, 8).toUpperCase();
+  check("R10. dono: só o estorno depois do repasse em late_changes, com o número do pedido",
+    fOwner.late_changes.length === 1 && fOwner.late_changes[0].order_id === e1Orders[0]
+      && fOwner.late_changes[0].order_number === orderNumber && fOwner.late_changes[0].kind === "estorno"
+      && Number(fOwner.late_changes[0].cents) === 5000, JSON.stringify(fOwner.late_changes));
+  check("R10. dono: chave e documento mascarados, nada do comprador",
+    fOwner.pix.masked === "•••.982.247-••" && fOwner.pix.type === "cpf" && fOwner.pix.change_pending === false
+      && !ownerJson.includes("52998224725") && !/Comprador|comprador\.secreto|71900000002/.test(ownerJson), ownerJson);
+  await rejects("R10. organizador de outro evento: ORG_ACESSO", () => finance(orgQ, e1), /^ORG_ACESSO/);
+  await rejects("R10. secretaria: ORG_ACESSO", () => finance(sec, e1), /^ORG_ACESSO/);
+  await rejects("R10. evento da equipe: ORG_ACESSO", () => finance(admin, ev), /^ORG_ACESSO/);
+  const fAdmin = await finance(admin, e1);
+  check("R10. Admin: viewer, histórico com quem registrou e bloco da equipe",
+    fAdmin.viewer === "admin" && fAdmin.history.every((h) => h.created_by_name === "Admin Teste")
+      && fAdmin.team?.organizer_id === orgP && fAdmin.team?.pix_changed_recently === false
+      && !JSON.stringify(fAdmin).includes("52998224725"), JSON.stringify(fAdmin));
+  check("R10. Admin desenvolvedor lê como admin_dev", (await finance(dev, e1)).viewer === "admin_dev");
+  await rejects("R10. detalhes pelo Admin desenvolvedor: TAXA_DEV", () => details(dev, e1), /^TAXA_DEV/);
+  await rejects("R10. detalhes pela secretaria: TAXA_ADMIN", () => details(sec, e1), /^TAXA_ADMIN/);
+  await rejects("R10. detalhes de evento da equipe: ORG_ACESSO", () => details(admin, ev), /^ORG_ACESSO/);
+  await q("update public.organizer_settings set enabled = false");
+  await rejects("R10. área desligada: dono sem acesso (ORG_ACESSO)", () => finance(orgP, e1), /^ORG_ACESSO/);
+  await q("update public.organizer_settings set enabled = true");
+
+  const from = addDays(today, -30);
+  const csv = await svc("select * from public.organizer_payouts_csv($1, $2::date, $3::date)", [dev, from, today]);
+  check("R10. CSV: colunas sem PIX nem documento",
+    csv.length >= 7 && JSON.stringify(Object.keys(csv[0])) === JSON.stringify(
+      ["data_pix", "registrado_em", "tipo", "organizador", "evento", "valor_cents", "registrado_por", "nota_ou_motivo"])
+      && !/52998224725|chave\.secreta|5571988887777|Titular Secreto|11222333000181/.test(JSON.stringify(csv)), JSON.stringify(csv.slice(0, 2)));
+  check("R10. CSV: um item por linha (repasse de E2 em duas linhas)",
+    csv.filter((r) => r.registrado_em.getTime() === p1Row.created_at.getTime()).length === 1
+      && csv.filter((r) => r.evento === "Show Dois" || (r.evento === "Show Um" && r.valor_cents === -5000)).length === 2);
+  await rejects("R10. CSV pela secretaria: TAXA_ADMIN",
+    () => svc("select * from public.organizer_payouts_csv($1, $2::date, $3::date)", [sec, from, today]), /^TAXA_ADMIN/);
+  await rejects("R10. CSV com período invertido: ORG_PERIODO",
+    () => svc("select * from public.organizer_payouts_csv($1, $2::date, $3::date)", [admin, today, from]), /^ORG_PERIODO/);
+  await rejects("R10. visão geral com período longo: ORG_PERIODO",
+    () => scalar("select public.organizer_payouts_overview($1, $2::date, $3::date) as v", [admin, addDays(today, -500), today]), /^ORG_PERIODO/);
+  await rejects("R10. visão geral pela secretaria: TAXA_ADMIN",
+    () => scalar("select public.organizer_payouts_overview($1, $2::date, $3::date) as v", [sec, from, today]), /^TAXA_ADMIN/);
+
+  // R12) Calendário fora do cadastro + resumo diário (atrasado e tarifa sem conferir)
+  const e7 = await orgEvent(orgP, "Show 2031", "2031-03-10");
+  const f7 = await finance(orgP, e7);
+  check("R12. evento em 2031: prazo null (a confirmar), início 11/03/2031",
+    f7.due_date === null && f7.start_date === "2031-03-11", JSON.stringify(f7));
+
+  const base = await summary();
+  check("R/resumo: sem atraso de repasse (E1, E2 pagos; E4 compensado; futuro ainda não vence)",
+    base.late_payouts === 0 && Number(base.late_payouts_cents) === 0 && base.calendar_until === 2030
+      && base.late_refunds === 0, JSON.stringify(base));
+  const e6 = await orgEvent(orgP, "Show Seis", addDays(today, -30));
+  await record(await orgOrderOf(e6, { subtotal: 1000, svcFee: 0 }), 1000, 0);
+  const withLate = await summary();
+  check("R/resumo: evento vencido com saldo conta como atrasado",
+    withLate.late_payouts === 1 && Number(withLate.late_payouts_cents) === 1000, JSON.stringify(withLate));
+  await orgOrderOf(eFuture, { createdAt: new Date(Date.now() - 3 * 86400000).toISOString() });
+  await orgOrderOf(eFuture);
+  await orgOrderOf(ev, { createdAt: new Date(Date.now() - 3 * 86400000).toISOString() });
+  const withFees = await summary();
+  check("R/resumo: tarifa sem conferir há mais de 2 dias (só eventos de organizador)",
+    withFees.fees_pending_2d === base.fees_pending_2d + 1, JSON.stringify({ base, withFees }));
+  check("R/resumo: só contagens e somas",
+    JSON.stringify(Object.keys(withFees).sort()) === JSON.stringify(
+      ["calendar_until", "fees_pending_2d", "late_payouts", "late_payouts_cents", "late_refunds", "today"]));
+
+  const overview = await scalar("select public.organizer_payouts_overview($1, $2::date, $3::date) as v", [dev, from, today]);
+  const overviewJson = JSON.stringify(overview);
+  const evRow = (id) => overview.events.find((e) => e.event_id === id);
+  check("R/visão geral: eventos de organizador, atrasado primeiro",
+    overview.events[0]?.event_id === e6 && evRow(e6)?.status === "atrasado" && evRow(e1) && evRow(e2) && evRow(e3)
+      && evRow(e4) && evRow(e5) && evRow(eFuture)?.status === "em_andamento" && !evRow(ev)
+      && !evRow(e7) && overview.calendar_until === 2030, overviewJson.slice(0, 600));
+  check("R/visão geral: último repasse e números do evento",
+    evRow(e1).last_payout_at === today && Number(evRow(e1).share_cents) === 38905 && evRow(e1).organizer_public_name === "Produtora P",
+    JSON.stringify(evRow(e1)));
+  check("R/visão geral: organizador devendo (Q, 2000)",
+    overview.organizers_owing.length === 1 && overview.organizers_owing[0].organizer_id === orgQ
+      && Number(overview.organizers_owing[0].owed_cents) === 2000, JSON.stringify(overview.organizers_owing));
+  check("R/visão geral: lançamentos do período com itens",
+    overview.payouts.length === 7 && overview.payouts.find((p) => p.payout_id === p2.payout_id)?.items.length === 2,
+    JSON.stringify(overview.payouts.map((p) => p.kind)));
+  check("R/visão geral: sem chave PIX, titular, documento ou comprador",
+    !/52998224725|chave\.secreta|5571988887777|Titular Secreto|11222333000181|Comprador|comprador\.secreto/.test(overviewJson));
+
+  // Máscaras iguais às de list_organizers
+  const listed = await svc("select user_id, pix_key_masked, pix_holder_document_masked from public.list_organizers($1)", [admin]);
+  for (const org of [orgP, orgQ, orgR, orgS, orgT]) {
+    const mine = await one(`select public.mask_pix_key(op.pix_key_type, op.pix_key) as k, public.mask_tax_document(op.pix_holder_document) as d
+      from public.organizer_profiles op where op.user_id = $1`, [org]);
+    const fromList = listed.find((r) => r.user_id === org);
+    check(`R/máscara igual à de list_organizers (${fromList?.pix_key_masked})`,
+      fromList && mine.k === fromList.pix_key_masked && mine.d === fromList.pix_holder_document_masked, JSON.stringify({ mine, fromList }));
+  }
+
+  // Permissões da Migration B
+  for (const table of ["organizer_payouts", "organizer_payout_items", "organizer_balance_flags"]) {
+    await rejects(`R. ${table}: anônimo sem acesso`, () => anon(`select 1 from public.${table}`), /permission denied/);
+    await rejects(`R. ${table}: logado sem acesso`, () => authed(orgP, `select 1 from public.${table}`), /permission denied/);
+    await rejects(`R. ${table}: servidor sem acesso direto`, () => svc(`select 1 from public.${table}`), /permission denied/);
+    const rls = await one("select relrowsecurity from pg_class where oid = $1::regclass", [`public.${table}`]);
+    const pols = await q("select policyname from pg_policies where schemaname = 'public' and tablename = $1", [table]);
+    check(`R. ${table}: RLS ligada e sem políticas`, rls.relrowsecurity === true && pols.length === 0);
+  }
+  const payoutFnNames = [...new Set([...readFileSync(join(MIGRATIONS, MIGRATION_PAYOUTS), "utf8")
+    .matchAll(/create (?:or replace )?function public\.([a-z_0-9]+)\(/g)].map((m) => m[1]))];
+  const payoutProcs = await q(
+    `select p.oid::regprocedure::text as sig, p.prosecdef, p.proconfig,
+            has_function_privilege('anon', p.oid, 'execute') as anon,
+            has_function_privilege('authenticated', p.oid, 'execute') as auth,
+            has_function_privilege('service_role', p.oid, 'execute') as svc
+     from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1::text[])`, [payoutFnNames]);
+  check("R. todas as funções da Migration B existem (20)", payoutFnNames.length === 20 && payoutProcs.length === 20,
+    `${payoutProcs.length}/${payoutFnNames.length}`);
+  for (const p of payoutProcs) {
+    check(`R. ${p.sig}: definer, search_path vazio, só service_role`,
+      p.prosecdef && JSON.stringify(p.proconfig) === JSON.stringify(['search_path=""']) && !p.anon && !p.auth && p.svc,
+      JSON.stringify(p));
+  }
+  await rejects("R. logado não executa record_organizer_payout",
+    () => authed(admin, "select public.record_organizer_payout($1, $2, 1, current_date, null)", [admin, e1]), /permission denied/);
+  await rejects("R. anônimo não executa organizer_event_finance",
+    () => anon("select public.organizer_event_finance($1, $2)", [orgP, e1]), /permission denied/);
 
   // ======================= 8) ANO NOVO CADASTRADO =======================
   await q("insert into public.business_holidays (day, name, kind, source) values ('2031-01-01', 'Confraternização Universal', 'nacional', 'Lei 662/1949')");

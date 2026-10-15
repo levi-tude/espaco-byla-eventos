@@ -1439,6 +1439,74 @@ export type Database = {
           attempts: number;
         }[];
       };
+      record_organizer_payout: {
+        Args: {
+          p_admin: string;
+          p_event_id: string;
+          p_expected_amount_cents: number;
+          p_pix_date: string | null;
+          p_note: string | null;
+        };
+        Returns: Json;
+      };
+      record_organizer_payout_adjustment: {
+        Args: { p_admin: string; p_event_id: string; p_amount_cents: number; p_reason: string };
+        Returns: string;
+      };
+      record_organizer_refund_received: {
+        Args: {
+          p_admin: string;
+          p_organizer_id: string;
+          p_amount_cents: number;
+          p_pix_date: string;
+          p_note: string | null;
+        };
+        Returns: Json;
+      };
+      refresh_organizer_balance_flags: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          flag_id: string;
+          organizer_id: string;
+          event_id: string;
+          event_name: string;
+          owed_cents: number;
+          return_due_date: string;
+        }[];
+      };
+      mark_balance_flag_notified: {
+        Args: { p_flag_id: string };
+        Returns: undefined;
+      };
+      organizer_finance_daily_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      organizer_event_finance: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: Json;
+      };
+      organizer_payouts_overview: {
+        Args: { p_admin: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
+      organizer_payout_details: {
+        Args: { p_admin: string; p_event_id: string };
+        Returns: Json;
+      };
+      organizer_payouts_csv: {
+        Args: { p_admin: string; p_from: string; p_to: string };
+        Returns: {
+          data_pix: string | null;
+          registrado_em: string;
+          tipo: string;
+          organizador: string;
+          evento: string;
+          valor_cents: number;
+          registrado_por: string;
+          nota_ou_motivo: string | null;
+        }[];
+      };
       organizer_event_orders: {
         Args: { p_actor: string; p_event_id: string; p_session_id?: string | null };
         Returns: {
