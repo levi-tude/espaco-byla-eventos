@@ -357,8 +357,10 @@ try {
     JSON.stringify(noFeeRow));
 
   // ======================= 5B) TARIFA DO EVENTO PELO EXTRATO =======================
-  const eventTotal = (actor, eventId, total, note) => scalar(
-    "select public.record_event_fee_total($1, $2, $3, $4) as v", [actor, eventId, total, note]);
+  // shown = [pedidos, soma em centavos] que a tela do Admin mostrou.
+  const eventTotal = (actor, eventId, shown, total, note) => scalar(
+    "select public.record_event_fee_total($1, $2, $3, $4, $5, $6) as v", [actor, eventId, shown[0], shown[1], total, note]);
+  const SHOWN = [10, 52500];
   const evStatement = await teamEvent("evento-extrato", "Evento Extrato");
   const stmtOrders = [];
   for (let i = 0; i < 10; i += 1) stmtOrders.push(await addOrder(evStatement, { total: 5250 }));
@@ -371,20 +373,27 @@ try {
     "select order_id, fee_cents, net_cents, source, note, set_by, set_by_name, attempts, last_error, refund_checked_at from public.order_payment_fees where order_id = any($1::uuid[])",
     [stmtOrders]);
 
-  await rejects("5B. secretaria: TAXA_ADMIN", () => eventTotal(sec, evStatement, 1356, "Extrato"), /^TAXA_ADMIN/);
-  await rejects("5B. Admin desenvolvedor: TAXA_DEV", () => eventTotal(dev, evStatement, 1356, "Extrato"), /^TAXA_DEV/);
-  await rejects("5B. desconhecido: TAXA_ADMIN", () => eventTotal(randomUUID(), evStatement, 1356, "Extrato"), /^TAXA_ADMIN/);
-  await rejects("5B. total negativo: TARIFA_VALOR", () => eventTotal(admin, evStatement, -1, "Extrato"), /^TARIFA_VALOR/);
-  await rejects("5B. total nulo: TARIFA_VALOR", () => eventTotal(admin, evStatement, null, "Extrato"), /^TARIFA_VALOR/);
+  await rejects("5B. secretaria: TAXA_ADMIN", () => eventTotal(sec, evStatement, SHOWN, 1356, "Extrato"), /^TAXA_ADMIN/);
+  await rejects("5B. Admin desenvolvedor: TAXA_DEV", () => eventTotal(dev, evStatement, SHOWN, 1356, "Extrato"), /^TAXA_DEV/);
+  await rejects("5B. desconhecido: TAXA_ADMIN", () => eventTotal(randomUUID(), evStatement, SHOWN, 1356, "Extrato"), /^TAXA_ADMIN/);
+  await rejects("5B. total negativo: TARIFA_VALOR", () => eventTotal(admin, evStatement, SHOWN, -1, "Extrato"), /^TARIFA_VALOR/);
+  await rejects("5B. total nulo: TARIFA_VALOR", () => eventTotal(admin, evStatement, SHOWN, null, "Extrato"), /^TARIFA_VALOR/);
   await rejects("5B. total maior que a soma dos pendentes: TARIFA_VALOR",
-    () => eventTotal(admin, evStatement, 52501, "Extrato"), /^TARIFA_VALOR/);
-  await rejects("5B. sem nota: TARIFA_NOTA", () => eventTotal(admin, evStatement, 1356, "  "), /^TARIFA_NOTA/);
-  await rejects("5B. nota com quebra de linha: TARIFA_NOTA", () => eventTotal(admin, evStatement, 1356, "a\nb"), /^TARIFA_NOTA/);
-  await rejects("5B. nota longa: TARIFA_NOTA", () => eventTotal(admin, evStatement, 1356, "x".repeat(141)), /^TARIFA_NOTA/);
-  check("5B. nada gravado pelas tentativas recusadas",
-    (await stmtFees()).every((r) => r.fee_cents === null) && (await stmtFees()).length === 1);
+    () => eventTotal(admin, evStatement, SHOWN, 52501, "Extrato"), /^TARIFA_VALOR/);
+  await rejects("5B. sem nota: TARIFA_NOTA", () => eventTotal(admin, evStatement, SHOWN, 1356, "  "), /^TARIFA_NOTA/);
+  await rejects("5B. nota com quebra de linha: TARIFA_NOTA", () => eventTotal(admin, evStatement, SHOWN, 1356, "a\nb"), /^TARIFA_NOTA/);
+  await rejects("5B. nota longa: TARIFA_NOTA", () => eventTotal(admin, evStatement, SHOWN, 1356, "x".repeat(141)), /^TARIFA_NOTA/);
+  await rejects("5B. tela mostrou outro número de pedidos: TARIFA_MUDOU:10",
+    () => eventTotal(admin, evStatement, [9, 52500], 1356, "Extrato"), /^TARIFA_MUDOU:10$/);
+  await rejects("5B. tela mostrou outra soma: TARIFA_MUDOU:10",
+    () => eventTotal(admin, evStatement, [10, 47250], 1356, "Extrato"), /^TARIFA_MUDOU:10$/);
+  await rejects("5B. tela sem números: TARIFA_MUDOU:10",
+    () => eventTotal(admin, evStatement, [null, null], 1356, "Extrato"), /^TARIFA_MUDOU:10$/);
+  check("5B. nada gravado pelas tentativas recusadas (inclusive TARIFA_MUDOU)",
+    (await stmtFees()).every((r) => r.fee_cents === null) && (await stmtFees()).length === 1
+      && (await one("select count(*)::int as n from public.audit_log where action = 'tarifa_lancada' and event_id = $1", [evStatement])).n === 0);
 
-  const stmtResult = await eventTotal(admin, evStatement, 1356, "  Extrato de outubro  ");
+  const stmtResult = await eventTotal(admin, evStatement, SHOWN, 1356, "  Extrato de outubro  ");
   check("5B. devolve evento, pedidos e total",
     stmtResult.event_id === evStatement && stmtResult.orders === 10 && stmtResult.total_fee_cents === 1356,
     JSON.stringify(stmtResult));
@@ -415,8 +424,9 @@ try {
       && (await svc("select * from public.event_fee_pending_orders($1, $2)", [admin, evStatement])).length === 0);
   check("5B. automático depois: 'manual' e nada muda",
     (await record(stmtOrders[0], 5250, 10)) === "manual" && (await feeRow(stmtOrders[0])).source === "manual");
-  await rejects("5B. segunda vez: TARIFA_NADA", () => eventTotal(admin, evStatement, 1356, "Extrato"), /^TARIFA_NADA/);
-  await rejects("5B. evento inexistente: TARIFA_NADA", () => eventTotal(admin, randomUUID(), 0, "Extrato"), /^TARIFA_NADA/);
+  await rejects("5B. segunda vez (mesma tela): TARIFA_NADA antes de TARIFA_MUDOU",
+    () => eventTotal(admin, evStatement, SHOWN, 1356, "Extrato"), /^TARIFA_NADA/);
+  await rejects("5B. evento inexistente: TARIFA_NADA", () => eventTotal(admin, randomUUID(), [1, 5000], 0, "Extrato"), /^TARIFA_NADA/);
   check("5B. segunda vez não grava histórico",
     (await one("select count(*)::int as n from public.audit_log where action = 'tarifa_lancada' and event_id = $1", [evStatement])).n === 1);
 
@@ -425,7 +435,7 @@ try {
   const big = await addOrder(evUneven, { total: 10000 });
   const smalls = [await addOrder(evUneven, { total: 100 }), await addOrder(evUneven, { total: 100 }),
     await addOrder(evUneven, { total: 100, status: "estornado" })];
-  await eventTotal(admin, evUneven, 10299, "Extrato");
+  await eventTotal(admin, evUneven, [4, 10300], 10299, "Extrato");
   const uneven = await q("select order_id, fee_cents, gross_cents, refund_checked_at from public.order_payment_fees where order_id = any($1::uuid[])",
     [[big, ...smalls]]);
   check("5B. distribuição desigual: soma certa e nenhuma tarifa acima do valor do pedido",
@@ -437,7 +447,7 @@ try {
   const evZero = await teamEvent("evento-zero", "Evento Zero");
   const zeroOrder = await addOrder(evZero);
   check("5B. total zero vale (tarifa 0 em cada pedido)",
-    (await eventTotal(admin, evZero, 0, "Extrato sem tarifa")).orders === 1 && (await feeRow(zeroOrder)).fee_cents === 0);
+    (await eventTotal(admin, evZero, [1, 5000], 0, "Extrato sem tarifa")).orders === 1 && (await feeRow(zeroOrder)).fee_cents === 0);
 
   // Evento de organizador: trava o dinheiro do organizador.
   const orgUser = randomUUID();
@@ -455,25 +465,39 @@ try {
     await q("insert into public.event_sessions (event_id, starts_at, capacity) values ($1, $2, 30)", [evOrg, days(7)]);
   }
   const orgOrder = await addOrder(evOrg);
-  const locker = new pg.Client({ host: "localhost", port: PORT, user: "postgres", password: PASSWORD, database: "byla" });
-  locker.on("error", () => {});
-  await locker.connect();
-  await locker.query("begin");
-  await locker.query("select pg_advisory_xact_lock(hashtextextended('organizer_payout:' || $1::text, 0))", [orgUser]);
-  await rejects("5B. evento de organizador espera a trava do dinheiro do organizador", async () => {
-    await db.query("begin");
+  const orgManualOrder = await addOrder(evOrg);
+  // Outra conexão segura a trava do organizador; a chamada tem de esperar (lock timeout).
+  const whileOrgLocked = async (sql, params) => {
+    const locker = new pg.Client({ host: "localhost", port: PORT, user: "postgres", password: PASSWORD, database: "byla" });
+    locker.on("error", () => {});
+    await locker.connect();
+    await locker.query("begin");
+    await locker.query("select pg_advisory_xact_lock(hashtextextended('organizer_payout:' || $1::text, 0))", [orgUser]);
     try {
-      await db.query("set local role service_role");
-      await db.query("set local lock_timeout = '300ms'");
-      await db.query("select public.record_event_fee_total($1, $2, 249, 'Extrato')", [admin, evOrg]);
+      await db.query("begin");
+      try {
+        await db.query("set local role service_role");
+        await db.query("set local lock_timeout = '300ms'");
+        await db.query(sql, params);
+      } finally {
+        await db.query("rollback");
+      }
     } finally {
-      await db.query("rollback");
+      await locker.query("rollback");
+      await locker.end();
     }
-  }, /lock timeout/);
-  await locker.query("rollback");
-  await locker.end();
-  await eventTotal(admin, evOrg, 249, "Extrato");
-  const orgAudit = await one("select organizer_id, details from public.audit_log where action = 'tarifa_lancada' and event_id = $1", [evOrg]);
+  };
+  await rejects("5B. evento de organizador espera a trava do dinheiro do organizador",
+    () => whileOrgLocked("select public.record_event_fee_total($1, $2, 2, 10000, 498, 'Extrato')", [admin, evOrg]), /lock timeout/);
+  await rejects("5B. lançamento manual em pedido de organizador espera a mesma trava",
+    () => whileOrgLocked("select public.record_payment_fee_manual($1, $2, 249, 'Extrato')", [admin, orgManualOrder]), /lock timeout/);
+  check("5B. nada gravado enquanto a trava estava presa",
+    (await feeRow(orgOrder)) === undefined && (await feeRow(orgManualOrder)) === undefined);
+  check("5B. manual em pedido de organizador grava depois de soltar a trava",
+    (await manual(admin, orgManualOrder, 249, "Extrato")).fee_cents === 249);
+  await eventTotal(admin, evOrg, [1, 5000], 249, "Extrato");
+  const orgAudit = await one(
+    "select organizer_id, details from public.audit_log where action = 'tarifa_lancada' and event_id = $1 and order_id is null", [evOrg]);
   check("5B. depois de soltar a trava grava, com o organizador no histórico",
     (await feeRow(orgOrder)).fee_cents === 249 && orgAudit?.organizer_id === orgUser, JSON.stringify(orgAudit));
 
@@ -524,9 +548,9 @@ try {
     () => authed(admin, "select public.record_payment_fee_manual($1, $2, 1, 'x')", [admin, noFeeYet]), /permission denied/);
   await rejects("7. anônimo não executa orders_missing_fee", () => anon("select * from public.orders_missing_fee(5)"), /permission denied/);
   await rejects("7. anônimo não executa record_event_fee_total",
-    () => anon("select public.record_event_fee_total($1, $2, 1, 'x')", [admin, ev]), /permission denied/);
+    () => anon("select public.record_event_fee_total($1, $2, 1, 5000, 1, 'x')", [admin, ev]), /permission denied/);
   await rejects("7. logado não executa record_event_fee_total",
-    () => authed(admin, "select public.record_event_fee_total($1, $2, 1, 'x')", [admin, ev]), /permission denied/);
+    () => authed(admin, "select public.record_event_fee_total($1, $2, 1, 5000, 1, 'x')", [admin, ev]), /permission denied/);
 
   // ======================= 8) ANO NOVO CADASTRADO =======================
   await q("insert into public.business_holidays (day, name, kind, source) values ('2031-01-01', 'Confraternização Universal', 'nacional', 'Lei 662/1949')");

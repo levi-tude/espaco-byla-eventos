@@ -1419,7 +1419,14 @@ export type Database = {
         Returns: number;
       };
       record_event_fee_total: {
-        Args: { p_admin: string; p_event_id: string; p_total_fee_cents: number; p_note: string };
+        Args: {
+          p_admin: string;
+          p_event_id: string;
+          p_expected_orders: number;
+          p_expected_pending_cents: number;
+          p_total_fee_cents: number;
+          p_note: string;
+        };
         Returns: Json;
       };
       orders_missing_fee: {

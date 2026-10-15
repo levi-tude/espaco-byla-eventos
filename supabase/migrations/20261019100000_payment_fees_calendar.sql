@@ -162,11 +162,19 @@ language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_order public.orders%rowtype;
   v_previous integer;
+  v_organizer uuid;
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
 begin
   perform public.assert_finance_admin(p_admin, true);
   if not public.order_has_bank_fee(p_order_id) then
     raise exception 'TARIFA_PEDIDO: Pedido sem tarifa a lançar.';
+  end if;
+  -- Mesma ordem de travas de record_event_fee_total: organizador antes do pedido.
+  select e.organizer_id into v_organizer
+  from public.orders o join public.events e on e.id = o.event_id
+  where o.id = p_order_id;
+  if v_organizer is not null then
+    perform pg_advisory_xact_lock(hashtextextended('organizer_payout:' || v_organizer::text, 0));
   end if;
   select * into v_order from public.orders o where o.id = p_order_id for update;
   if p_fee_cents is null or p_fee_cents < 0 or p_fee_cents > v_order.total_cents then
@@ -188,8 +196,7 @@ begin
     gross_cents = excluded.gross_cents, fee_cents = excluded.fee_cents, net_cents = excluded.net_cents,
     source = 'manual', note = excluded.note, set_by = excluded.set_by, set_by_name = excluded.set_by_name,
     attempts = 0, last_error = null, refund_checked_at = excluded.refund_checked_at, updated_at = now();
-  perform public.log_audit(p_admin, 'tarifa_lancada', v_order.event_id, p_order_id,
-    (select e.organizer_id from public.events e where e.id = v_order.event_id),
+  perform public.log_audit(p_admin, 'tarifa_lancada', v_order.event_id, p_order_id, v_organizer,
     jsonb_build_object('fee_cents', p_fee_cents, 'previous_fee_cents', v_previous));
   return jsonb_build_object('event_id', v_order.event_id, 'fee_cents', p_fee_cents, 'previous_fee_cents', v_previous);
 end;
@@ -215,20 +222,24 @@ $$;
 -- Total de tarifas do evento somado pelo Admin no extrato: repartido entre os pedidos ainda sem
 -- tarifa, proporcional ao valor de cada um. O resto dos centavos vai para o maior pedido
 -- (desempate pelo id) e, se não couber nele, para os seguintes; nunca passa do valor do pedido.
+-- A tela manda quantos pedidos e qual soma mostrou; se mudou, TARIFA_MUDOU e a tela recarrega.
 create function public.record_event_fee_total(
-  p_admin uuid, p_event_id uuid, p_total_fee_cents integer, p_note text
+  p_admin uuid, p_event_id uuid, p_expected_orders integer, p_expected_pending_cents bigint, p_total_fee_cents integer, p_note text
 ) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
   v_organizer uuid;
   v_name text;
-  v_ids uuid[];
+  v_locked_ids uuid[];
+  v_pending_ids uuid[];
   v_count integer;
   v_sum bigint;
   v_rest bigint;
   v_fee bigint;
   v_extra bigint;
+  v_written integer := 0;
+  v_rows integer;
   v_order record;
 begin
   perform public.assert_finance_admin(p_admin, true);
@@ -243,30 +254,33 @@ begin
     perform pg_advisory_xact_lock(hashtextextended('organizer_payout:' || v_organizer::text, 0));
   end if;
   -- Trava os pedidos antes de ler as tarifas: quem grava tarifa trava o pedido primeiro.
-  select array_agg(l.id) into v_ids from (
+  select array_agg(l.id) into v_locked_ids from (
     select o.id from public.orders o
     where o.event_id = p_event_id and public.order_has_bank_fee(o.id)
     order by o.id
     for update
   ) l;
   select coalesce(array_agg(o.id), '{}'), count(*), coalesce(sum(o.total_cents), 0)
-    into v_ids, v_count, v_sum
+    into v_pending_ids, v_count, v_sum
   from public.orders o
   left join public.order_payment_fees f on f.order_id = o.id
-  where o.id = any(v_ids) and public.order_has_bank_fee(o.id) and f.fee_cents is null;
+  where o.id = any(v_locked_ids) and public.order_has_bank_fee(o.id) and f.fee_cents is null;
   if v_count = 0 then
     raise exception 'TARIFA_NADA: Nenhum pedido deste evento está sem tarifa.';
+  end if;
+  if v_count is distinct from p_expected_orders or v_sum is distinct from p_expected_pending_cents then
+    raise exception 'TARIFA_MUDOU:%', v_count;
   end if;
   if p_total_fee_cents > v_sum then
     raise exception 'TARIFA_VALOR: O total passa do valor dos pedidos sem tarifa.';
   end if;
   select p_total_fee_cents - coalesce(sum(p_total_fee_cents::bigint * o.total_cents / v_sum), 0)
     into v_rest
-  from public.orders o where o.id = any(v_ids);
+  from public.orders o where o.id = any(v_pending_ids);
   v_name := public.staff_display_name(p_admin);
   for v_order in
     select o.id, o.total_cents, o.status::text as status
-    from public.orders o where o.id = any(v_ids)
+    from public.orders o where o.id = any(v_pending_ids)
     order by o.total_cents desc, o.id
   loop
     v_fee := p_total_fee_cents::bigint * v_order.total_cents / v_sum;
@@ -283,8 +297,14 @@ begin
     on conflict (order_id) do update set
       gross_cents = excluded.gross_cents, fee_cents = excluded.fee_cents, net_cents = excluded.net_cents,
       source = 'manual', note = excluded.note, set_by = excluded.set_by, set_by_name = excluded.set_by_name,
-      attempts = 0, last_error = null, refund_checked_at = excluded.refund_checked_at, updated_at = now();
+      attempts = 0, last_error = null, refund_checked_at = excluded.refund_checked_at, updated_at = now()
+    where f.fee_cents is null;
+    get diagnostics v_rows = row_count;
+    v_written := v_written + v_rows;
   end loop;
+  if v_written <> v_count then
+    raise exception 'TARIFA_MUDOU:%', v_count;
+  end if;
   perform public.log_audit(p_admin, 'tarifa_lancada', p_event_id, null, v_organizer,
     jsonb_build_object('total_fee_cents', p_total_fee_cents, 'orders', v_count));
   return jsonb_build_object('event_id', p_event_id, 'orders', v_count, 'total_fee_cents', p_total_fee_cents);
@@ -441,7 +461,7 @@ revoke execute on function public.record_payment_fee_failure(uuid, text) from pu
 revoke execute on function public.orders_missing_fee(integer) from public, anon, authenticated;
 revoke execute on function public.record_payment_fee_manual(uuid, uuid, integer, text) from public, anon, authenticated;
 revoke execute on function public.event_fee_pending_orders(uuid, uuid) from public, anon, authenticated;
-revoke execute on function public.record_event_fee_total(uuid, uuid, integer, text) from public, anon, authenticated;
+revoke execute on function public.record_event_fee_total(uuid, uuid, integer, bigint, integer, text) from public, anon, authenticated;
 revoke execute on function public.business_calendar_last_year() from public, anon, authenticated;
 revoke execute on function public.nth_business_day(date, integer) from public, anon, authenticated;
 revoke execute on function public.event_payout_due_date(uuid) from public, anon, authenticated;
@@ -451,7 +471,7 @@ grant execute on function public.record_payment_fee_failure(uuid, text) to servi
 grant execute on function public.orders_missing_fee(integer) to service_role;
 grant execute on function public.record_payment_fee_manual(uuid, uuid, integer, text) to service_role;
 grant execute on function public.event_fee_pending_orders(uuid, uuid) to service_role;
-grant execute on function public.record_event_fee_total(uuid, uuid, integer, text) to service_role;
+grant execute on function public.record_event_fee_total(uuid, uuid, integer, bigint, integer, text) to service_role;
 grant execute on function public.business_calendar_last_year() to service_role;
 grant execute on function public.nth_business_day(date, integer) to service_role;
 grant execute on function public.event_payout_due_date(uuid) to service_role;

@@ -146,6 +146,31 @@ describe("migration payment_fees_calendar", () => {
     expect(total).toContain("'tarifa_lancada'");
     expect(total).toContain("jsonb_build_object('total_fee_cents', p_total_fee_cents, 'orders', v_count)");
     expect(total).toContain("source = 'manual'");
+    expect(total).toMatch(/do update set[\s\S]*?where f\.fee_cents is null;/);
+  });
+
+  it("tarifa do evento confere a lista que a tela mostrou (TARIFA_NADA antes de TARIFA_MUDOU)", () => {
+    const total = functionBodies(fees).find((fn) => fn.name === "record_event_fee_total")?.text ?? "";
+    expect(total).toContain(
+      "p_admin uuid, p_event_id uuid, p_expected_orders integer, p_expected_pending_cents bigint, p_total_fee_cents integer, p_note text",
+    );
+    expect(total).toContain("v_count is distinct from p_expected_orders or v_sum is distinct from p_expected_pending_cents");
+    expect(total).toContain("raise exception 'TARIFA_MUDOU:%', v_count;");
+    expect(total.indexOf("TARIFA_NADA")).toBeLessThan(total.indexOf("TARIFA_MUDOU"));
+    expect(total.indexOf("TARIFA_MUDOU")).toBeLessThan(total.indexOf("O total passa do valor"));
+    expect(fees).toContain(
+      "revoke execute on function public.record_event_fee_total(uuid, uuid, integer, bigint, integer, text) from public, anon, authenticated;",
+    );
+    expect(fees).toContain(
+      "grant execute on function public.record_event_fee_total(uuid, uuid, integer, bigint, integer, text) to service_role;",
+    );
+  });
+
+  it("lançamento manual trava o dinheiro do organizador antes de travar o pedido", () => {
+    const manual = functionBodies(fees).find((fn) => fn.name === "record_payment_fee_manual")?.text ?? "";
+    const lock = manual.indexOf("pg_advisory_xact_lock(hashtextextended('organizer_payout:' || v_organizer::text, 0))");
+    expect(lock).toBeGreaterThan(0);
+    expect(lock).toBeLessThan(manual.indexOf("for update"));
   });
 
   it("valores em centavos inteiros (sem numeric/float)", () => {
