@@ -122,7 +122,8 @@ try {
     return hasTz ? text : text.replaceAll("'America/Sao_Paulo'", "'UTC'");
   };
   const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
-  check("as duas migrations novas são as últimas", files.at(-2) === MIGRATION_A && files.at(-1) === MIGRATION_B, files.slice(-3).join(","));
+  const indexA = files.indexOf(MIGRATION_A);
+  check("as duas migrations do organizador vêm em sequência", indexA >= 0 && files[indexA + 1] === MIGRATION_B, files.slice(-3).join(","));
   for (const file of files) await db.query(migrationSql(file));
   console.log(`aplicadas ${files.length} migrations${hasTz ? "" : " (fuso trocado por UTC no banco temporário)"}`);
 
@@ -956,7 +957,7 @@ try {
 
   // ======================= 12) ENSAIO DE PRODUÇÃO (banco separado) =======================
   const ens = await openDb("byla_ensaio", false);
-  const before = files.filter((f) => f !== MIGRATION_A && f !== MIGRATION_B);
+  const before = files.slice(0, indexA);
   for (const file of before) await ens.query(migrationSql(file));
   for (const [email, name, role, isDev] of [["espaco@exemplo.com", "Espaço", "admin", false], ["dev@exemplo.com", "Dev", "admin", true]]) {
     const id = randomUUID();

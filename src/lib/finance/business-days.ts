@@ -54,12 +54,18 @@ export function easterSunday(year: number): string {
   return key(new Date(Date.UTC(year, month - 1, day)));
 }
 
+/** Data móvel que cai num feriado fixo (ex.: Corpus Christi em 24/6/2038) vira uma linha só. */
 export function salvadorHolidays(year: number): Holiday[] {
   const easter = easterSunday(year);
-  return [
-    ...FIXED.map((h) => ({ day: `${year}-${h.md}`, name: h.name, kind: h.kind, source: h.source })),
-    ...MOVABLE.map((h) => ({ day: addDays(easter, h.offset), name: h.name, kind: h.kind, source: h.source })),
-  ].sort((x, y) => x.day.localeCompare(y.day));
+  const byDay = new Map<string, Holiday>();
+  for (const h of [
+    ...FIXED.map((f) => ({ day: `${year}-${f.md}`, name: f.name, kind: f.kind, source: f.source })),
+    ...MOVABLE.map((m) => ({ day: addDays(easter, m.offset), name: m.name, kind: m.kind, source: m.source })),
+  ]) {
+    const first = byDay.get(h.day);
+    byDay.set(h.day, first ? { ...first, name: `${first.name} / ${h.name}` } : h);
+  }
+  return [...byDay.values()].sort((x, y) => x.day.localeCompare(y.day));
 }
 
 export function isBusinessDay(dayKey: string, holidays: ReadonlySet<string>): boolean {
@@ -78,7 +84,7 @@ export function nthBusinessDay(startKey: string, n: number, holidays: ReadonlySe
   throw new Error("Prazo fora do alcance do calendário.");
 }
 
-const sqlText = (value: string) => `'${value.replaceAll("'", "''")}'`;
+export const sqlText = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 export function holidaySeedSql(fromYear: number, toYear: number): string {
   const rows: string[] = [];

@@ -168,11 +168,11 @@ describe("calendário de Salvador", () => {
     expect(nthBusinessDay(start, 5, daysOf(2026, 2027))).toBe(due);
   });
 
-  it("15 datas por ano, sem dia repetido de 2026 a 2030", () => {
+  it("16 datas por ano, sem dia repetido de 2026 a 2030", () => {
     for (let year = 2026; year <= 2030; year++) {
       const list = salvadorHolidays(year);
-      expect(list).toHaveLength(15);
-      expect(new Set(list.map((h) => h.day)).size).toBe(15);
+      expect(list).toHaveLength(16);
+      expect(new Set(list.map((h) => h.day)).size).toBe(16);
     }
   });
 
@@ -184,7 +184,7 @@ describe("calendário de Salvador", () => {
   it("SQL de carga ordenado, com aspas escapadas e sem linhas repetidas", () => {
     const sql = holidaySeedSql(2026, 2030);
     expect(sql.startsWith("insert into public.business_holidays (day, name, kind, source) values")).toBe(true);
-    expect(sql.match(/\('20\d\d-/g)).toHaveLength(75);
+    expect(sql.match(/\('20\d\d-/g)).toHaveLength(80);
     expect(sql).toContain("('2026-02-16', 'Segunda-feira de Carnaval', 'bancario'");
     expect(sql.trimEnd().endsWith(";")).toBe(true);
   });
@@ -618,7 +618,7 @@ grant execute on function public.event_payout_due_date(uuid) to service_role;
 ```
 
   Observações para quem implementa: confirmar no SQL atual que o valor de `orders.payment_provider` para pagamentos reais é exatamente `'mercadopago'` (é o `name` do `MercadoPagoPaymentProvider`); se `orders.status` for enum, as comparações com texto funcionam como estão.
-- [ ] **Step 3b: Gerar a carga de feriados** — adicionar ao teste um caso que, com `PRINT_HOLIDAY_SEED=1`, imprime `holidaySeedSql(2026, 2030)`; rodar `$env:PRINT_HOLIDAY_SEED=1; npx vitest run tests/finance/business-days.test.ts; Remove-Item Env:PRINT_HOLIDAY_SEED` e colar a saída no lugar do comentário da migration (75 linhas).
+- [ ] **Step 3b: Gerar a carga de feriados** — adicionar ao teste um caso que, com `PRINT_HOLIDAY_SEED=1`, imprime `holidaySeedSql(2026, 2030)`; rodar `$env:PRINT_HOLIDAY_SEED=1; npx vitest run tests/finance/business-days.test.ts; Remove-Item Env:PRINT_HOLIDAY_SEED` e colar a saída no lugar do comentário da migration (80 linhas).
 - [ ] **Step 4: Matriz local** — em `scripts/db-tests/organizer-finance.mjs`, casos (cada um com `assert` e mensagem em português):
   1. `nth_business_day` com os quatro exemplos da spec (30/10/2026, 23/11/2026, 29/06/2026, 16/02/2027) e com início em 2031 → `null`.
   2. `event_payout_due_date` de um evento com última sessão em 23/10/2026 → `2026-10-30`.

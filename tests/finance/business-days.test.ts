@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDays, easterSunday, holidaySeedSql, nthBusinessDay, salvadorHolidays,
+  addDays, easterSunday, holidaySeedSql, nthBusinessDay, salvadorHolidays, sqlText,
 } from "@/lib/finance/business-days";
 
 const daysOf = (from: number, to: number) =>
@@ -53,5 +53,31 @@ describe("calendário de Salvador", () => {
     expect(sql.match(/\('20\d\d-/g)).toHaveLength(80);
     expect(sql).toContain("('2026-02-16', 'Segunda-feira de Carnaval', 'bancario'");
     expect(sql.trimEnd().endsWith(";")).toBe(true);
+  });
+
+  it("2038: Corpus Christi no São João vira uma linha só, com os dois nomes", () => {
+    const list = salvadorHolidays(2038);
+    expect(new Set(list.map((h) => h.day)).size).toBe(list.length);
+    expect(list).toHaveLength(15);
+    expect(list.find((h) => h.day === "2038-06-24")).toEqual({
+      day: "2038-06-24", name: "São João / Corpus Christi", kind: "municipal", source: "Lei Municipal 1.997/1967",
+    });
+    const days = holidaySeedSql(2038, 2038).match(/\('(\d{4}-\d{2}-\d{2})'/g) ?? [];
+    expect(days).toHaveLength(15);
+    expect(new Set(days).size).toBe(15);
+  });
+
+  it("2079: Sexta-feira da Paixão em Tiradentes mantém o primeiro tipo (nacional)", () => {
+    const day = salvadorHolidays(2079).find((h) => h.day === "2079-04-21");
+    expect(day?.name).toBe("Tiradentes / Sexta-feira da Paixão");
+    expect(day?.kind).toBe("nacional");
+  });
+
+  it("sqlText dobra o apóstrofo", () => {
+    expect(sqlText("Dia d'Ajuda")).toBe("'Dia d''Ajuda'");
+  });
+
+  it.runIf(process.env.PRINT_HOLIDAY_SEED === "1")("imprime a carga de feriados 2026–2030", () => {
+    console.log(holidaySeedSql(2026, 2030));
   });
 });
