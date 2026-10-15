@@ -4,6 +4,8 @@ Data: 2026-10-03 · Fase 6 da spec `docs/superpowers/specs/2026-10-01-estorno-ti
 
 O lembrete já vem **desligado**. Ele só começa a ser enviado depois que você fizer os passos abaixo. Nenhum valor secreto aparece neste documento nem no Git.
 
+> **Situação em 2026-10-15: LIGADO** (com "pode" do dono). O site roda no Google Cloud Run (não mais na Vercel): `REMINDER_CRON_SECRET` está nas variáveis do serviço `espaco-byla-eventos`, o Vault tem `reminder_cron_secret` (mesmo valor) e `reminder_cron_url` = `https://ingressos.espacobyla.online/api/cron/abandoned-reminders`, e o job `abandoned-reminders` roda a cada 15 minutos. Os passos abaixo servem para religar ou refazer.
+
 ## O que o lembrete faz
 
 - Cerca de **1 hora** depois de alguém começar uma compra e não pagar, o site manda **um único e-mail**: "Você não terminou sua compra para <evento>", com o botão **Continuar compra**. O botão abre o checkout com a mesma seleção e os mesmos dados já preenchidos. Se não houver mais lugar, a própria página avisa.
@@ -30,7 +32,7 @@ O lembrete já vem **desligado**. Ele só começa a ser enviado depois que você
 Confirme com quem cuida do código que estas três coisas já foram feitas (cada uma precisa da sua aprovação):
 
 1. Migration `20261010100000_abandoned_reminders` aplicada no banco **Espaço Byla Eventos**.
-2. Código publicado na Vercel (push em `main`).
+2. Código publicado no Cloud Run (versão que já tem a rota `/api/cron/abandoned-reminders`).
 3. Migration `20261010110000_abandoned_reminders_schedule` aplicada no mesmo banco (ela habilita as extensões de agendamento, mas **não liga nada**).
 
 ## Passo 1 — Criar o segredo
@@ -47,15 +49,17 @@ O segredo é uma senha longa que só o banco e o site conhecem. Ele impede que o
 - Se preferir, use um gerador de senhas com **pelo menos 48 caracteres, só letras e números**.
 - Não cole o segredo em chat, e-mail, documento ou no Git.
 
-## Passo 2 — Colocar o segredo na Vercel
+## Passo 2 — Colocar o segredo no Cloud Run
 
-1. Entre na Vercel → projeto **espaco-byla-eventos** → **Settings** → **Environment Variables**.
-2. Clique em **Add**:
-   - **Key:** `REMINDER_CRON_SECRET`
-   - **Value:** o segredo do passo 1
-   - **Environments:** só **Production**
-3. Salve.
-4. Vá em **Deployments**, abra o menu (⋯) do deploy mais recente de produção e clique em **Redeploy**. Sem isso, o site não enxerga a variável nova.
+1. Entre no Google Cloud (conta do Espaço) → projeto **espaco-byla-eventos** → **Cloud Run** → serviço **espaco-byla-eventos** → **Editar e implantar nova revisão**.
+2. Em **Variáveis e secrets**, adicione:
+   - **Nome:** `REMINDER_CRON_SECRET`
+   - **Valor:** o segredo do passo 1
+3. Clique em **Implantar**. A nova revisão já nasce com a variável.
+4. Confira em **Revisões** que a nova revisão recebe **100%** do tráfego. Se o tráfego estiver fixado numa revisão antiga, use **Gerenciar tráfego** e mande 100% para a nova. Sem isso, o site não enxerga a variável nova.
+5. Guarde o mesmo valor também na cópia particular das variáveis (`%USERPROFILE%\.byla-secrets\`), para um deploy futuro não perder a variável.
+
+Não use `gcloud ... --update-env-vars` com o valor na linha de comando: o gcloud grava os argumentos no log local dele.
 
 ## Passo 3 — Colocar o mesmo segredo no Vault da Supabase
 
@@ -95,7 +99,7 @@ Espere uns 20 minutos e confira:
   ```
 
   - `200`: funcionando (mesmo quando não há lembrete para mandar).
-  - `401`: o segredo da Vercel e o do Vault estão diferentes, ou faltou o **Redeploy** do passo 2.
+  - `401`: o segredo do Cloud Run e o do Vault estão diferentes, ou a revisão nova do passo 2 não recebe o tráfego.
   - `503`: falta configurar o envio de e-mails do site.
   - Nenhuma linha: confira o nome `reminder_cron_secret` no Vault.
 - **Teste real (opcional):** depois do deploy, comece uma compra com o seu e-mail num evento à venda e não pague. Em cerca de 1h a 1h15 chega o lembrete. Clique em **Continuar compra** (a seleção volta preenchida) e depois em **Não quero receber lembretes**.
@@ -111,17 +115,17 @@ select cron.unschedule('abandoned-reminders');
 ```
 
 2. Apagar o segredo `reminder_cron_secret` no Vault: o job continua rodando, mas não chama mais o site.
-3. Apagar `REMINDER_CRON_SECRET` na Vercel (e fazer Redeploy): o site recusa as chamadas.
+3. Apagar `REMINDER_CRON_SECRET` no Cloud Run (nova revisão com 100% do tráfego): o site recusa as chamadas.
 
 Para ligar de novo depois da opção 1, repita o passo 4.
 
 ## Trocar o segredo
 
-Gere um novo (passo 1) e troque **nos dois lugares**: Vercel (com Redeploy) e Vault (edite `reminder_cron_secret`). Enquanto só um lado estiver trocado, o site recusa as chamadas e nada é enviado.
+Gere um novo (passo 1) e troque **nos dois lugares**: Cloud Run (passo 2, revisão nova com 100% do tráfego) e Vault (edite `reminder_cron_secret`). Enquanto só um lado estiver trocado, o site recusa as chamadas e nada é enviado.
 
 ## Se o endereço do site mudar
 
-O banco chama `https://espaco-byla-eventos.vercel.app/api/cron/abandoned-reminders`. Se o site ganhar outro domínio, crie no Vault o segredo `reminder_cron_url` com o endereço completo novo, terminando em `/api/cron/abandoned-reminders` e começando com `https://`.
+O banco chama o endereço guardado no Vault em `reminder_cron_url` (hoje `https://ingressos.espacobyla.online/api/cron/abandoned-reminders`). Sem esse segredo, a função usa o endereço antigo da Vercel, que só redireciona e **não funciona** para o lembrete (o banco não segue redirecionamento). Se o domínio mudar, edite `reminder_cron_url` no Vault com o endereço completo novo, terminando em `/api/cron/abandoned-reminders` e começando com `https://`.
 
 ## Detalhes técnicos (para quem mantém o código)
 
