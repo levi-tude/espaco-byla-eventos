@@ -1293,6 +1293,44 @@ try {
     String(await nth("2030-12-27")));
 
   await db.end();
+
+  // ======================= 9) ENSAIO DE PRODUÇÃO (banco separado) =======================
+  await server.createDatabase("byla_ensaio");
+  const ens = new pg.Client({ host: "localhost", port: PORT, user: "postgres", password: PASSWORD, database: "byla_ensaio" });
+  ens.on("error", () => {});
+  await ens.connect();
+  await ens.query(STUBS);
+  for (const file of files.slice(0, files.indexOf(MIGRATION_FEES))) await ens.query(migrationSql(file));
+  for (const [email, name, isDev] of [["espaco@exemplo.com", "Espaço", false], ["dev@exemplo.com", "Dev", true]]) {
+    const id = randomUUID();
+    await ens.query("insert into auth.users (id, email) values ($1, $2)", [id, email]);
+    await ens.query("insert into public.staff_profiles (user_id, display_name, role, is_developer) values ($1, $2, 'admin', $3)", [id, name, isDev]);
+  }
+  const ensaioFile = readFileSync(join(ROOT, "supabase", "tests", "organizer_finance_check.sql"), "utf8");
+  const marker = "-- >>> conteúdo das três migrations aqui <<<";
+  check("9. ensaio tem o lugar marcado para as migrations", ensaioFile.includes(marker));
+  const ensaioSql = (hasTz ? ensaioFile : ensaioFile.replaceAll("'America/Sao_Paulo'", "'UTC'")).replace(marker,
+    () => `${migrationSql(MIGRATION_FEES)}\n${migrationSql(MIGRATION_PAYOUTS)}\n${migrationSql(MIGRATION_PIX)}\n`);
+  let ensaioMessage = "";
+  try {
+    await ens.query(ensaioSql);
+  } catch (error) {
+    ensaioMessage = error.message;
+  }
+  const tokens = ensaioMessage.replace(/^ENSAIO/, "").trim().split(/\s+/).filter(Boolean);
+  const bad = tokens.filter((t) => !/^[a-z0-9_]+=ok$/.test(t));
+  const expectedNames = [...new Set([...ensaioFile.matchAll(/r := r \|\| ' ([a-z0-9_]+)=/g)].map((m) => m[1]))]
+    .filter((n) => n !== "interrompido").sort();
+  const gotNames = tokens.map((t) => t.split("=")[0]).sort();
+  check("9. ensaio termina com ENSAIO e só casos ok", ensaioMessage.startsWith("ENSAIO") && bad.length === 0,
+    `(problemas: ${bad.join(" ") || ensaioMessage})`);
+  check(`9. ensaio devolve exatamente os ${expectedNames.length} casos do arquivo, cada um uma vez`,
+    JSON.stringify(gotNames) === JSON.stringify(expectedNames), `(${tokens.length} recebidos)`);
+  check("9. ensaio não imprime e-mail nem chave", !/@|52998224725/.test(ensaioMessage));
+  const left = (await ens.query(
+    "select to_regclass('public.organizer_payouts') as a, to_regclass('public.order_payment_fees') as b, (select count(*)::int from auth.users) as n")).rows[0];
+  check("9. nada ficou depois do ensaio", left.a === null && left.b === null && left.n === 2, JSON.stringify(left));
+  await ens.end();
 } catch (error) {
   failures += 1;
   console.log("ERRO:", error.message);
