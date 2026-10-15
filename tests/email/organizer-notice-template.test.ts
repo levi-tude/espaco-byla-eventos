@@ -159,6 +159,13 @@ describe("buildOrganizerNotice", () => {
     expect(withoutKey.text).toContain("O Espaço Byla vai te mandar a chave PIX");
   });
 
+  it("pedido estornado com número e aviso de desconto", () => {
+    const notice = buildOrganizerNotice("org_pedido_estornado", { eventName: "Festa", orderNumber: "ABCDEF12", link });
+    expect(notice.subject).toBe("Pedido estornado no seu evento");
+    expect(notice.text).toContain("O pedido Nº ABCDEF12 do evento Festa foi estornado.");
+    expect(notice.text).toContain("Se o repasse já foi feito, o valor será descontado do próximo.");
+  });
+
   it("resumo da equipe só com contagens", () => {
     const notice = buildOrganizerNotice("equipe_repasses_resumo", {
       summary: { latePayouts: 3, latePayoutsCents: 123456, lateRefunds: 1, feesPending: 2, calendarMissingYear: 2027 },

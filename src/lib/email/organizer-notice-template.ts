@@ -16,6 +16,7 @@ export const ORGANIZER_NOTICE_KINDS = [
   "equipe_pix_troca_pedida",
   "org_devolucao_pendente",
   "equipe_repasses_resumo",
+  "org_pedido_estornado",
 ] as const;
 
 export type OrganizerNoticeKind = (typeof ORGANIZER_NOTICE_KINDS)[number];
@@ -38,6 +39,8 @@ export type OrganizerNoticeData = {
   organizerName?: string;
   /** ISO: quando a troca de chave PIX pode ser confirmada. */
   confirmAfter?: string;
+  /** Número curto do pedido ("1234"), sem dado do comprador. */
+  orderNumber?: string;
   /** Chave PIX do Espaço Byla para receber devoluções (não é dado de organizador). */
   espacoPixKey?: string;
   /** Resumo diário da equipe: só contagens e somas. */
@@ -317,6 +320,19 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
           [`Devolva ${amount} por PIX ao Espaço Byla${day ? ` até ${day}` : ""}.`],
           key ? ["Chave PIX do Espaço Byla: ", { strong: key }] : ["O Espaço Byla vai te mandar a chave PIX para a devolução."],
           ["Enquanto a devolução estiver atrasada, não dá para enviar novos eventos para aprovação."],
+        ],
+        buttonLabel: "Ver financeiro",
+        footer: ORGANIZER_FOOTER,
+      };
+    }
+    case "org_pedido_estornado": {
+      const number = singleLine(data.orderNumber, 20);
+      return {
+        subject: "Pedido estornado no seu evento",
+        title: "Pedido estornado",
+        paragraphs: [
+          [number ? `O pedido Nº ${number} do evento ` : "Um pedido do evento ", event, " foi estornado."],
+          ["Se o repasse já foi feito, o valor será descontado do próximo."],
         ],
         buttonLabel: "Ver financeiro",
         footer: ORGANIZER_FOOTER,

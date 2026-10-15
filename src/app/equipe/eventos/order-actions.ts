@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { requireStaffUser } from "@/lib/auth/staff-user";
 import { normalizeRefundReason } from "@/lib/domain/refund";
-import { notifyOrganizer, organizerNoticeLink } from "@/lib/organizer/notify";
+import { notifyOrganizerOrderRefunded } from "@/lib/organizer/refund-notice";
 import { captureOrderFee } from "@/lib/payments/capture-fee";
 import { sendOrderTicketsEmail } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -126,49 +126,8 @@ async function refundOrderOrThrow(orderId: unknown, reason: unknown): Promise<Re
   }
 
   if (outcome.status === "refunded" && event?.organizer_id) {
-    await notifyRefundRequester(admin, {
-      staffUserId: userId,
-      orderId,
-      eventId: order.event_id,
-      eventName: event.name,
-      organizerId: event.organizer_id,
-    });
+    await notifyOrganizerOrderRefunded(admin, orderId);
   }
   return outcome;
 }
 
-/**
- * Se o organizador tinha pedido este estorno (o banco já fechou o pedido como
- * atendido), avisa que foi feito. Nunca lança: o estorno já aconteceu.
- */
-async function notifyRefundRequester(
-  admin: ReturnType<typeof createAdminClient>,
-  input: { staffUserId: string; orderId: string; eventId: string; eventName: string; organizerId: string },
-) {
-  try {
-    const { data, error } = await admin.rpc("list_ops_requests", {
-      p_staff: input.staffUserId,
-      p_status: "atendido",
-      p_event_id: input.eventId,
-    });
-    if (error) {
-      console.error("[estorno] Falha ao conferir pedido de estorno do organizador.", error.code ?? "sem-codigo");
-      return;
-    }
-    const requested = (data ?? []).some(
-      (request) => request.kind === "estorno" && request.order_id === input.orderId,
-    );
-    if (!requested) return;
-    await notifyOrganizer(input.organizerId, "org_pedido_respondido", {
-      eventName: input.eventName,
-      requestKind: "estorno",
-      outcome: "atendido",
-      link: organizerNoticeLink(`/organizador/eventos/${input.eventId}`),
-    });
-  } catch (error) {
-    console.error(
-      "[estorno] Falha ao avisar o organizador do estorno.",
-      error instanceof Error ? error.name : "desconhecido",
-    );
-  }
-}

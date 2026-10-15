@@ -6,9 +6,13 @@ const mocks = vi.hoisted(() => ({
   runSessionNotices: vi.fn(),
   capturePaymentFee: vi.fn(),
   captureOrderFee: vi.fn(),
+  notifyOrganizerOrderRefunded: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/organizer/refund-notice", () => ({
+  notifyOrganizerOrderRefunded: mocks.notifyOrganizerOrderRefunded,
+}));
 vi.mock("@/lib/payments/capture-fee", () => ({
   capturePaymentFee: mocks.capturePaymentFee,
   captureOrderFee: mocks.captureOrderFee,
@@ -369,12 +373,14 @@ describe("syncOrderRefunded busca de novo a tarifa depois do estorno", () => {
     const [emailed] = mocks.sendRefundEmail.mock.invocationCallOrder;
     const [captured] = mocks.captureOrderFee.mock.invocationCallOrder;
     expect(emailed).toBeLessThan(captured);
+    expect(mocks.notifyOrganizerOrderRefunded).toHaveBeenCalledWith(admin, orderId);
   });
 
   it.each(["other_order", "noop"])("resultado %s não consulta a tarifa", async (outcome) => {
     const { admin } = makeAdmin({ sync_order_refunded: outcome }, emailTables);
     await syncOrderRefunded(admin, orderId, "mercadopago", "ORD1");
     expect(mocks.captureOrderFee).not.toHaveBeenCalled();
+    expect(mocks.notifyOrganizerOrderRefunded).not.toHaveBeenCalled();
   });
 
   it("falha na consulta da tarifa não muda o resultado", async () => {

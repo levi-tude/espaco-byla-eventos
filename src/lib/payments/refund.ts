@@ -6,6 +6,7 @@ import type { SupabaseAdmin } from "@/lib/domain/orders";
 import { refundBlockMessage, refundRejectionMessage } from "@/lib/domain/refund";
 import { sendRefundEmail } from "@/lib/email/send-refund";
 import { runSessionNotices } from "@/lib/notices/process";
+import { notifyOrganizerOrderRefunded } from "@/lib/organizer/refund-notice";
 import { captureOrderFee, capturePaymentFee } from "@/lib/payments/capture-fee";
 import type { PaymentProvider } from "@/lib/payments/provider";
 import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
@@ -252,6 +253,7 @@ export async function syncOrderRefunded(
     await refreshFeeAfterRefund(externalId, () =>
       captureOrderFee(admin, externalId, { afterRefund: true }),
     );
+    await notifyOrganizerOrderRefunded(admin, externalId);
   }
   return outcome;
 }

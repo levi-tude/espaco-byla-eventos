@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   sendOrderTicketsEmail: vi.fn(),
   revalidatePath: vi.fn(),
   refundPaidOrder: vi.fn(),
-  notifyOrganizer: vi.fn(),
+  notifyOrganizerOrderRefunded: vi.fn(),
   captureOrderFee: vi.fn(),
 }));
 
@@ -32,9 +32,8 @@ vi.mock("@/lib/payments/provider", () => ({
   getPaymentProvider: () => ({ name: "mercadopago" }),
 }));
 vi.mock("@/lib/payments/refund", () => ({ refundPaidOrder: mocks.refundPaidOrder }));
-vi.mock("@/lib/organizer/notify", () => ({
-  notifyOrganizer: mocks.notifyOrganizer,
-  organizerNoticeLink: (path: string) => `https://ingressos.exemplo.com${path}`,
+vi.mock("@/lib/organizer/refund-notice", () => ({
+  notifyOrganizerOrderRefunded: mocks.notifyOrganizerOrderRefunded,
 }));
 
 import { acceptPaidOrder, refundOrder } from "@/app/equipe/eventos/order-actions";
@@ -257,90 +256,41 @@ describe("refundOrder", () => {
     });
   });
 
-  describe("evento de organizador com estorno pedido por ele (spec 5.5, item 5)", () => {
+  describe("evento de organizador (spec 5.5, item 5)", () => {
     const organizerId = "00000000-0000-4000-8000-0000000000aa";
     const eventId = "00000000-0000-4000-8000-000000000001";
 
-    function organizerOrder() {
+    function orderOf(organizer: string | null) {
       mocks.adminFrom.mockImplementation(() =>
         orderLookup({
           event_id: eventId,
           public_token: "token-1",
-          events: { slug: "peca-y", name: "Peça Y", organizer_id: organizerId },
+          events: { slug: "peca-y", name: "Peça Y", organizer_id: organizer },
         }),
       );
     }
 
-    function answeredRequests(rows: unknown[], error: unknown = null) {
-      mocks.adminRpc.mockImplementation(async (name: string) =>
-        name === "list_ops_requests" ? { data: rows, error } : { data: null, error: null },
-      );
-    }
-
-    beforeEach(() => {
-      organizerOrder();
-      mocks.adminRpc.mockResolvedValue({ data: [], error: null });
-      mocks.notifyOrganizer.mockResolvedValue("sent");
-    });
-
-    it("estorno concluído avisa o organizador que o pedido dele foi atendido", async () => {
-      answeredRequests([
-        { id: "r-1", kind: "estorno", order_id: orderId, status: "atendido" },
-      ]);
+    it("estorno concluído avisa o organizador", async () => {
+      orderOf(organizerId);
       expect(await refundOrder(orderId, reason)).toEqual({
         ok: true,
         data: { status: "refunded", emailSent: true },
       });
-      expect(mocks.adminRpc).toHaveBeenCalledWith("list_ops_requests", {
-        p_staff: staffUserId,
-        p_status: "atendido",
-        p_event_id: eventId,
-      });
-      expect(mocks.notifyOrganizer).toHaveBeenCalledWith(organizerId, "org_pedido_respondido", {
-        eventName: "Peça Y",
-        requestKind: "estorno",
-        outcome: "atendido",
-        link: `https://ingressos.exemplo.com/organizador/eventos/${eventId}`,
-      });
+      expect(mocks.notifyOrganizerOrderRefunded).toHaveBeenCalledWith(expect.anything(), orderId);
       expect(mocks.revalidatePath).toHaveBeenCalledWith(`/organizador/eventos/${eventId}`);
     });
 
-    it("sem pedido do organizador para este pedido, não avisa", async () => {
-      answeredRequests([
-        { id: "r-2", kind: "estorno", order_id: "00000000-0000-4000-8000-000000000099", status: "atendido" },
-        { id: "r-3", kind: "mudanca", order_id: null, status: "atendido" },
-      ]);
-      expect((await refundOrder(orderId, reason)).ok).toBe(true);
-      expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
-    });
-
     it("estorno ainda em processamento não avisa", async () => {
-      answeredRequests([{ id: "r-1", kind: "estorno", order_id: orderId, status: "atendido" }]);
+      orderOf(organizerId);
       mocks.refundPaidOrder.mockResolvedValue({ status: "processing" });
       expect(await refundOrder(orderId, reason)).toEqual({ ok: true, data: { status: "processing" } });
-      expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+      expect(mocks.notifyOrganizerOrderRefunded).not.toHaveBeenCalled();
     });
 
-    it("falha ao conferir o pedido ou ao avisar nunca desfaz o estorno", async () => {
-      const log = vi.spyOn(console, "error").mockImplementation(() => {});
-      answeredRequests([], { code: "57014", message: "timeout" });
-      expect(await refundOrder(orderId, reason)).toEqual({
-        ok: true,
-        data: { status: "refunded", emailSent: true },
-      });
-      mocks.adminRpc.mockRejectedValue(new Error("rede caiu"));
+    it("evento do próprio Espaço não procura organizador", async () => {
+      orderOf(null);
       expect((await refundOrder(orderId, reason)).ok).toBe(true);
-      expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
-      expect(JSON.stringify(log.mock.calls)).not.toMatch(/Peça Y|@/);
-    });
-
-    it("evento do próprio Espaço não procura pedido de organizador", async () => {
-      mocks.adminFrom.mockImplementation(() =>
-        orderLookup({ event_id: eventId, public_token: "token-1", events: { slug: "show", name: "Show", organizer_id: null } }),
-      );
-      expect((await refundOrder(orderId, reason)).ok).toBe(true);
-      expect(mocks.adminRpc).not.toHaveBeenCalledWith("list_ops_requests", expect.anything());
-      expect(mocks.notifyOrganizer).not.toHaveBeenCalled();
+      expect(mocks.notifyOrganizerOrderRefunded).not.toHaveBeenCalled();
     });
   });
 

@@ -12,9 +12,13 @@ const mocks = vi.hoisted(() => ({
   consumeRateLimit: vi.fn(),
   cancelPendingCharges: vi.fn(),
   confirmOrderPaid: vi.fn(),
+  notifyOrganizerOrderRefunded: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/organizer/refund-notice", () => ({
+  notifyOrganizerOrderRefunded: mocks.notifyOrganizerOrderRefunded,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({ auth: { getUser: mocks.getUser }, rpc: mocks.serverRpc }),
@@ -308,6 +312,7 @@ describe("refundNextInBatch", () => {
       p_status: "estornado",
       p_code: null,
     });
+    expect(mocks.notifyOrganizerOrderRefunded).toHaveBeenCalledWith(expect.anything(), orderId);
   });
 
   it.each([
@@ -326,6 +331,7 @@ describe("refundNextInBatch", () => {
       p_status: status,
       p_code: code,
     });
+    expect(mocks.notifyOrganizerOrderRefunded).not.toHaveBeenCalled();
   });
 
   it("3 erros temporários seguidos pedem pausa", async () => {

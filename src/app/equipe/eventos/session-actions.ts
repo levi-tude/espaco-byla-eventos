@@ -17,6 +17,7 @@ import {
 } from "@/lib/domain/session-ops";
 import { runSessionNotices } from "@/lib/notices/process";
 import { NOTICE_BATCH_SIZE } from "@/lib/notices/rules";
+import { notifyOrganizerOrderRefunded } from "@/lib/organizer/refund-notice";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { RefundActionError, refundPaidOrder } from "@/lib/payments/refund";
@@ -400,6 +401,7 @@ async function refundNextInBatchOrThrow(batchId: unknown): Promise<RefundStepRes
     p_code: code,
   });
   if (finishError) throw new Error(`finish_session_refund_item falhou: ${finishError.message}`);
+  if (status === "estornado") await notifyOrganizerOrderRefunded(admin, claim.order_id);
   const finishedObj = asObj(finished);
   const finalStatus = (typeof finishedObj?.status === "string" ? finishedObj.status : status) as RefundBatchItemStatus;
   const consecutiveErrors = Number(finishedObj?.consecutive_errors) || 0;
