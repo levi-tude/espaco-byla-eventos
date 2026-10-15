@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { AutoRefresh } from "@/components/equipe/AutoRefresh";
 import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventFinancePanel } from "@/components/equipe/EventFinancePanel";
+import { EventOrganizerPayout } from "@/components/equipe/EventOrganizerPayout";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { OrganizerRefundRequests } from "@/components/equipe/OpsRequestCard";
@@ -44,6 +45,7 @@ import { isRecentlyPaid } from "@/lib/domain/status";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { todayKey } from "@/lib/domain/fee-payout";
 import { loadEventFinance } from "@/lib/finance/load";
+import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -217,6 +219,8 @@ export default async function EventoEquipePage({
       : Promise.resolve({ data: [], error: null }),
     event.organizer_id ? loadOrganizerPanelInfo(event.id) : Promise.resolve(null),
   ]);
+  const organizerFinance =
+    finance && event.organizer_id ? await loadOrganizerEventFinance(finance.userId, event.id) : null;
   const refundReasonByOrder = new Map(
     (organizerInfo?.refundRequests ?? []).map((request) => [request.orderId, request.reason]),
   );
@@ -425,6 +429,7 @@ export default async function EventoEquipePage({
     { id: "vendas", label: "Vendas" },
     ...(pendingDecisions.length ? [{ id: "decisao", label: "Decisões" }] : []),
     ...(finance ? [{ id: "financeiro", label: "Financeiro" }] : []),
+    ...(finance && event.organizer_id ? [{ id: "organizador", label: "Organizador" }] : []),
     { id: "participantes", label: "Participantes" },
     { id: "cortesia", label: "Cortesia" },
     { id: "editar", label: "Editar" },
@@ -698,6 +703,16 @@ export default async function EventoEquipePage({
               }))}
               summary={financeSummary}
               today={todayKey()}
+            />
+          ) : null}
+
+          {finance && event.organizer_id ? (
+            <EventOrganizerPayout
+              canWrite={!finance.isDeveloper}
+              className={sectionClass}
+              eventName={event.name}
+              finance={organizerFinance}
+              id="organizador"
             />
           ) : null}
 

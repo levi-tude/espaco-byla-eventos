@@ -1429,6 +1429,79 @@ export type Database = {
         };
         Returns: Json;
       };
+      record_payment_fee_manual: {
+        Args: { p_admin: string; p_order_id: string; p_fee_cents: number; p_note: string };
+        Returns: Json;
+      };
+      event_fee_pending_orders: {
+        Args: { p_admin: string; p_event_id: string };
+        Returns: {
+          order_id: string;
+          created_at: string;
+          total_cents: number;
+          status: string;
+          attempts: number;
+          last_error: string | null;
+        }[];
+      };
+      issue_organizer_action_code: {
+        Args: { p_actor: string; p_purpose: string; p_code: string };
+        Returns: string;
+      };
+      request_pix_change: {
+        Args: {
+          p_actor: string;
+          p_code: string;
+          p_pix_key_type: string;
+          p_pix_key: string;
+          p_holder_name: string;
+          p_holder_document: string;
+        };
+        Returns: Json;
+      };
+      cancel_pix_change: {
+        Args: { p_actor: string; p_request_id: string };
+        Returns: undefined;
+      };
+      decide_pix_change: {
+        Args: { p_admin: string; p_request_id: string; p_approve: boolean; p_note: string | null };
+        Returns: Json;
+      };
+      list_pix_change_requests: {
+        Args: { p_admin: string };
+        Returns: {
+          request_id: string;
+          organizer_id: string;
+          public_name: string;
+          status: string;
+          current_key_masked: string;
+          new_key_type: string;
+          new_key_masked: string;
+          new_document_masked: string;
+          confirm_after: string;
+          can_confirm: boolean;
+          created_at: string;
+          decided_at: string | null;
+          decided_by_name: string | null;
+          decision_note: string | null;
+        }[];
+      };
+      pix_change_details: {
+        Args: { p_admin: string; p_request_id: string };
+        Returns: Json;
+      };
+      organizer_pix_change_state: {
+        Args: { p_actor: string };
+        Returns: Json;
+      };
+      claim_refund_request_notice: {
+        Args: { p_order_id: string };
+        Returns: { request_id: string; requested_by: string; event_id: string; event_name: string }[];
+      };
+      claim_event_refund_notice: {
+        Args: { p_order_id: string };
+        Returns: { organizer_id: string; event_id: string; event_name: string }[];
+      };
       orders_missing_fee: {
         Args: { p_limit: number };
         Returns: {

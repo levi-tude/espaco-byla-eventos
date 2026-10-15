@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/domain/service-fee";
+
 export const ORGANIZER_NOTICE_KINDS = [
   "equipe_pedido_site",
   "equipe_evento_enviado",
@@ -6,6 +8,7 @@ export const ORGANIZER_NOTICE_KINDS = [
   "org_evento_recusado",
   "org_pedido_respondido",
   "org_conta_suspensa",
+  "org_repasse_registrado",
 ] as const;
 
 export type OrganizerNoticeKind = (typeof ORGANIZER_NOTICE_KINDS)[number];
@@ -21,6 +24,9 @@ export type OrganizerNoticeData = {
   requestKind?: OrganizerRequestKind;
   outcome?: "atendido" | "recusado";
   count?: number;
+  amountCents?: number;
+  /** "AAAA-MM-DD" */
+  day?: string;
   link: string;
 };
 
@@ -210,6 +216,25 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         buttonLabel: "Abrir o site",
         footer: ORGANIZER_FOOTER,
       };
+    case "org_repasse_registrado": {
+      const amount =
+        Number.isSafeInteger(data.amountCents) && (data.amountCents as number) > 0
+          ? formatMoney(data.amountCents as number)
+          : null;
+      const day = data.day && /^\d{4}-\d{2}-\d{2}$/.test(data.day) ? data.day.split("-").reverse().join("/") : null;
+      return {
+        subject: "Repasse registrado",
+        title: "Repasse registrado",
+        paragraphs: [
+          amount
+            ? ["O Espaço Byla registrou o repasse de ", { strong: amount }, " do evento ", event, day ? ` (PIX de ${day}).` : "."]
+            : ["O Espaço Byla registrou o acerto do evento ", event, " (descontado de valores a devolver, sem PIX)."],
+          ["Os detalhes estão na aba Financeiro do evento, na sua área."],
+        ],
+        buttonLabel: "Ver financeiro",
+        footer: ORGANIZER_FOOTER,
+      };
+    }
   }
 }
 

@@ -54,6 +54,7 @@ export default async function EquipeLayout({
         { href: "/equipe/aprovacoes", label: approvals ? `Aprovações (${approvals})` : "Aprovações" },
         { href: "/equipe/organizadores", label: "Organizadores" },
         { href: "/equipe/taxa-servico", label: "Taxa de serviço" },
+        { href: "/equipe/repasses", label: "Repasses" },
         { href: "/equipe/seguranca", label: "Segurança" },
       ]
     : [

@@ -340,6 +340,26 @@ export function payoutSituation(f: SituationInput): PayoutSituation {
   return { kind: "sem_valor" };
 }
 
+/** Situação de uma linha da página "Repasses" (o resumo traz só a data do último repasse). */
+export function overviewSituation(e: PayoutsOverviewEvent, today: string): PayoutSituation {
+  const history: FinanceHistoryItem[] = e.lastPayoutAt
+    ? [
+        {
+          payoutId: "",
+          kind: "repasse",
+          itemCents: e.paidOutCents,
+          payoutCents: e.paidOutCents,
+          pixDate: e.lastPayoutAt,
+          createdAt: e.lastPayoutAt,
+          note: null,
+          reason: null,
+          createdByName: null,
+        },
+      ]
+    : [];
+  return payoutSituation({ ...e, today, history });
+}
+
 /** "2026-10-30" → "30/10". */
 export function shortDay(dayKey: string | null | undefined): string {
   const match = dayKey ? /^(\d{4})-(\d{2})-(\d{2})/.exec(dayKey) : null;

@@ -113,6 +113,26 @@ describe("buildOrganizerNotice", () => {
     expect(notice.text).toContain("Falta a capa");
   });
 
+  it("repasse registrado traz valor, evento e data do PIX", () => {
+    const notice = buildOrganizerNotice("org_repasse_registrado", {
+      eventName: "Festa",
+      amountCents: 43905,
+      day: "2026-10-29",
+      link,
+    });
+    expect(notice.subject).toBe("Repasse registrado");
+    expect(notice.text).toContain("R$\u00a0439,05");
+    expect(notice.text).toContain("Festa");
+    expect(notice.text).toContain("29/10/2026");
+    expect(notice.text).not.toMatch(/chave|CPF|CNPJ/i);
+  });
+
+  it("acerto sem PIX não mostra valor nem data", () => {
+    const notice = buildOrganizerNotice("org_repasse_registrado", { eventName: "Festa", amountCents: 0, link });
+    expect(notice.text).toContain("sem PIX");
+    expect(notice.text).not.toContain("R$");
+  });
+
   it("link que não é endereço web não vira botão", () => {
     const notice = buildOrganizerNotice("org_conta_suspensa", { link: "javascript:alert(1)" });
     expect(notice.html).not.toContain("javascript:");

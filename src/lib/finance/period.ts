@@ -4,6 +4,8 @@
  */
 
 export const FEE_PERIOD_MAX_MONTHS = 24;
+/** O banco recusa período de repasses acima de 400 dias. */
+export const PAYOUT_PERIOD_MAX_MONTHS = 12;
 
 const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -54,6 +56,7 @@ export function parseFeePeriod(
   de: string | string[] | null | undefined,
   ate: string | string[] | null | undefined,
   today: string,
+  maxMonths: number = FEE_PERIOD_MAX_MONTHS,
 ): FeePeriod {
   const fallback = periodOf(currentMonth(today), currentMonth(today));
   const fromMonth = single(de);
@@ -62,7 +65,7 @@ export function parseFeePeriod(
   const fromIndex = monthIndex(fromMonth);
   const toIndex = monthIndex(toMonth);
   if (fromIndex === null || toIndex === null) return fallback;
-  if (toIndex < fromIndex || toIndex - fromIndex + 1 > FEE_PERIOD_MAX_MONTHS) return fallback;
+  if (toIndex < fromIndex || toIndex - fromIndex + 1 > maxMonths) return fallback;
   return periodOf(fromMonth, toMonth);
 }
 
