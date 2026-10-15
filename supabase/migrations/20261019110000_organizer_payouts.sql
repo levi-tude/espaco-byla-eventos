@@ -175,7 +175,8 @@ returns setof uuid language sql stable security definer set search_path = '' as 
       or exists (select 1 from public.organizer_payout_items i where i.event_id = e.id));
 $$;
 
--- Descontos pendentes (saldo < 0) de outros eventos do organizador, do mais antigo ao mais novo.
+-- Descontos pendentes (saldo < 0) de outros eventos do organizador, do mais antigo ao mais novo:
+-- data da marcação aberta; sem marcação ainda = ficou negativo hoje.
 create function public.organizer_pending_discounts(p_organizer_id uuid, p_except_event_id uuid)
 returns table (event_id uuid, event_name text, balance_cents bigint)
 language sql stable security definer set search_path = '' as $$
@@ -186,7 +187,8 @@ language sql stable security definer set search_path = '' as $$
     and e.id is distinct from p_except_event_id
     and b.balance_cents < 0
   order by coalesce((select f.negative_since from public.organizer_balance_flags f
-                     where f.event_id = e.id and f.resolved_at is null), public.event_fee_due_date(e.id)),
+                     where f.event_id = e.id and f.resolved_at is null),
+                    (now() at time zone 'America/Sao_Paulo')::date),
            e.id;
 $$;
 
@@ -408,6 +410,8 @@ $$;
 -- 5) Marcações de saldo negativo (cron diário) ---------------------------------------------
 
 -- Abre/fecha marcações e devolve as que precisam de e-mail ("Devolução pendente").
+-- Enquanto houver tarifa em conferência no evento, não abre marcação, não dá prazo de devolução
+-- e não manda e-mail: o saldo ainda pode mudar (a marcação aberta fica como está).
 create function public.refresh_organizer_balance_flags()
 returns table (flag_id uuid, organizer_id uuid, event_id uuid, event_name text, owed_cents bigint, return_due_date date)
 language plpgsql volatile security definer set search_path = '' as $$
@@ -425,12 +429,13 @@ begin
   from public.organizer_finance_event_ids() as ids(id)
   join public.events e on e.id = ids.id
   cross join lateral public.organizer_event_balance(e.id) b
-  where b.balance_cents < 0
+  where b.balance_cents < 0 and b.pending_fee_orders = 0
     and not exists (select 1 from public.organizer_balance_flags f where f.event_id = e.id and f.resolved_at is null);
 
   for r in
     update public.organizer_balance_flags f set return_due_date = v_today + 10
     where f.resolved_at is null and f.return_due_date is null and f.negative_since + 30 <= v_today
+      and (select b.pending_fee_orders from public.organizer_event_balance(f.event_id) b) = 0
     returning f.event_id, f.organizer_id
   loop
     perform public.log_audit(null, 'devolucao_pendente', r.event_id, null, r.organizer_id, '{}'::jsonb);
@@ -442,6 +447,7 @@ begin
   join public.events e on e.id = f.event_id
   cross join lateral public.organizer_event_balance(f.event_id) b
   where f.resolved_at is null and f.return_due_date is not null and f.return_notified_at is null
+    and b.balance_cents < 0 and b.pending_fee_orders = 0
   order by f.organizer_id, f.return_due_date;
 end;
 $$;
@@ -452,11 +458,15 @@ returns void language sql volatile security definer set search_path = '' as $$
   where f.id = p_flag_id and f.return_notified_at is null;
 $$;
 
+-- Devolução atrasada = prazo vencido e saldo do evento ainda negativo agora, com todas as
+-- tarifas conferidas (não depende do cron ter rodado depois de uma correção).
 create function public.organizer_overdue_refunds(p_organizer_id uuid)
 returns integer language sql stable security definer set search_path = '' as $$
   select count(*)::integer from public.organizer_balance_flags f
+  cross join lateral public.organizer_event_balance(f.event_id) b
   where f.organizer_id = p_organizer_id and f.resolved_at is null
-    and f.return_due_date < (now() at time zone 'America/Sao_Paulo')::date;
+    and f.return_due_date < (now() at time zone 'America/Sao_Paulo')::date
+    and b.balance_cents < 0 and b.pending_fee_orders = 0;
 $$;
 
 -- Resumo do cron para o e-mail diário da equipe: só contagens e somas (sem nomes nem dados
@@ -476,9 +486,8 @@ begin
   cross join lateral (select public.event_payout_due_date(ids.id) as due) d
   where b.balance_cents > 0 and d.due is not null and v_today > d.due;
 
-  select count(*)::integer into v_refunds
-  from public.organizer_balance_flags f
-  where f.resolved_at is null and f.return_due_date < v_today;
+  select coalesce(sum(public.organizer_overdue_refunds(o.organizer_id)), 0)::integer into v_refunds
+  from (select distinct f.organizer_id from public.organizer_balance_flags f where f.resolved_at is null) o;
 
   select count(*)::integer into v_fees
   from public.orders o
@@ -539,9 +548,8 @@ begin
   select coalesce(jsonb_agg(
       jsonb_build_object(
         'payout_id', p.id, 'kind', p.kind, 'item_cents', i.amount_cents, 'payout_cents', p.amount_cents,
-        'pix_date', p.pix_date, 'created_at', p.created_at, 'note', p.note)
-      || case when v_team then jsonb_build_object('created_by_name', p.created_by_name, 'reason', p.reason)
-              else '{}'::jsonb end
+        'pix_date', p.pix_date, 'created_at', p.created_at, 'note', p.note, 'reason', p.reason)
+      || case when v_team then jsonb_build_object('created_by_name', p.created_by_name) else '{}'::jsonb end
       order by p.created_at desc, p.id), '[]'::jsonb)
     into v_history
   from public.organizer_payout_items i

@@ -857,7 +857,7 @@ try {
       && fOwner.start_date === addDays(today, -9) && fOwner.today === today && fOwner.calendar_until === 2030
       && fOwner.flag === null && fOwner.team === null, ownerJson);
   check("R10. dono: histórico sem quem registrou",
-    fOwner.history.length === 2 && fOwner.history.every((h) => !("created_by_name" in h) && !("reason" in h))
+    fOwner.history.length === 2 && fOwner.history.every((h) => !("created_by_name" in h) && h.reason === null)
       && fOwner.history.some((h) => h.kind === "repasse" && Number(h.item_cents) === 43905 && h.note === "PIX conferido")
       && fOwner.history.some((h) => Number(h.item_cents) === -5000 && Number(h.payout_cents) === 15000), ownerJson);
   const orderNumber = e1Orders[0].replaceAll("-", "").slice(0, 8).toUpperCase();
@@ -868,6 +868,11 @@ try {
   check("R10. dono: chave e documento mascarados, nada do comprador",
     fOwner.pix.masked === "•••.982.247-••" && fOwner.pix.type === "cpf" && fOwner.pix.change_pending === false
       && !ownerJson.includes("52998224725") && !/Comprador|comprador\.secreto|71900000002/.test(ownerJson), ownerJson);
+  const fAdjOwner = await finance(orgQ, e3);
+  const adjEntry = fAdjOwner.history.find((h) => h.kind === "ajuste");
+  check("R10. dono vê o motivo do ajuste (sem quem registrou)",
+    adjEntry?.reason === "Cobrança a favor do Espaço" && !("created_by_name" in adjEntry) && Number(adjEntry.item_cents) === 5000,
+    JSON.stringify(fAdjOwner.history));
   await rejects("R10. organizador de outro evento: ORG_ACESSO", () => finance(orgQ, e1), /^ORG_ACESSO/);
   await rejects("R10. secretaria: ORG_ACESSO", () => finance(sec, e1), /^ORG_ACESSO/);
   await rejects("R10. evento da equipe: ORG_ACESSO", () => finance(admin, ev), /^ORG_ACESSO/);
@@ -955,6 +960,101 @@ try {
     check(`R/máscara igual à de list_organizers (${fromList?.pix_key_masked})`,
       fromList && mine.k === fromList.pix_key_masked && mine.d === fromList.pix_holder_document_masked, JSON.stringify({ mine, fromList }));
   }
+
+  // F1) Ordem dos descontos: marcação aberta mais antiga primeiro; sem marcação = hoje
+  const orgV = await newOrg("v@exemplo.com", "Produtora V", "cpf", "52998224725");
+  const eA = await orgEvent(orgV, "Show A", addDays(today, -3));
+  const eB = await orgEvent(orgV, "Show B", addDays(today, -60));
+  await adjust(admin, eA, 4000, "Cobrança do evento A");
+  await refresh();
+  await q("update public.organizer_balance_flags set negative_since = $2::date where event_id = $1 and resolved_at is null",
+    [eA, addDays(today, -5)]);
+  await adjust(admin, eB, 3000, "Cobrança do evento B");
+  check("F1. B ficou negativo sem marcação (evento mais antigo que A)",
+    (await openFlag(eB)) === undefined && Number((await balance(eB)).balance_cents) === -3000);
+  const discountOrder = await svc("select event_id from public.organizer_pending_discounts($1, null)", [orgV]);
+  check("F1. ordem: A (marcado há 5 dias) antes de B (negativo hoje)",
+    discountOrder.length === 2 && discountOrder[0].event_id === eA && discountOrder[1].event_id === eB, JSON.stringify(discountOrder));
+  const eC = await orgEvent(orgV, "Show C", addDays(today, -2));
+  await record(await orgOrderOf(eC, { subtotal: 2000, svcFee: 0 }), 2000, 0);
+  const pV = await pay(admin, eC, 0, null);
+  const pVItems = await q("select event_id, amount_cents from public.organizer_payout_items where payout_id = $1", [pV.payout_id]);
+  check("F1. repasse abate de A primeiro (parcial): C +2000, A −2000, B intacto",
+    pV.kind === "compensacao" && pVItems.length === 2 && pVItems.find((i) => i.event_id === eA)?.amount_cents === -2000
+      && !pVItems.some((i) => i.event_id === eB)
+      && Number((await balance(eA)).balance_cents) === -2000 && Number((await balance(eB)).balance_cents) === -3000,
+    JSON.stringify(pVItems));
+  const rV = await received(admin, orgV, 3000);
+  const rVItems = await q("select event_id, amount_cents from public.organizer_payout_items where payout_id = $1", [rV.payout_id]);
+  check("F1. devolução parcial atravessa os dois: A −2000 (zera), depois B −1000",
+    Number(rV.remaining_cents) === 2000 && rVItems.length === 2
+      && rVItems.find((i) => i.event_id === eA)?.amount_cents === -2000 && rVItems.find((i) => i.event_id === eB)?.amount_cents === -1000
+      && Number((await balance(eA)).balance_cents) === 0 && Number((await balance(eB)).balance_cents) === -2000
+      && (await openFlag(eA)) === undefined, JSON.stringify(rVItems));
+
+  // F2) Tarifa em conferência: não cobra devolução
+  const orgW = await newOrg("w@exemplo.com", "Produtora W", "cpf", "52998224725");
+  const eW = await orgEvent(orgW, "Show W", addDays(today, -40));
+  const wOrder = await orgOrderOf(eW);
+  await adjust(admin, eW, 5000, "Contestação depois do repasse");
+  let bW = await balance(eW);
+  check("F2. saldo negativo com tarifa em conferência",
+    Number(bW.balance_cents) === -5000 && bW.pending_fee_orders === 1, JSON.stringify(bW));
+  await refresh();
+  check("F2. cron não abre marcação com tarifa em conferência", (await openFlag(eW)) === undefined);
+  const draftW = await orgEvent(orgW, "Rascunho W", addDays(today, 20), "rascunho");
+  const submitW = async () => {
+    try {
+      await svc("select public.submit_event_for_approval($1, $2)", [orgW, draftW]);
+      return "ok";
+    } catch (error) {
+      return error.message;
+    }
+  };
+  check("F2. sem ORG_DEVOLUCAO enquanto a tarifa é conferida", !/ORG_DEVOLUCAO/.test(await submitW()));
+  const wFlag = (await one(
+    "insert into public.organizer_balance_flags (event_id, organizer_id, negative_since) values ($1, $2, $3::date) returning id",
+    [eW, orgW, addDays(today, -40)])).id;
+  const wDue = await refresh();
+  check("F2. marcação antiga com tarifa em conferência não ganha prazo nem e-mail",
+    (await one("select return_due_date from public.organizer_balance_flags where id = $1", [wFlag])).return_due_date === null
+      && wDue.every((r) => r.event_id !== eW));
+  await q("update public.organizer_balance_flags set return_due_date = $2::date where id = $1", [wFlag, addDays(today, -1)]);
+  check("F2. prazo vencido mas tarifa em conferência: sem devolução atrasada",
+    (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 0 && (await summary()).late_refunds === 0
+      && !/ORG_DEVOLUCAO/.test(await submitW()));
+  await manual(admin, wOrder, 300, "Extrato do banco");
+  bW = await balance(eW);
+  check("F2. tarifa lançada: saldo −300, devolução atrasada conta (e resumo também)",
+    Number(bW.balance_cents) === -300 && bW.pending_fee_orders === 0
+      && (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 1 && (await summary()).late_refunds === 1,
+    JSON.stringify(bW));
+  check("F2. agora o envio recusa com ORG_DEVOLUCAO", /^ORG_DEVOLUCAO/.test(await submitW()));
+  await manual(admin, wOrder, 0, "Correção pelo extrato");
+  check("F2. correção leva o saldo a 0: sem atraso na hora (antes do cron)",
+    Number((await balance(eW)).balance_cents) === 0 && (await openFlag(eW))?.id === wFlag
+      && (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 0 && (await summary()).late_refunds === 0
+      && !/ORG_DEVOLUCAO/.test(await submitW()));
+  await refresh();
+  check("F2. o cron seguinte fecha a marcação", (await openFlag(eW)) === undefined);
+
+  // F4) Contestação depois do repasse
+  const orgU = await newOrg("u@exemplo.com", "Produtora U", "cpf", "52998224725");
+  const eU = await orgEvent(orgU, "Show U", addDays(today, -8));
+  const uOrders = [await orgOrderOf(eU), await orgOrderOf(eU)];
+  for (const o of uOrders) await record(o, 5250, 0);
+  await pay(admin, eU, 10000);
+  await q(`insert into public.order_chargebacks (order_id, kind, amount_cents, fee_cents, source, reason, created_by_name)
+    values ($1, 'contestacao', 5250, 0, 'manual', 'Contestação de teste', 'Admin Teste')`, [uOrders[1]]);
+  const bU = await balance(eU);
+  check("F4. contestação: contested 5000/1, parte 5000, saldo −5000",
+    Number(bU.contested_cents) === 5000 && bU.contested_orders === 1 && Number(bU.share_cents) === 5000
+      && Number(bU.balance_cents) === -5000 && Number(bU.sold_cents) === 10000, JSON.stringify(bU));
+  const fU = await finance(orgU, eU);
+  check("F4. late_changes traz a contestação com o número do pedido",
+    fU.late_changes.length === 1 && fU.late_changes[0].kind === "contestacao" && fU.late_changes[0].order_id === uOrders[1]
+      && fU.late_changes[0].order_number === uOrders[1].replaceAll("-", "").slice(0, 8).toUpperCase()
+      && Number(fU.late_changes[0].cents) === 5000 && Number(fU.contested_cents) === 5000, JSON.stringify(fU.late_changes));
 
   // Permissões da Migration B
   for (const table of ["organizer_payouts", "organizer_payout_items", "organizer_balance_flags"]) {

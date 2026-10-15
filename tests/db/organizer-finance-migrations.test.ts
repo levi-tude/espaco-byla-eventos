@@ -334,6 +334,28 @@ describe("migration organizer_payouts", () => {
     expect(fn).not.toMatch(/'(event_name|name|public_name|organizer_id|event_id)'/);
   });
 
+  it("descontos do mais antigo: marcação aberta ou hoje (não a data do evento)", () => {
+    const fn = payoutFn("organizer_pending_discounts");
+    expect(fn).not.toContain("event_fee_due_date");
+    expect(fn).toMatch(/where f\.event_id = e\.id and f\.resolved_at is null\),\s*\(now\(\) at time zone 'America\/Sao_Paulo'\)::date\),\s*e\.id;/);
+  });
+
+  it("devolução só com tarifas conferidas e saldo negativo de agora", () => {
+    const refresh = payoutFn("refresh_organizer_balance_flags");
+    expect(refresh).toMatch(/where b\.balance_cents < 0 and b\.pending_fee_orders = 0\s+and not exists/);
+    expect(refresh).toMatch(/set return_due_date = v_today \+ 10[\s\S]*?pending_fee_orders from public\.organizer_event_balance\(f\.event_id\) b\) = 0[\s\S]*?returning/);
+    const overdue = payoutFn("organizer_overdue_refunds");
+    expect(overdue).toContain("public.organizer_event_balance(f.event_id) b");
+    expect(overdue).toContain("b.balance_cents < 0 and b.pending_fee_orders = 0");
+    expect(payoutFn("organizer_finance_daily_summary")).toContain("public.organizer_overdue_refunds(");
+  });
+
+  it("histórico do evento: motivo para todos, quem registrou só para a equipe", () => {
+    const fn = payoutFn("organizer_event_finance");
+    expect(fn).toContain("'note', p.note, 'reason', p.reason)");
+    expect(fn).toContain("case when v_team then jsonb_build_object('created_by_name', p.created_by_name) else '{}'::jsonb end");
+  });
+
   it("formato dos lançamentos e marcação aberta única por evento", () => {
     expect(payouts).toContain("kind text not null check (kind in ('repasse', 'compensacao', 'ajuste', 'devolucao'))");
     expect(payouts).toContain("constraint organizer_payouts_shape_check check (");
