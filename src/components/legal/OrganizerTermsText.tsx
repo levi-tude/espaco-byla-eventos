@@ -73,7 +73,8 @@ export function OrganizerTermsText() {
           </li>
           <li>
             Mantenha seus dados e sua chave PIX corretos. Trocar a chave PIX precisa da confirmação
-            do {COMPANY.brand} antes do próximo repasse.
+            do {COMPANY.brand} antes do próximo repasse. A troca da chave PIX pode levar até 1 dia
+            para ser confirmada.
           </li>
           <li>
             Seu nome público aparece como &ldquo;Produção: &lt;nome público&gt;&rdquo; na página do

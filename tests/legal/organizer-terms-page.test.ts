@@ -127,6 +127,13 @@ describe("página Termos do organizador", () => {
     expect(page.toLowerCase()).not.toContain("autenticador");
   });
 
+  it("item 2: troca da chave PIX pode levar até 1 dia; versão de 2026-10-15", async () => {
+    const page = text(await renderPage());
+    expect(page).toContain("A troca da chave PIX pode levar até 1 dia para ser confirmada.");
+    expect(ORGANIZER_TERMS_VERSION).toBe("2026-10-15");
+    expect(page).toContain("Atualizados em 15 de outubro de 2026");
+  });
+
   it("item 3: nome e local (decisão 2A) dependem de nova confirmação depois de aprovado", async () => {
     const page = text(await renderPage());
     expect(page).toContain(
