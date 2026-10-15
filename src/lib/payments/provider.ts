@@ -5,6 +5,8 @@ import type {
   CreatePaymentResult,
   OrderPaymentLookup,
   OrderReference,
+  PaymentFeeLookup,
+  PaymentFeeOrder,
   RefundOrderInput,
   RefundOrderResult,
   WebhookResult,
@@ -20,6 +22,14 @@ export interface PaymentProvider {
   refundOrder(input: RefundOrderInput): Promise<RefundOrderResult>;
   /** Cancela no provedor as cobranças ainda pagáveis do pedido (ex.: PIX gerado). Nunca lança. */
   cancelPendingCharges(order: OrderReference): Promise<CancelChargesResult>;
+  /**
+   * Tarifa real do pagamento aprovado do pedido. Nunca lança: falha vira `error`.
+   * Provedor sem essa consulta devolve `not_found`.
+   */
+  findPaymentFee(
+    order: PaymentFeeOrder,
+    options: { signal: AbortSignal },
+  ): Promise<PaymentFeeLookup>;
 }
 
 export function getPaymentProvider(): PaymentProvider {

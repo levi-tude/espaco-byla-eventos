@@ -66,6 +66,26 @@ export type OrderPaymentLookup =
   | { kind: "pending_pix"; pix: PixData }
   | { kind: "none" };
 
+/** Tarifa real de um pagamento, lida no provedor (centavos inteiros). */
+export type PaymentFee = {
+  grossCents: number;
+  feeCents: number;
+  breakdown: { type: string; cents: number }[];
+  releaseDate: string | null; // YYYY-MM-DD
+  refunded: boolean;
+};
+
+/** Pedido do site com o que é preciso para achar o pagamento e conferir o valor. */
+export type PaymentFeeOrder = OrderReference & {
+  providerOrderId: string | null;
+  totalCents: number;
+};
+
+export type PaymentFeeLookup =
+  | { kind: "found"; fee: PaymentFee }
+  | { kind: "not_found" }
+  | { kind: "error"; code: "timeout" | "http" | "parse" | "ambiguous" };
+
 /**
  * Resultado de encerrar as cobranças em aberto de um pedido antes de cancelá-lo.
  * `paid`: já há pagamento aprovado (confirmar, não cancelar). `processing`: há

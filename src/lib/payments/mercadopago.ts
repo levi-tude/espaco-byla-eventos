@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { parsePaymentFee, pickPaymentForOrder } from "./fee";
 import { classifyMercadoPagoOrder } from "./order-status";
 import type { PaymentProvider } from "./provider";
 import type {
@@ -8,6 +9,8 @@ import type {
   CreatePaymentResult,
   OrderPaymentLookup,
   OrderReference,
+  PaymentFeeLookup,
+  PaymentFeeOrder,
   PixData,
   ProviderIds,
   RefundOrderInput,
@@ -17,6 +20,8 @@ import type {
 
 type MercadoPagoOrderPayment = {
   id?: string;
+  /** ID do mesmo pagamento na API de Payments. */
+  reference_id?: string | number | null;
   status?: string;
   status_detail?: string;
   date_of_expiration?: string | null;
@@ -87,6 +92,17 @@ const CLOSED_ORDER_STATUSES = new Set([
   "charged_back",
 ]);
 const CANCEL_TIMEOUT_MS = 10_000;
+/** Tentativas de pagamento de uma order consultadas, no máximo, na busca da tarifa. */
+const FEE_MAX_ORDER_PAYMENTS = 5;
+
+type FeeErrorCode = Extract<PaymentFeeLookup, { kind: "error" }>["code"];
+
+/** Falha na consulta da tarifa; vira `{ kind: "error", code }` no fim. */
+class FeeLookupError extends Error {
+  constructor(readonly code: FeeErrorCode) {
+    super(code);
+  }
+}
 
 const REJECTION_MESSAGES: Record<string, string> = {
   card_insufficient_amount:
@@ -411,6 +427,106 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   }
 
   /**
+   * Caminho (a): busca na API de Payments pela referência do pedido. Sem resultado,
+   * caminho (b): os pagamentos da order no provedor (`reference_id` ou `id`). A
+   * consulta respeita o `signal` de quem chama (tempo limite curto na confirmação).
+   */
+  async findPaymentFee(
+    order: PaymentFeeOrder,
+    { signal }: { signal: AbortSignal },
+  ): Promise<PaymentFeeLookup> {
+    if (!this.accessToken) return { kind: "error", code: "http" };
+
+    try {
+      let picked = pickPaymentForOrder(
+        await this.searchPaymentsByReference(order.id, signal),
+        order.totalCents,
+      );
+      if (
+        picked === null &&
+        order.providerOrderId &&
+        PROVIDER_ID_PATTERN.test(order.providerOrderId)
+      ) {
+        picked = pickPaymentForOrder(
+          await this.paymentsOfOrder(order.providerOrderId, order.id, signal),
+          order.totalCents,
+        );
+      }
+
+      if (picked === null) return { kind: "not_found" };
+      if (picked === "ambiguous") throw new FeeLookupError("ambiguous");
+      const fee = parsePaymentFee(picked);
+      if (!fee) throw new FeeLookupError("parse");
+      return { kind: "found", fee };
+    } catch (error) {
+      const code: FeeErrorCode =
+        error instanceof FeeLookupError ? error.code : isAbortError(error, signal) ? "timeout" : "http";
+      console.warn("[tarifa] Falha ao consultar a tarifa do pagamento.", { orderId: order.id, code });
+      return { kind: "error", code };
+    }
+  }
+
+  private async searchPaymentsByReference(orderId: string, signal: AbortSignal): Promise<unknown[]> {
+    const params = new URLSearchParams({ external_reference: orderId });
+    const body = await this.getFeeJson(`/v1/payments/search?${params.toString()}`, signal);
+    if (body === undefined) return [];
+    if (!isObject(body) || !Array.isArray(body.results)) throw new FeeLookupError("parse");
+    return body.results.filter(
+      (payment) =>
+        isObject(payment) &&
+        typeof payment.external_reference === "string" &&
+        payment.external_reference.trim() === orderId,
+    );
+  }
+
+  private async paymentsOfOrder(
+    providerOrderId: string,
+    orderId: string,
+    signal: AbortSignal,
+  ): Promise<unknown[]> {
+    const body = await this.getFeeJson(
+      `/v1/orders/${encodeURIComponent(providerOrderId)}`,
+      signal,
+    );
+    if (body === undefined) return [];
+    if (!isObject(body)) throw new FeeLookupError("parse");
+    const providerOrder = body as MercadoPagoOrder;
+    const reference = providerOrder.external_reference;
+    if (typeof reference === "string" && reference.trim() !== orderId) return [];
+
+    const orderPayments = providerOrder.transactions?.payments;
+    const ids = new Set(
+      (Array.isArray(orderPayments) ? orderPayments : [])
+        .slice(0, FEE_MAX_ORDER_PAYMENTS)
+        .map(paymentReference)
+        .filter((id): id is string => id !== null),
+    );
+
+    const payments: unknown[] = [];
+    for (const id of ids) {
+      const payment = await this.getFeeJson(`/v1/payments/${encodeURIComponent(id)}`, signal);
+      if (payment !== undefined) payments.push(payment);
+    }
+    return payments;
+  }
+
+  /** `undefined` = 404. Outras falhas viram `FeeLookupError`; abort sobe como veio. */
+  private async getFeeJson(path: string, signal: AbortSignal): Promise<unknown> {
+    const response = await this.request(`${this.apiBaseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+      signal,
+    });
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new FeeLookupError("http");
+    try {
+      return await response.json();
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new FeeLookupError("parse");
+    }
+  }
+
+  /**
    * `POST /v1/orders/{id}/cancel` só vale para `action_required`/`created`. Sem
    * confirmação clara do cancelamento, a order é reconsultada: se já foi paga
    * nesse meio-tempo, devolve `paid`; se ainda pode ser paga, `unavailable`.
@@ -570,6 +686,24 @@ function refundErrorCode(body: MercadoPagoOrder | null, httpStatus: number): str
     }
   }
   return `http_${httpStatus}`;
+}
+
+function isObject(value: unknown): value is { [key: string]: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAbortError(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted) return true;
+  const name = typeof error === "object" && error !== null ? (error as { name?: unknown }).name : null;
+  return name === "AbortError" || name === "TimeoutError";
+}
+
+/** ID do pagamento na API de Payments: `reference_id`; sem ele, o `id` da order. */
+function paymentReference(payment: MercadoPagoOrderPayment | null | undefined): string | null {
+  const raw = payment?.reference_id ?? payment?.id;
+  if (typeof raw !== "string" && typeof raw !== "number") return null;
+  const id = String(raw);
+  return PROVIDER_ID_PATTERN.test(id) ? id : null;
 }
 
 function amountCentsFromOrder(order: MercadoPagoOrder | null): number | null {
