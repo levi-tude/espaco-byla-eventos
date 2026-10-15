@@ -4,9 +4,15 @@ const mocks = vi.hoisted(() => ({
   alertTeam: vi.fn(),
   sendRefundEmail: vi.fn(),
   runSessionNotices: vi.fn(),
+  capturePaymentFee: vi.fn(),
+  captureOrderFee: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/payments/capture-fee", () => ({
+  capturePaymentFee: mocks.capturePaymentFee,
+  captureOrderFee: mocks.captureOrderFee,
+}));
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeam: mocks.alertTeam }));
 vi.mock("@/lib/email/send-refund", () => ({ sendRefundEmail: mocks.sendRefundEmail }));
 vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNotices }));
@@ -292,6 +298,92 @@ describe("refundPaidOrder", () => {
       p_error_code: "provider_amount_mismatch",
     });
     expect(provider.refundOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("refundPaidOrder busca de novo a tarifa depois do estorno", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.sendRefundEmail.mockResolvedValue("sent");
+    mocks.capturePaymentFee.mockResolvedValue("salvo");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("estorno concluído: avisa o comprador e então consulta a tarifa com o mesmo provedor", async () => {
+    const { admin } = makeAdmin(
+      { begin_order_refund: [begun], complete_order_refund: "completed" },
+      emailTables,
+    );
+    const provider = makeProvider();
+
+    await refundPaidOrder(admin, provider, input);
+    expect(mocks.capturePaymentFee).toHaveBeenCalledWith(admin, provider, orderId, {
+      afterRefund: true,
+    });
+    const [emailed] = mocks.sendRefundEmail.mock.invocationCallOrder;
+    const [captured] = mocks.capturePaymentFee.mock.invocationCallOrder;
+    expect(emailed).toBeLessThan(captured);
+  });
+
+  it("falha na consulta da tarifa não muda o resultado do estorno", async () => {
+    mocks.capturePaymentFee.mockRejectedValue(new Error("fora"));
+    const { admin } = makeAdmin(
+      { begin_order_refund: [begun], complete_order_refund: "completed" },
+      emailTables,
+    );
+
+    await expect(refundPaidOrder(admin, makeProvider(), input)).resolves.toEqual({
+      status: "refunded",
+      emailSent: true,
+    });
+  });
+
+  it.each([
+    ["já concluído antes (noop)", { complete_order_refund: "noop" }],
+    ["em processamento", {}],
+  ])("estorno %s não consulta a tarifa", async (_caso, extra) => {
+    const { admin } = makeAdmin({ begin_order_refund: [begun], ...extra }, emailTables);
+    const provider = makeProvider(
+      "complete_order_refund" in extra
+        ? {}
+        : { refundOrder: vi.fn().mockResolvedValue({ status: "pending" }) },
+    );
+
+    await refundPaidOrder(admin, provider, input);
+    expect(mocks.capturePaymentFee).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncOrderRefunded busca de novo a tarifa depois do estorno", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.sendRefundEmail.mockResolvedValue("sent");
+    mocks.captureOrderFee.mockResolvedValue("salvo");
+  });
+
+  it.each(["completed", "external"])("resultado %s consulta a tarifa", async (outcome) => {
+    const { admin } = makeAdmin({ sync_order_refunded: outcome }, emailTables);
+    await expect(syncOrderRefunded(admin, orderId, "mercadopago", "ORD1")).resolves.toBe(outcome);
+    expect(mocks.captureOrderFee).toHaveBeenCalledWith(admin, orderId, { afterRefund: true });
+    const [emailed] = mocks.sendRefundEmail.mock.invocationCallOrder;
+    const [captured] = mocks.captureOrderFee.mock.invocationCallOrder;
+    expect(emailed).toBeLessThan(captured);
+  });
+
+  it.each(["other_order", "noop"])("resultado %s não consulta a tarifa", async (outcome) => {
+    const { admin } = makeAdmin({ sync_order_refunded: outcome }, emailTables);
+    await syncOrderRefunded(admin, orderId, "mercadopago", "ORD1");
+    expect(mocks.captureOrderFee).not.toHaveBeenCalled();
+  });
+
+  it("falha na consulta da tarifa não muda o resultado", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.captureOrderFee.mockRejectedValue(new Error("fora"));
+    const { admin } = makeAdmin({ sync_order_refunded: "completed" }, emailTables);
+    await expect(syncOrderRefunded(admin, orderId, "mercadopago", "ORD1")).resolves.toBe(
+      "completed",
+    );
   });
 });
 

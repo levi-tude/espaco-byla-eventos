@@ -4,9 +4,13 @@ const mocks = vi.hoisted(() => ({
   markOrderPaidIfPending: vi.fn(),
   sendTicketsEmail: vi.fn(),
   alertTeam: vi.fn(),
+  captureOrderFee: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/payments/capture-fee", () => ({
+  captureOrderFee: mocks.captureOrderFee,
+}));
 vi.mock("@/lib/domain/orders", () => ({
   markOrderPaidIfPending: mocks.markOrderPaidIfPending,
 }));
@@ -219,6 +223,56 @@ describe("confirmOrderPaid avisa a equipe quando algo falha", () => {
     await confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000);
     expect(mocks.sendTicketsEmail).not.toHaveBeenCalled();
     expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+});
+
+describe("confirmOrderPaid captura a tarifa depois de liberar os ingressos", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.markOrderPaidIfPending.mockResolvedValue("updated");
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    mocks.captureOrderFee.mockResolvedValue("salvo");
+  });
+
+  it("marca pago, envia o e-mail e só então busca a tarifa do pedido", async () => {
+    await expect(
+      confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000),
+    ).resolves.toBe("updated");
+    expect(mocks.captureOrderFee).toHaveBeenCalledTimes(1);
+    expect(mocks.captureOrderFee).toHaveBeenCalledWith(expect.anything(), orderId);
+    const [marked] = mocks.markOrderPaidIfPending.mock.invocationCallOrder;
+    const [emailed] = mocks.sendTicketsEmail.mock.invocationCallOrder;
+    const [captured] = mocks.captureOrderFee.mock.invocationCallOrder;
+    expect(marked).toBeLessThan(emailed);
+    expect(emailed).toBeLessThan(captured);
+  });
+
+  it("busca a tarifa mesmo quando o e-mail dos ingressos falha", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("failed");
+    await confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000);
+    expect(mocks.captureOrderFee).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha na captura da tarifa não muda o resultado da confirmação", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.captureOrderFee.mockRejectedValue(new Error("fora"));
+    await expect(
+      confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000),
+    ).resolves.toBe("updated");
+    expect(mocks.alertTeam).not.toHaveBeenCalled();
+  });
+
+  it("confirmação repetida não busca a tarifa de novo", async () => {
+    mocks.markOrderPaidIfPending.mockResolvedValue("noop");
+    await confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 5000);
+    expect(mocks.captureOrderFee).not.toHaveBeenCalled();
+  });
+
+  it("valor divergente não busca a tarifa", async () => {
+    await expect(
+      confirmOrderPaid(fakeAdmin(paidOrderRows), orderId, "mercadopago", 100),
+    ).rejects.toThrow("Valor pago não confere");
+    expect(mocks.captureOrderFee).not.toHaveBeenCalled();
   });
 });
 

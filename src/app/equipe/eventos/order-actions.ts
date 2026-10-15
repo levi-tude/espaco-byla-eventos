@@ -6,6 +6,7 @@ import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { requireStaffUser } from "@/lib/auth/staff-user";
 import { normalizeRefundReason } from "@/lib/domain/refund";
 import { notifyOrganizer, organizerNoticeLink } from "@/lib/organizer/notify";
+import { captureOrderFee } from "@/lib/payments/capture-fee";
 import { sendOrderTicketsEmail } from "@/lib/payments/confirm-order";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { refundPaidOrder, type RefundOutcome } from "@/lib/payments/refund";
@@ -60,8 +61,15 @@ async function acceptPaidOrderOrThrow(orderId: unknown): Promise<AcceptPaidOrder
     throw new Error("Resposta inválida ao aceitar o pedido.");
   }
 
-  const emailSent =
-    data === "accepted" ? await sendOrderTicketsEmail(admin, orderId) : true;
+  let emailSent = true;
+  if (data === "accepted") {
+    emailSent = await sendOrderTicketsEmail(admin, orderId);
+    try {
+      await captureOrderFee(admin, orderId);
+    } catch {
+      console.error("[tarifa] Falha ao capturar a tarifa após aceitar o pedido.", { orderId });
+    }
+  }
 
   const event = Array.isArray(order.events) ? order.events[0] : order.events;
   revalidatePath(`/equipe/eventos/${order.event_id}`);

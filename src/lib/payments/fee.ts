@@ -14,6 +14,16 @@ function isRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** "AAAA-MM-DD" que existe no calendário (2026-02-31 não passa). */
+function isCalendarDate(value: string): boolean {
+  if (!DATE_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
 /** Só aceita número finito e não negativo (texto da API é recusado). */
 function toCents(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
@@ -34,7 +44,8 @@ export function parsePaymentFee(payment: unknown): PaymentFee | null {
   if (grossCents === null || grossCents <= 0 || netCents === null) return null;
 
   const feeCents = grossCents - netCents;
-  if (feeCents < 0 || feeCents > grossCents) return null;
+  // Tarifa igual ao bruto (líquido zero) não é tarifa real: provável resposta incompleta.
+  if (feeCents < 0 || feeCents >= grossCents) return null;
 
   const breakdown: PaymentFee["breakdown"] = [];
   const feeDetails = Array.isArray(payment.fee_details) ? payment.fee_details : [];
@@ -55,7 +66,7 @@ export function parsePaymentFee(payment: unknown): PaymentFee | null {
     grossCents,
     feeCents,
     breakdown,
-    releaseDate: DATE_PATTERN.test(release) ? release : null,
+    releaseDate: isCalendarDate(release) ? release : null,
     refunded:
       REFUNDED_STATUSES.has(String(payment.status)) ||
       (refundedCents !== null && refundedCents >= grossCents),

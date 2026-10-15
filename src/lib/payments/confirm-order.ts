@@ -10,6 +10,7 @@ import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName } from "@/lib/domain/ticket-types";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
 import { loadEventProducerName } from "@/lib/organizer/producer";
+import { captureOrderFee } from "@/lib/payments/capture-fee";
 import type { ProviderIds } from "@/lib/payments/types";
 
 const brl = new Intl.NumberFormat("pt-BR", {
@@ -111,7 +112,17 @@ export async function confirmOrderPaid(
   if (outcome === "noop") return outcome;
 
   await sendOrderTicketsEmail(admin, orderId);
+  await captureFeeQuietly(admin, orderId);
   return outcome;
+}
+
+/** A tarifa nunca atrapalha a confirmação: falha fica para o cron diário. */
+async function captureFeeQuietly(admin: SupabaseAdmin, orderId: string): Promise<void> {
+  try {
+    await captureOrderFee(admin, orderId);
+  } catch {
+    console.error("[tarifa] Falha ao capturar a tarifa após o pagamento.", { orderId });
+  }
 }
 
 /**

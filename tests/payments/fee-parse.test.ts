@@ -85,6 +85,7 @@ describe("parsePaymentFee", () => {
     ["líquido em texto", { ...approved, transaction_details: { net_received_amount: "49.89" } }],
     ["sem líquido", { ...approved, transaction_details: {} }],
     ["sem transaction_details", { ...approved, transaction_details: null }],
+    ["tarifa igual ao bruto (líquido zero)", { ...approved, transaction_details: { net_received_amount: 0 } }],
   ])("recusa pagamento com %s", (_label, payment) => {
     expect(parsePaymentFee(payment)).toBeNull();
   });
@@ -97,6 +98,20 @@ describe("parsePaymentFee", () => {
     expect(parsePaymentFee({ ...approved, money_release_date: null })?.releaseDate).toBeNull();
     expect(parsePaymentFee({ ...approved, money_release_date: "20/11/2026" })?.releaseDate).toBeNull();
     expect(parsePaymentFee({ ...approved, money_release_date: 20261120 })?.releaseDate).toBeNull();
+  });
+
+  it.each(["2026-02-31T10:00:00.000-04:00", "2026-13-01", "2026-00-10", "2026-04-31", "2027-02-29"])(
+    "deixa a data de liberação vazia quando não existe no calendário (%s)",
+    (release) => {
+      expect(parsePaymentFee({ ...approved, money_release_date: release })?.releaseDate).toBeNull();
+    },
+  );
+
+  it("aceita 29 de fevereiro em ano bissexto", () => {
+    expect(
+      parsePaymentFee({ ...approved, money_release_date: "2028-02-29T10:00:00.000-04:00" })
+        ?.releaseDate,
+    ).toBe("2028-02-29");
   });
 
   it.each(["refunded", "charged_back"])("marca estornado quando o status é %s", (status) => {

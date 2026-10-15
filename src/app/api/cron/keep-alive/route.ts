@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 
 import { runSessionNotices } from "@/lib/notices/process";
 import { NOTICE_CRON_LIMIT } from "@/lib/notices/rules";
+import { captureMissingFees } from "@/lib/payments/capture-fee";
+import { getPaymentProvider } from "@/lib/payments/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 60;
+
+/** Cabe nos 60 s da rota com folga para as outras etapas. */
+const FEE_CAPTURE_BUDGET_MS = 25_000;
 
 /**
  * Chamado 1x/dia (Cloud Scheduler, ou pg_cron no banco via migration
@@ -12,7 +17,7 @@ export const maxDuration = 60;
  * renovar (00h UTC, 21h em Brasília). O plano gratuito da Supabase pausa o
  * projeto após ~7 dias com pouca atividade no banco; health checks não contam,
  * então fazemos leituras reais em tabelas. Também continua os avisos de sessão
- * que pararam no limite do dia anterior.
+ * que pararam no limite do dia anterior e busca as tarifas que faltaram.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -56,6 +61,18 @@ export async function GET(request: Request) {
     if (run.status === "ok") notices = run.sent;
   } catch (error) {
     console.error("[keep-alive] falha ao continuar os avisos de sessão", error);
+  }
+
+  // Tarifas que não vieram na hora do pagamento ou do estorno: falha só vai para o log.
+  try {
+    const fees = await captureMissingFees(supabase, getPaymentProvider(), {
+      budgetMs: FEE_CAPTURE_BUDGET_MS,
+    });
+    if (fees.falhou > 0 || fees.alertados > 0) {
+      console.warn("[keep-alive] tarifas pendentes", fees);
+    }
+  } catch {
+    console.error("[keep-alive] falha ao buscar as tarifas pendentes");
   }
 
   return NextResponse.json({ ok: true, notices });

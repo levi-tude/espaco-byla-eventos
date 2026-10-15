@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   runSessionNotices: vi.fn(),
+  captureMissingFees: vi.fn(),
+  provider: { name: "mercadopago" },
   queryError: null as unknown,
   purgeError: null as unknown,
   organizerPurge: null as null | (() => Promise<unknown>),
@@ -10,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/notices/process", () => ({ runSessionNotices: mocks.runSessionNotices }));
+vi.mock("@/lib/payments/capture-fee", () => ({ captureMissingFees: mocks.captureMissingFees }));
+vi.mock("@/lib/payments/provider", () => ({ getPaymentProvider: () => mocks.provider }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     const result = () => Promise.resolve({ data: [], error: mocks.queryError });
@@ -43,6 +47,7 @@ describe("GET /api/cron/keep-alive", () => {
     mocks.rpcNames = [];
     vi.stubEnv("CRON_SECRET", secret);
     mocks.runSessionNotices.mockResolvedValue({ status: "ok", claimed: 2, sent: 2, failed: 0, pausedUntil: null });
+    mocks.captureMissingFees.mockResolvedValue({ salvo: 1, falhou: 0, alertados: 0 });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -109,5 +114,32 @@ describe("GET /api/cron/keep-alive", () => {
     mocks.queryError = { message: "fora" };
     expect((await GET(request(`Bearer ${secret}`))).status).toBe(500);
     expect(mocks.runSessionNotices).not.toHaveBeenCalled();
+    expect(mocks.captureMissingFees).not.toHaveBeenCalled();
+  });
+
+  it("busca as tarifas que faltaram com orçamento de 25 s", async () => {
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, notices: 2 });
+    expect(mocks.captureMissingFees).toHaveBeenCalledWith(expect.anything(), mocks.provider, {
+      budgetMs: 25_000,
+    });
+  });
+
+  it("sem segredo certo não busca tarifas", async () => {
+    await GET(request("Bearer errado"));
+    expect(mocks.captureMissingFees).not.toHaveBeenCalled();
+  });
+
+  it("falha na busca das tarifas não derruba as outras etapas", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.captureMissingFees.mockRejectedValue(new Error("fora"));
+    const response = await GET(request(`Bearer ${secret}`));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, notices: 2 });
+    expect(mocks.rpcNames).toContain("purge_login_verification");
+    expect(mocks.rpcNames).toContain("purge_organizer_records");
+    expect(mocks.runSessionNotices).toHaveBeenCalled();
+    expect(logged).toHaveBeenCalled();
   });
 });

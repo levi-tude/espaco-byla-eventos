@@ -1403,6 +1403,31 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: number;
       };
+      record_payment_fee: {
+        Args: {
+          p_order_id: string;
+          p_gross_cents: number;
+          p_fee_cents: number;
+          p_breakdown: Json;
+          p_release_date: string | null;
+          p_after_refund: boolean;
+        };
+        Returns: string;
+      };
+      record_payment_fee_failure: {
+        Args: { p_order_id: string; p_code: string };
+        Returns: number;
+      };
+      orders_missing_fee: {
+        Args: { p_limit: number };
+        Returns: {
+          order_id: string;
+          created_at: string;
+          provider_order_id: string | null;
+          after_refund: boolean;
+          attempts: number;
+        }[];
+      };
       organizer_event_orders: {
         Args: { p_actor: string; p_event_id: string; p_session_id?: string | null };
         Returns: {

@@ -6,6 +6,7 @@ import type { SupabaseAdmin } from "@/lib/domain/orders";
 import { refundBlockMessage, refundRejectionMessage } from "@/lib/domain/refund";
 import { sendRefundEmail } from "@/lib/email/send-refund";
 import { runSessionNotices } from "@/lib/notices/process";
+import { captureOrderFee, capturePaymentFee } from "@/lib/payments/capture-fee";
 import type { PaymentProvider } from "@/lib/payments/provider";
 import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 
@@ -122,9 +123,25 @@ export async function refundPaidOrder(
     return { status: "processing" };
   }
 
-  const emailSent =
-    completed === "completed" ? await notifyBuyerRefunded(admin, input.orderId) : true;
+  if (completed !== "completed") return { status: "refunded", emailSent: true };
+
+  const emailSent = await notifyBuyerRefunded(admin, input.orderId);
+  await refreshFeeAfterRefund(input.orderId, () =>
+    capturePaymentFee(admin, provider, input.orderId, { afterRefund: true }),
+  );
   return { status: "refunded", emailSent };
+}
+
+/** A nova consulta da tarifa nunca atrapalha o estorno: falha fica para o cron diário. */
+async function refreshFeeAfterRefund(
+  orderId: string,
+  capture: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await capture();
+  } catch {
+    console.error("[tarifa] Falha ao consultar a tarifa após o estorno.", { orderId });
+  }
 }
 
 async function rejectRefund(
@@ -232,6 +249,9 @@ export async function syncOrderRefunded(
   }
   if (outcome === "completed" || outcome === "external") {
     await notifyBuyerRefunded(admin, externalId);
+    await refreshFeeAfterRefund(externalId, () =>
+      captureOrderFee(admin, externalId, { afterRefund: true }),
+    );
   }
   return outcome;
 }

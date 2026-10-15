@@ -20,7 +20,8 @@ export type TeamAlertKind =
   | "pago_sessao_cancelada"
   | "estorno_falhou"
   | "estorno_externo"
-  | "email_estorno_nao_enviado";
+  | "email_estorno_nao_enviado"
+  | "tarifa_nao_encontrada";
 
 /** Alertas de configuração do site, sem pedido associado. */
 export type TeamSetupAlertKind =
@@ -39,6 +40,7 @@ const ALERT_SUBJECTS: Record<TeamAlertKind, string> = {
   estorno_falhou: "Estorno recusado pelo Mercado Pago",
   estorno_externo: "Estorno feito fora do site",
   email_estorno_nao_enviado: "Pedido estornado, mas o e-mail ao comprador não saiu",
+  tarifa_nao_encontrada: "Tarifa do banco de pagamento não encontrada",
 };
 
 const SETUP_ALERT_SUBJECTS: Record<TeamSetupAlertKind, string> = {

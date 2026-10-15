@@ -10,9 +10,11 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   refundPaidOrder: vi.fn(),
   notifyOrganizer: vi.fn(),
+  captureOrderFee: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/payments/capture-fee", () => ({ captureOrderFee: mocks.captureOrderFee }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({
@@ -103,6 +105,30 @@ describe("acceptPaidOrder", () => {
     expect(mocks.sendOrderTicketsEmail).toHaveBeenCalledWith(expect.anything(), orderId);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/equipe/eventos/evento-1");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/eventos/show");
+  });
+
+  it("depois de aceitar e enviar os ingressos, busca a tarifa do pedido", async () => {
+    mocks.captureOrderFee.mockResolvedValue("salvo");
+    await acceptPaidOrder(orderId);
+    expect(mocks.captureOrderFee).toHaveBeenCalledWith(expect.anything(), orderId);
+    const [emailed] = mocks.sendOrderTicketsEmail.mock.invocationCallOrder;
+    const [captured] = mocks.captureOrderFee.mock.invocationCallOrder;
+    expect(emailed).toBeLessThan(captured);
+  });
+
+  it("falha na busca da tarifa não muda o resultado de aceitar", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.captureOrderFee.mockRejectedValue(new Error("fora"));
+    expect(await acceptPaidOrder(orderId)).toEqual({
+      ok: true,
+      data: { alreadyAccepted: false, emailSent: true },
+    });
+  });
+
+  it("segundo clique não busca a tarifa de novo", async () => {
+    mocks.adminRpc.mockResolvedValue({ data: "noop", error: null });
+    await acceptPaidOrder(orderId);
+    expect(mocks.captureOrderFee).not.toHaveBeenCalled();
   });
 
   it("informa quando o e-mail não saiu", async () => {

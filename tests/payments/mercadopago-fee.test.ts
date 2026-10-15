@@ -293,6 +293,50 @@ describe("MercadoPagoPaymentProvider.findPaymentFee — pela cobrança do pedido
     });
   });
 
+  it("referência que o pagamento recusa (400) conta como não achado e segue para a próxima", async () => {
+    const fetchMock = apiMock({
+      "/v1/payments/search": () => jsonResponse({ results: [] }),
+      "/v1/orders/ORD01ABC": () =>
+        jsonResponse({
+          id: "ORD01ABC",
+          transactions: {
+            payments: [{ id: "PAY01ABC" }, { id: "PAY02", reference_id: "123456789" }],
+          },
+        }),
+      "/v1/payments/PAY01ABC": () => jsonResponse({ message: "invalid id" }, 400),
+      "/v1/payments/123456789": () => jsonResponse(payment),
+    });
+
+    await expect(makeProvider(fetchMock).findPaymentFee(order, options())).resolves.toEqual({
+      kind: "found",
+      fee: expectedFee,
+    });
+  });
+
+  it("devolve não encontrado quando a única referência da cobrança responde 400", async () => {
+    const fetchMock = apiMock({
+      "/v1/payments/search": () => jsonResponse({ results: [] }),
+      "/v1/orders/ORD01ABC": () =>
+        jsonResponse({ id: "ORD01ABC", transactions: { payments: [{ id: "PAY01ABC" }] } }),
+      "/v1/payments/PAY01ABC": () => jsonResponse({}, 400),
+    });
+
+    await expect(makeProvider(fetchMock).findPaymentFee(order, options())).resolves.toEqual({
+      kind: "not_found",
+    });
+  });
+
+  it("400 na busca pela referência do pedido continua sendo erro HTTP", async () => {
+    const fetchMock = apiMock({
+      "/v1/payments/search": () => jsonResponse({}, 400),
+    });
+
+    await expect(makeProvider(fetchMock).findPaymentFee(order, options())).resolves.toEqual({
+      kind: "error",
+      code: "http",
+    });
+  });
+
   it("devolve erro HTTP quando a cobrança falha no servidor", async () => {
     const fetchMock = apiMock({
       "/v1/payments/search": () => jsonResponse({ results: [] }),

@@ -504,19 +504,27 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
 
     const payments: unknown[] = [];
     for (const id of ids) {
-      const payment = await this.getFeeJson(`/v1/payments/${encodeURIComponent(id)}`, signal);
+      // A referência pode não ser um ID de pagamento válido (400): não achou por ela.
+      const payment = await this.getFeeJson(`/v1/payments/${encodeURIComponent(id)}`, signal, {
+        badRequestIsMissing: true,
+      });
       if (payment !== undefined) payments.push(payment);
     }
     return payments;
   }
 
-  /** `undefined` = 404. Outras falhas viram `FeeLookupError`; abort sobe como veio. */
-  private async getFeeJson(path: string, signal: AbortSignal): Promise<unknown> {
+  /** `undefined` = 404 (ou 400, se pedido). Outras falhas viram `FeeLookupError`; abort sobe como veio. */
+  private async getFeeJson(
+    path: string,
+    signal: AbortSignal,
+    { badRequestIsMissing = false }: { badRequestIsMissing?: boolean } = {},
+  ): Promise<unknown> {
     const response = await this.request(`${this.apiBaseUrl}${path}`, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
       signal,
     });
     if (response.status === 404) return undefined;
+    if (response.status === 400 && badRequestIsMissing) return undefined;
     if (!response.ok) throw new FeeLookupError("http");
     try {
       return await response.json();
