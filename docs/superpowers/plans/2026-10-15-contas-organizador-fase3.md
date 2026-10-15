@@ -1624,9 +1624,10 @@ git commit -m "feat(midia): limite diário de capas e limpeza de órfãs"
 
 ## Resultado do teste da tarifa (preencher na Tarefa 1)
 
-- Data do teste:
-- Caminho que achou o pagamento (a / b / c / nenhum):
-- `transaction_amount − net_received_amount` bate com `fee_details` (collector)? 
-- `money_release_date` presente?
-- Depois do estorno total: tarifa devolvida? Como aparece na resposta?
-- Decisão: Caminho A / Caminho B
+- Data do teste: 2026-10-15
+- Não executado: faltam as credenciais de teste (arquivo `%USERPROFILE%\.byla-secrets\mp-test.env` com `MP_TEST_ACCESS_TOKEN` e `MP_TEST_PUBLIC_KEY`, do app Checkout Transparente, "Credenciais de teste", `APP_USR-`). O script `scripts/mp-fee-probe.mjs` está pronto; antes de criar qualquer cobrança ele confere em `GET /users/me` que a conta é usuário de teste (`tags` com `test_user`) e aborta se não for.
+- Caminho que achou o pagamento (a / b / c / nenhum): a confirmar quando o dono rodar o script.
+- `transaction_amount − net_received_amount` bate com `fee_details` (collector)? A confirmar.
+- `money_release_date` presente? A confirmar.
+- Depois do estorno total: tarifa devolvida? Como aparece na resposta? A confirmar.
+- Decisão provisória: **Caminho B** (Tarefa 5B, tarifa lançada pelo Admin) ativo; a leitura automática (Tarefas 4 e 5) é construída pelos campos documentados e fica **desligada por padrão** (variável `PAYMENT_FEE_CAPTURE=on` liga depois que o teste passar).
