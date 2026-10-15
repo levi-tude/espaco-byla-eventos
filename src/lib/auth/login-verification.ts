@@ -220,10 +220,18 @@ export async function submitLoginCode(input: {
   return { next: home };
 }
 
-/** Sair: apaga a verificação desta conta antes de encerrar a sessão. */
+/**
+ * Sair: apaga a verificação desta conta antes de encerrar a sessão. Sem sessão (ex.: o
+ * segundo clique em "Sair") não há o que apagar: o banco só aceita a chamada com login.
+ */
 export async function endLoginVerification(): Promise<void> {
   const supabase = await createServerClient();
-  const { error } = await supabase.rpc("end_login_verification");
-  if (error) console.error("[login] Falha ao apagar a verificação ao sair.", error.message);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { error } = await supabase.rpc("end_login_verification");
+    if (error) console.error("[login] Falha ao apagar a verificação ao sair.", error.message);
+  }
   await supabase.auth.signOut();
 }

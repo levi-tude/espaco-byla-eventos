@@ -401,4 +401,13 @@ describe("endLoginVerification (Sair)", () => {
     await endLoginVerification();
     expect(mocks.signOut).toHaveBeenCalled();
   });
+
+  it("sem sessão (Sair clicado duas vezes): não chama o banco, não registra erro e limpa o login", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: { message: "Auth session missing!" } });
+    await endLoginVerification();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(errorLog).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalled();
+  });
 });
