@@ -147,6 +147,41 @@ describe("proteção do checkout e do pagamento", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["nome acima de 120 caracteres", { name: "N".repeat(121), email: "a@example.com" }],
+    ["e-mail acima de 254 caracteres", { name: "Comprador", email: `${"a".repeat(250)}@example.com` }],
+    ["telefone acima de 32 caracteres", { name: "Comprador", email: "a@example.com", phone: "9".repeat(33) }],
+    ["nome que não é texto", { name: 123, email: "a@example.com" }],
+    ["e-mail que não é texto", { name: "Comprador", email: { x: 1 } }],
+    ["telefone que não é texto", { name: "Comprador", email: "a@example.com", phone: 71999999999 }],
+  ])("dados do comprador fora do limite (%s) não chegam ao banco", async (_caso, buyer) => {
+    const result = await startCheckout({
+      ...checkoutInput,
+      buyer: buyer as unknown as typeof checkoutInput.buyer,
+    });
+    expect(result).toEqual({ error: "Confira seus dados e tente de novo." });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("dados do comprador exatamente no limite ainda passam da validação", async () => {
+    mocks.rpc.mockImplementation((fn: string) =>
+      fn === "consume_rate_limit"
+        ? Promise.resolve({ data: true, error: null })
+        : { single: async () => ({ data: { order_id: "pedido" }, error: null }) },
+    );
+    mocks.from.mockImplementation(() => selectResult({ id: "00000000-0000-4000-8000-000000000001", capacity: 10 }));
+    const result = await startCheckout({
+      ...checkoutInput,
+      buyer: {
+        name: "N".repeat(120),
+        email: `${"a".repeat(242)}@a.com`,
+        phone: "9".repeat(32),
+      },
+    });
+    expect(result).toHaveProperty("publicToken");
+  });
+
   it("robô não cria pedido", async () => {
     botDetected();
     expect(await startCheckout({ ...checkoutInput, humanToken: "token" })).toEqual({

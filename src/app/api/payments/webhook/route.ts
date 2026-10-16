@@ -53,7 +53,7 @@ async function alertMissingWebhookSecret() {
       [
         "O Mercado Pago enviou um aviso de pagamento, mas o site está sem a chave secreta dos avisos e recusou o aviso por segurança.",
         "Os pagamentos continuam sendo confirmados quando o comprador fica na página do pedido, mas quem fecha a página antes pode ficar sem o ingresso até alguém conferir.",
-        "Como resolver: no painel do Mercado Pago (Suas integrações → aplicação do site → Webhooks), copie a assinatura secreta e cadastre na Vercel como MERCADOPAGO_WEBHOOK_SECRET; depois faça um novo deploy.",
+        "Como resolver: no painel do Mercado Pago (Suas integrações → aplicação do site → Webhooks), copie a assinatura secreta e cadastre nas variáveis de ambiente da hospedagem como MERCADOPAGO_WEBHOOK_SECRET; depois faça um novo deploy.",
       ].join("\n\n"),
     );
   } catch (error) {

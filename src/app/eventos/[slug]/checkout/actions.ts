@@ -82,11 +82,32 @@ function parseExpectedFee(
     : null;
 }
 
+/** Tamanhos máximos dos dados do comprador (e-mail: limite do endereço SMTP). */
+const BUYER_LIMITS = { nameMax: 120, emailMax: 254, phoneMax: 32 } as const;
+const BUYER_DATA_MESSAGE = "Confira seus dados e tente de novo.";
+
 export async function startCheckout(input: CheckoutInput): Promise<CheckoutResult> {
+  const rawBuyer: Partial<Record<"name" | "email" | "phone", unknown>> =
+    input?.buyer && typeof input.buyer === "object" ? input.buyer : {};
+  const phoneOk =
+    rawBuyer.phone === undefined ||
+    rawBuyer.phone === null ||
+    (typeof rawBuyer.phone === "string" && rawBuyer.phone.trim().length <= BUYER_LIMITS.phoneMax);
+  if (
+    typeof rawBuyer.name !== "string" ||
+    typeof rawBuyer.email !== "string" ||
+    rawBuyer.name.trim().length > BUYER_LIMITS.nameMax ||
+    rawBuyer.email.trim().length > BUYER_LIMITS.emailMax ||
+    !phoneOk ||
+    typeof input.slug !== "string" ||
+    input.slug.length > 200
+  ) {
+    return { error: BUYER_DATA_MESSAGE };
+  }
   const buyer = {
-    name: input.buyer.name.trim(),
-    email: input.buyer.email.trim().toLowerCase(),
-    phone: input.buyer.phone?.trim() || null,
+    name: rawBuyer.name.trim(),
+    email: rawBuyer.email.trim().toLowerCase(),
+    phone: typeof rawBuyer.phone === "string" ? rawBuyer.phone.trim() || null : null,
   };
   if (!Array.isArray(input.items) || input.items.length > TICKET_TYPE_LIMITS.maxTypes) {
     return { error: INVALID_QUANTITIES_MESSAGE };
