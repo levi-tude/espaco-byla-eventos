@@ -6,6 +6,7 @@ import { NOTICE_CRON_LIMIT } from "@/lib/notices/rules";
 import { runOrganizerFinanceDaily } from "@/lib/organizer/daily";
 import { captureMissingFees } from "@/lib/payments/capture-fee";
 import { getPaymentProvider } from "@/lib/payments/provider";
+import { bearerMatches } from "@/lib/security/bearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 60;
@@ -23,7 +24,7 @@ const FEE_CAPTURE_BUDGET_MS = 25_000;
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
