@@ -7,7 +7,7 @@ Plataforma de venda e controle de ingressos para eventos e shows do **Espaço By
 - **Next.js** (App Router) + TypeScript + Tailwind CSS
 - **Supabase** (Auth, Postgres, RLS)
 - **Vitest** para testes
-- Deploy previsto: Vercel (branch `main`)
+- Deploy: Google Cloud Run, automático a cada push na `main` (ver abaixo)
 
 ## Como rodar localmente
 
@@ -52,6 +52,31 @@ Copie `.env.example` para `.env.local` e preencha os valores. O arquivo `.env.ex
    avisos de sessão pendentes.
 6. Faça o deploy e valide compra, confirmação do pagamento, emissão do QR e
    check-in antes de abrir as vendas.
+
+### Deploy automático (GitHub Actions → Cloud Run)
+
+O workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+publica o site sozinho:
+
+1. Um push (ou merge de PR) na `main` dispara o **CI**.
+2. Só se o CI passar, o **Deploy (Cloud Run)** gera a imagem no Cloud Build
+   (`us-central1-docker.pkg.dev/espaco-byla-eventos/site/web:<sha curto>`),
+   publica uma nova revisão no serviço `espaco-byla-eventos` (`us-central1`) e
+   manda 100% do tráfego para ela.
+3. Para republicar à mão: Actions → **Deploy (Cloud Run)** → *Run workflow*
+   (sempre a partir da `main`).
+
+Autenticação **sem chave JSON**: Workload Identity Federation (pool `github`,
+provedor `espaco-byla-eventos`), que só aceita tokens deste repositório na
+`refs/heads/main`, assumindo a conta `github-deployer` com permissões mínimas
+(deploy deste serviço, envio de builds e upload do código para o bucket do
+Cloud Build). Os valores `NEXT_PUBLIC_*` ficam no próprio workflow porque são
+públicos (vão para o navegador); segredos continuam no Secret Manager e nas
+variáveis do serviço — nunca no repositório nem no workflow.
+
+**Ordem de deploy com banco:** migrações do Supabase exigem aprovação do dono e
+precisam estar aplicadas **antes do merge** sempre que o código depender delas;
+o merge na `main` publica o código em poucos minutos.
 
 O `vercel.json` só redireciona o endereço antigo da Vercel para o site novo.
 Não coloque tokens no repositório.
