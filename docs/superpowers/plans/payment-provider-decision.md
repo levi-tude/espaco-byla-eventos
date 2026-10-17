@@ -32,6 +32,9 @@ só chegam em Orders) para a **API de Orders**.
   `X-Idempotency-Key`. O Brick oferece só **PIX e cartão de crédito**: no
   Brasil o débito online do Mercado Pago é apenas o "débito virtual Caixa",
   então a opção foi removida (quem quer pagar com saldo da conta usa PIX).
+  Na tela, o comprador escolhe antes: PIX vem primeiro, já marcado, com o selo
+  "Mais rápido"; o cartão fica logo abaixo. O Brick abre só com a forma escolhida.
+  O envio do pagamento não muda.
   Google Pay/Apple Pay não estão disponíveis via Mercado Pago.
 - Status: `processed` = pago; `action_required` = aguardando (PIX);
   `failed` = recusado. Cartão recusado volta como HTTP 402 com a order em

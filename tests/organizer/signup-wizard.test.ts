@@ -270,6 +270,23 @@ describe("SignupWizard", () => {
     expect(pageText()).toContain("Passo 5 de 7");
   });
 
+  it("recebimento mostra o celular já no formato que será guardado", async () => {
+    await reachCodeStep();
+    await type("code", "123456");
+    await submit();
+    await type("password", "Maracuja-azul-2026");
+    await type("passwordConfirm", "Maracuja-azul-2026");
+    await submit();
+
+    await type("pixKeyType", "telefone");
+    await type("pixHolderName", "Fulana de Tal");
+    await type("pixHolderDocument", "529.982.247-25");
+    await type("pixKey", "(71) 99999-9999");
+
+    expect(input("pixKey").getAttribute("placeholder")).toBe("(71) 99999-9999");
+    expect(pageText()).toContain("Vamos guardar esta chave: +5571999999999");
+  });
+
   it("termos: precisa marcar a caixa; ao concluir entra e vai para a tela do código", async () => {
     await reachTermsStep();
     expect(pageText()).toContain("Li e aceito os Termos do organizador e a Política de Privacidade");

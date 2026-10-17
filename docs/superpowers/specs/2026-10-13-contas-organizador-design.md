@@ -163,7 +163,7 @@ Página `/convite` (celular primeiro), em passos com barra de progresso:
 2. **Seus dados** — nome completo (para contato), nome público (aparece como "Produção: <nome público>" na página do evento e no e-mail do ingresso; pode ser o nome da produtora ou do coletivo), WhatsApp, e-mail.
 3. **Confirmação do e-mail** — código de 6 dígitos enviado ao e-mail (1 e-mail; vale 15 min; 5 tentativas; "Reenviar código" no máximo 2 vezes por convite). Só o hash do código é guardado (seção 7.3). Sem confirmar, o cadastro não continua.
 4. **Senha** — mínimo 12 caracteres, sem outras regras de composição; aviso para não reaproveitar senha de outro site.
-5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado."
+5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado." Celular aceita espaços, parênteses, traço, 0 e +55 e fica `+55` + DDD válido + 9 + 8 dígitos. Chave aleatória aceita colagem sem traços (não exige UUID versão 4). E-mail em minúsculas, até 77 caracteres. CNPJ pode ter letras (IN RFB 2.229/2024). A tela mostra a chave já normalizada antes de confirmar.
 6. **Termos** — texto dos "Termos do organizador" com rolagem e caixa "Li e aceito os Termos do organizador e a Política de Privacidade". Versão gravada.
 7. Servidor: confere o token de novo, cria a conta com a chave `service_role` (`auth.admin.createUser`, e-mail já confirmado), chama `accept_organizer_invite` (marca o convite usado e cria o perfil na mesma transação). Se a função falhar, apaga a conta recém-criada (compensação) e mostra erro genérico. Dois envios ao mesmo tempo: só um passa (trava no convite).
 8. **Duas etapas** — nada a cadastrar: o e-mail confirmado no passo 3 é o canal do código de acesso. A tela final explica: "A cada acesso em um aparelho novo, enviaremos um código para o seu e-mail." O primeiro login logo depois do cadastro já pede o código (mesmo fluxo da equipe, seção 11), com "Lembrar este aparelho por 30 dias".
@@ -742,7 +742,7 @@ Tabelas (RLS ligada, **sem nenhuma política**: só funções `security definer`
 ### 12.1 Público
 
 - **Rodapé:** link "Quero fazer meu evento" ao lado de "Termos de compra".
-- **Página inicial:** no fim, bloco discreto "Quer fazer seu evento no Espaço Byla? → Fale com a gente".
+- **Página inicial:** no fim, bloco discreto "Realize seu evento no Espaço Byla → Fale com a gente".
 - **`/quero-fazer-meu-evento`:** formulário da seção 5.1; link para `/termos-organizador` ("Veja como funciona para organizadores").
 - **`/termos-organizador`:** texto da seção 13 (público, para ler antes de aceitar).
 - **Página do evento:** "Produção: <nome público>" abaixo do local, nos eventos de organizador (decisão 16). Eventos do próprio Espaço não mostram a linha. O e-mail do ingresso traz a mesma linha.
@@ -767,6 +767,7 @@ Selos: Rascunho · Em análise · Recusado (ver motivo) · À venda · Vendas pa
 **Página do evento** (abas no celular, colunas no computador):
 
 - **Evento** — formulário (travado em "Em análise"; depois de aprovado, os campos da seção 6.4 que pedem Admin ficam travados com o botão "Pedir mudança"); faixa de estado: "Em análise: o Espaço Byla vai conferir e responder em breve." / "Recusado: <motivo>. Ajuste e envie de novo." / "Aprovado e à venda."
+- **Link público** — card com a URL absoluta `/eventos/{slug}`, "Copiar link", "Enviar pelo WhatsApp" (nome, data e URL) e "Compartilhar" quando o aparelho permitir. Aparece à venda, com vendas pausadas e encerrado (encerrado em tom mais baixo). Rascunho e em análise: "O link fica disponível quando o Espaço Byla aprovar o evento." Recusado: pedir para ajustar. A página do evento na equipe mostra o mesmo card.
 - **Vendas** — por sessão: vendidos, disponíveis, "Pausar vendas" / "Reabrir vendas".
 - **Pedidos** — busca por nome ou número; cada pedido: Nº, nome, e-mail, sessão, itens, situação, "2 de 3 já entraram", botão "Pedir estorno" (não aparece em cortesia). Cortesias emitidas pela equipe aparecem com o selo "Cortesia". Aviso no topo: "Use estes dados só para a operação deste evento (Termos do organizador, item 9)." Lembrete: "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
 - **Portaria** — botão "Abrir leitor de QR Code" (mesmo leitor da equipe).
@@ -800,7 +801,7 @@ Menu (Admin): **Eventos** · **Aprovações** (com número de pendências) · **
 
 - **Aprovações:** abas "Eventos" (cards com prévia, lista de conferência — inclusive o nome público que vai aparecer como "Produção" —, "Aprovar e publicar" / "Aprovar sem publicar" / "Recusar"), "Mudanças" (pedidos da seção 6.4: a equipe aplica a mudança pelo editor normal e marca "Feito", ou "Recusar" com motivo) e "Exclusões".
 - **Organizadores:** abas "Pedidos do site" (Nova/Convidada/Arquivada; "Gerar convite", "Arquivar"), "Convites" (gerar, copiar, WhatsApp, revogar) e "Contas" (status, eventos, "Suspender", "Esquecer aparelhos lembrados", "Link para nova senha", trocas de PIX pendentes com "Confirmar"/"Recusar").
-- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). Tudo o mais igual a hoje.
+- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). A página do evento também mostra o card do link público (seção 12.2). Tudo o mais igual a hoje.
 - **Repasses** (`/equipe/repasses`): totais "A pagar", "Atrasados", "Pago no período", "A receber de organizadores"; uma linha/card por evento de organizador (organizador, data, sua parte, situação, prazo) e "Marcar como pago" (Admin não desenvolvedor) com a chave PIX completa e o titular (nome e CPF/CNPJ completos) só nessa tela. Eventos com saldo negativo mostram "Desconto pendente", "Devolução pendente até dd/mm" ou "Devolução atrasada", com o botão "Devolução recebida" (Admin não desenvolvedor; valor e data do PIX).
 - **Equipe → Segurança da equipe** (Admin, fase 2): aparelhos lembrados de cada conta; "Esquecer aparelhos" de outra conta.
 
@@ -857,7 +858,7 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 
 - Todo pagamento cai na conta do Espaço Byla no banco responsável pelo pagamento. O Espaço Byla **não cobra comissão** sobre as suas vendas.
 - O site pode cobrar do comprador uma **taxa de serviço** ({percentual}% por item, mínimo {mínimo}), que paga a manutenção do site. Ela é paga pelo comprador e **não sai da sua parte**.
-- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real e inteiro** cobrado em cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço (por exemplo: num pagamento de R$ 52,50, sendo R$ 50,00 de ingresso e R$ 2,50 de taxa de serviço, toda a tarifa daquele pagamento sai da sua parte). Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
+- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real e inteiro** cobrado em cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço (por exemplo: num pagamento de R$ 52,50, sendo R$ 50,00 de ingresso e R$ 2,50 de taxa de serviço, toda a tarifa daquele pagamento sai da sua parte). Como referência, a tarifa do PIX fica em torno de 0,99% e a do cartão de crédito em torno de 3,98% a 4,98%, conforme o prazo em que o banco libera o dinheiro. No cartão, o parcelamento pode acrescentar juros. Esses percentuais são definidos pelo banco e podem mudar; no repasse entra sempre o valor real de cada pagamento.
 - **Sua parte** = valor dos ingressos vendidos − estornos − contestações no cartão − tarifas do banco.
 - No painel do evento você acompanha: vendido, tarifa do banco, estornos, sua parte e a situação do repasse.
 

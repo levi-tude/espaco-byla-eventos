@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { EventSharePanel } from "@/components/events/EventSharePanel";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { type EditorSession, savedTypeKey } from "@/components/equipe/session-drafts";
@@ -9,7 +10,7 @@ import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
 import { ApprovalBanner } from "@/components/organizer/ApprovalBanner";
 import { DeleteEventSection } from "@/components/organizer/DeleteEventSection";
 import { OpsRequestList, type OrganizerOpsRequest } from "@/components/organizer/OpsRequestList";
-import { organizerEventStatus } from "@/components/organizer/OrganizerEventCard";
+import { formatEventDays, organizerEventStatus } from "@/components/organizer/OrganizerEventCard";
 import { OrganizerFinancePanel } from "@/components/organizer/OrganizerFinancePanel";
 import { OrganizerNoAccess } from "@/components/organizer/OrganizerNoAccess";
 import { type OrganizerOrder, OrganizerOrderList } from "@/components/organizer/OrganizerOrderList";
@@ -27,6 +28,7 @@ import { loadEventSessions, loadSessionAvailability } from "@/lib/domain/event-a
 import { orderStatsFor, sessionOrderStats, sumAvailability } from "@/lib/domain/session-panel";
 import { orderNumber, sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { loadEventGallery } from "@/lib/media/gallery";
+import { eventShareModel, publicAppBaseUrl } from "@/lib/events/share-link";
 import { payoutSituation } from "@/lib/organizer/finance";
 import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { lockedFieldsFor } from "@/lib/organizer/post-approval";
@@ -292,6 +294,17 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   });
 
   const lastSession = activeSessions.at(-1);
+  const share = eventShareModel({
+    name: event.name,
+    slug: event.slug,
+    whenLabel: formatEventDays(activeSessions.map((session) => session.starts_at)),
+    approvalStatus: event.approval_status,
+    organizerId: event.organizer_id,
+    deletedAt: event.deleted_at,
+    lastSessionAt: lastSession ? (lastSession.ends_at ?? lastSession.starts_at) : null,
+    appUrl: publicAppBaseUrl(),
+    now: new Date(now),
+  });
   const status = organizerEventStatus({
     approvalStatus: event.approval_status,
     salesOpen: event.sales_open,
@@ -339,6 +352,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
             salesOpen={event.sales_open}
           />
         </div>
+        <EventSharePanel model={share} />
       </header>
 
       <nav aria-label="Partes do evento" className="mt-6 lg:hidden">

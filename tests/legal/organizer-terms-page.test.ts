@@ -115,6 +115,10 @@ describe("página Termos do organizador", () => {
     expect(page).toContain("não sai da sua parte");
     expect(page).toContain("não cobra comissão");
     expect(page).toContain("tarifa em cada pagamento");
+    expect(page).toContain("a tarifa do PIX fica em torno de 0,99%");
+    expect(page).toContain("cartão de crédito em torno de 3,98% a 4,98%");
+    expect(page).toContain("o parcelamento pode acrescentar juros");
+    expect(page).toContain("definidos pelo banco e podem mudar");
   });
 
   it("item 2: verificação em duas etapas por código no e-mail, sem aplicativo", async () => {
@@ -127,11 +131,11 @@ describe("página Termos do organizador", () => {
     expect(page.toLowerCase()).not.toContain("autenticador");
   });
 
-  it("item 2: troca da chave PIX pode levar até 1 dia; versão de 2026-10-15", async () => {
+  it("item 2: troca da chave PIX pode levar até 1 dia; versão de 2026-10-17", async () => {
     const page = text(await renderPage());
     expect(page).toContain("A troca da chave PIX pode levar até 1 dia para ser confirmada.");
-    expect(ORGANIZER_TERMS_VERSION).toBe("2026-10-15");
-    expect(page).toContain("Atualizados em 15 de outubro de 2026");
+    expect(ORGANIZER_TERMS_VERSION).toBe("2026-10-17");
+    expect(page).toContain("Atualizados em 17 de outubro de 2026");
   });
 
   it("item 3: nome e local (decisão 2A) dependem de nova confirmação depois de aprovado", async () => {

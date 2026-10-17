@@ -5,20 +5,11 @@ import { type FormEvent, useState, useTransition } from "react";
 
 import { cancelPixChange, sendPixChangeCode, submitPixChange } from "@/app/organizador/conta/actions";
 import { FinanceDialog } from "@/components/equipe/FinanceDialog";
+import { PixKeyFields } from "@/components/organizer/PixKeyFields";
 import { Button } from "@/components/ui/Button";
-import { controlClasses, Field, labelClasses } from "@/components/ui/Field";
+import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { PIX_TYPE_LABELS } from "@/lib/organizer/pix-change";
-
-const PIX_KEY_INPUT: Record<string, { inputMode: "email" | "tel" | "text"; hint: string }> = {
-  email: { inputMode: "email", hint: "O e-mail cadastrado como chave PIX." },
-  telefone: { inputMode: "tel", hint: "O celular cadastrado como chave PIX, com DDD." },
-  aleatoria: { inputMode: "text", hint: "Copie a chave aleatória do aplicativo do seu banco." },
-};
-
-function usesDocumentAsKey(type: string) {
-  return type === "cpf" || type === "cnpj";
-}
+import { pixKeyIsDocument } from "@/lib/organizer/pix-key";
 
 /** Botão "Trocar chave PIX": 1) código no e-mail; 2) código + chave nova. */
 export function PixChangeButton() {
@@ -84,7 +75,7 @@ function PixChangeDialog({ onClose, onDone }: { onClose: () => void; onDone: (me
         const result = await submitPixChange({
           code,
           pixKeyType,
-          pixKey: usesDocumentAsKey(pixKeyType) ? holderDocument : pixKey,
+          pixKey: pixKeyIsDocument(pixKeyType) ? holderDocument : pixKey,
           pixHolderName: holderName,
           pixHolderDocument: holderDocument,
         });
@@ -143,68 +134,20 @@ function PixChangeDialog({ onClose, onDone }: { onClose: () => void; onDone: (me
           <Notice live={false} tone="warning">
             O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado.
           </Notice>
-          <div className="flex flex-col gap-1.5">
-            <label className={labelClasses} htmlFor="nova-pix-tipo">
-              Tipo da chave PIX
-            </label>
-            <select
-              className={`${controlClasses} min-h-12`}
-              disabled={isPending}
-              id="nova-pix-tipo"
-              onChange={(event) => setPixKeyType(event.target.value)}
-              required
-              value={pixKeyType}
-            >
-              <option disabled value="">
-                Escolha
-              </option>
-              {Object.entries(PIX_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Field
-            autoComplete="off"
+          <PixKeyFields
             disabled={isPending}
-            hint="Como está no banco: você ou a sua empresa."
-            label="Nome do titular"
-            maxLength={120}
-            minLength={2}
-            onChange={(event) => setHolderName(event.target.value)}
-            required
-            value={holderName}
+            holderDocument={holderDocument}
+            holderName={holderName}
+            idPrefix="nova-pix"
+            onChange={(field, value) => {
+              if (field === "pixKeyType") setPixKeyType(value);
+              if (field === "pixKey") setPixKey(value);
+              if (field === "pixHolderName") setHolderName(value);
+              if (field === "pixHolderDocument") setHolderDocument(value);
+            }}
+            pixKey={pixKey}
+            pixKeyType={pixKeyType}
           />
-          <Field
-            autoComplete="off"
-            disabled={isPending}
-            hint="Só os números ou com pontos, como preferir."
-            inputMode="numeric"
-            label="CPF ou CNPJ do titular"
-            maxLength={18}
-            onChange={(event) => setHolderDocument(event.target.value)}
-            required
-            value={holderDocument}
-          />
-          {pixKeyType && !usesDocumentAsKey(pixKeyType) ? (
-            <Field
-              autoCapitalize="none"
-              autoComplete="off"
-              disabled={isPending}
-              hint={PIX_KEY_INPUT[pixKeyType]?.hint}
-              inputMode={PIX_KEY_INPUT[pixKeyType]?.inputMode ?? "text"}
-              label="Chave PIX nova"
-              maxLength={77}
-              onChange={(event) => setPixKey(event.target.value)}
-              required
-              spellCheck={false}
-              value={pixKey}
-            />
-          ) : null}
-          {usesDocumentAsKey(pixKeyType) ? (
-            <p className="text-sm text-byla-muted">A chave PIX é o CPF ou CNPJ do titular informado acima.</p>
-          ) : null}
           {error ? <Notice tone="danger">{error}</Notice> : null}
           <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <Button disabled={isPending} onClick={requestCode} variant="ghost">

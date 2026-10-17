@@ -1802,7 +1802,7 @@ git commit -m "feat(organizador): avisos por e-mail com teto proprio de 10 por d
 Run: `npx vitest run tests/public/organizer-request.test.ts tests/public/site-footer.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar.** `SiteFooter` vira componente assíncrono de servidor que chama `organizerAreaEnabled()`. Página inicial: bloco discreto no fim "Quer fazer seu evento no Espaço Byla? → Fale com a gente" só com a área ligada. Formulário usa `useHumanCheck("org_request")` e o padrão visual do checkout (celular primeiro).
+- [ ] **Step 3: Implementar.** `SiteFooter` vira componente assíncrono de servidor que chama `organizerAreaEnabled()`. Página inicial: bloco discreto no fim "Realize seu evento no Espaço Byla → Fale com a gente" só com a área ligada. Formulário usa `useHumanCheck("org_request")` e o padrão visual do checkout (celular primeiro).
 
 - [ ] **Step 4: Rodar e ver passar** — PASS; `npx vitest run` inteiro também.
 

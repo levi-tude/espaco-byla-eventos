@@ -26,13 +26,7 @@ export type PixChangeDetails = {
   next: PixSide;
 };
 
-export const PIX_TYPE_LABELS: Record<string, string> = {
-  cpf: "CPF",
-  cnpj: "CNPJ",
-  email: "E-mail",
-  telefone: "Celular",
-  aleatoria: "Chave aleatória",
-};
+export { PIX_TYPE_LABELS } from "@/lib/organizer/pix-key";
 
 type Obj = Record<string, unknown>;
 

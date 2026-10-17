@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/domain/service-fee";
 import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
+  INSTALLMENT_INTEREST_NOTE,
   REFUND_PROCESSING_DAYS,
   SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE,
   TERMS_SERVICE_FEE,
@@ -105,6 +106,7 @@ export default function TermsPage() {
               ingressos chegam no seu e-mail e ficam disponíveis na página do
               pedido.
             </li>
+            <li>{INSTALLMENT_INTEREST_NOTE}</li>
             <li>
               As vendas de cada sessão encerram {SESSION_SALES_CLOSE_MINUTES}{" "}
               minutos depois do horário de início, ou antes, se os ingressos
