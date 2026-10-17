@@ -126,7 +126,8 @@ export default async function RepassesPage({ searchParams }: PageProps<"/equipe/
                       {event.pendingFeeOrders > 0 && ended ? (
                         <p className="text-sm text-byla-muted">
                           Falta a tarifa do banco de {event.pendingFeeOrders}{" "}
-                          {event.pendingFeeOrders === 1 ? "pedido" : "pedidos"}.
+                          {event.pendingFeeOrders === 1 ? "pedido" : "pedidos"}. Isso não muda a parte do
+                          organizador.
                         </p>
                       ) : null}
                       {event.pixChangePending ? (

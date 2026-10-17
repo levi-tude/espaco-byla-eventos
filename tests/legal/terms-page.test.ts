@@ -58,7 +58,7 @@ describe("página Termos de compra", () => {
     expect(page).toContain("até 10 pessoas");
     expect(page).toContain("reservados por 15 minutos");
     expect(page).toContain("encerram 5 minutos depois");
-    expect(page).toMatch(/taxa de serviço de 5% do preço/);
+    expect(page).toMatch(/taxa de serviço de 7% do preço/);
     expect(page).toContain("mínimo de R$ 1,00");
     expect(page).toContain("Ingressos de cortesia não têm taxa");
     expect(page).toContain("devolve 100% do valor pago");

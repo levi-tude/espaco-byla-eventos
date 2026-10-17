@@ -66,16 +66,6 @@ export function OrganizerFinancePanel({ finance: f, refundPixKey }: Props) {
     ...(f.contestedOrders > 0
       ? [{ label: `Contestações (${f.contestedOrders})`, value: minus(f.contestedCents) }]
       : []),
-    ...(f.pendingFeeOrders > 0
-      ? [
-          {
-            label: `Em conferência (${count(f.pendingFeeOrders, "pedido", "pedidos")})`,
-            value: minus(f.pendingCents),
-            hint: "Entram na sua parte quando o banco de pagamento informar a tarifa.",
-          },
-        ]
-      : []),
-    { label: "Tarifa do banco de pagamento", value: minus(f.bankFeeCents) },
     { label: "Sua parte", value: formatMoney(f.shareCents), strong: true },
     { label: "Já repassado", value: formatMoney(f.paidOutCents) },
     f.balanceCents >= 0
@@ -102,11 +92,12 @@ export function OrganizerFinancePanel({ finance: f, refundPixKey }: Props) {
         ))}
       </dl>
 
-      {f.serviceFeeCents > 0 ? (
-        <p className="text-sm text-byla-muted">
-          A taxa de serviço paga pelos compradores ({formatMoney(f.serviceFeeCents)}) não entra na sua parte.
-        </p>
-      ) : null}
+      <p className="text-sm text-byla-muted">
+        A tarifa do banco de pagamento sai da taxa de serviço, não da sua parte.
+        {f.serviceFeeCents > 0
+          ? ` A taxa de serviço paga pelos compradores (${formatMoney(f.serviceFeeCents)}) também não entra na sua parte.`
+          : ""}
+      </p>
       {f.decisionOrders > 0 ? (
         <p className="text-sm text-byla-muted">
           {count(f.decisionOrders, "pedido pago sem vaga aguarda", "pedidos pagos sem vaga aguardam")} decisão do

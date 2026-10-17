@@ -23,9 +23,9 @@ const finance = (o: Partial<OrganizerEventFinance> = {}): OrganizerEventFinance 
   bankFeeCents: 1095,
   pendingFeeOrders: 0,
   pendingCents: 0,
-  shareCents: 43905,
+  shareCents: 45000,
   paidOutCents: 0,
-  balanceCents: 43905,
+  balanceCents: 45000,
   decisionOrders: 0,
   serviceFeeCents: 2250,
   flag: null,
@@ -54,21 +54,25 @@ describe("OrganizerFinancePanel", () => {
     for (const piece of [
       "Vendido (10 pedidos)||R$ 500,00",
       "Estornos (1)||−R$ 50,00",
-      "Tarifa do banco de pagamento||−R$ 10,95",
-      "Sua parte||R$ 439,05",
+      "Sua parte||R$ 450,00",
       "Já repassado||R$ 0,00",
-      "A receber||R$ 439,05",
+      "A receber||R$ 450,00",
       "Em conferência — previsto até 30/10",
-      "A taxa de serviço paga pelos compradores (R$ 22,50) não entra na sua parte.",
+      "A tarifa do banco de pagamento sai da taxa de serviço, não da sua parte.",
+      "A taxa de serviço paga pelos compradores (R$ 22,50) também não entra na sua parte.",
       "Repasse para: e-mail |•••@exemplo.com",
     ]) {
       expect(text).toContain(piece);
     }
     expect(text).not.toContain("Em conferência (");
+    expect(text).not.toContain("−R$ 10,95");
   });
 
-  it("pedidos sem tarifa aparecem em conferência", () => {
-    expect(html(finance({ pendingFeeOrders: 2, pendingCents: 10000 }))).toContain("Em conferência (2 pedidos)||−R$ 100,00");
+  it("pedido sem tarifa não reduz a parte nem aparece como valor em conferência", () => {
+    const text = html(finance({ pendingFeeOrders: 2, pendingCents: 10000 }));
+    expect(text).not.toContain("Em conferência (");
+    expect(text).toContain("Sua parte||R$ 450,00");
+    expect(text).toContain("A tarifa do banco de pagamento sai da taxa de serviço, não da sua parte.");
   });
 
   it("histórico com data do PIX e valor, sem quem registrou", () => {

@@ -9,7 +9,7 @@ Ponto de partida (dono, 2026-10-04): o desenvolvedor do site presta serviço ao 
 ## Resumo executivo
 
 - **Comprador:** vê "R$ 50,00 + R$ 2,50 de taxa" desde a escolha do ingresso, e o total já com a taxa, em todas as telas e e-mails.
-- **Cálculo:** 5% do preço de cada ingresso comprado (cada Casadinha, cada Inteira…), mínimo R$ 1,00 por ingresso, arredondado ao centavo. Cortesia não paga.
+- **Cálculo:** 7% do preço de cada ingresso comprado (cada Casadinha, cada Inteira…), mínimo R$ 1,00 por ingresso, arredondado ao centavo. Cortesia não paga. O percentual original desta spec (2026-10-04) era 5%; Levi subiu para 7% em 2026-10-17. O valor cobrado continua o de `service_fee_settings` (não muda sozinho com o texto dos termos).
 - **Gravado na compra:** percentual e valor ficam no pedido; mudar o percentual depois não muda pedidos antigos. Pedidos de antes da taxa = taxa 0.
 - **Pagamento:** o banco recebe o total com a taxa; a regra "só confirma se o valor pago for igual ao total do pedido" continua igual.
 - **Estorno:** devolve 100%, com a taxa. A taxa estornada sai do valor a repassar.
@@ -34,7 +34,7 @@ Ponto de partida (dono, 2026-10-04): o desenvolvedor do site presta serviço ao 
 - Emissão de nota fiscal (a planilha serve de base para o contador).
 - Estorno parcial (não existe hoje; continua não existindo).
 - Taxa diferente por evento ou por tipo (há um só percentual vigente; ver seção 17).
-- Descontar a tarifa do banco de pagamento da taxa (decisão 4: fica com o Espaço).
+- Descontar a tarifa do banco de pagamento da parte do organizador. Desde 2026-10-17 a tarifa sai da taxa de serviço (saldo do desenvolvedor), não do ingresso.
 
 ---
 
@@ -42,10 +42,10 @@ Ponto de partida (dono, 2026-10-04): o desenvolvedor do site presta serviço ao 
 
 | # | Tema | Decisão |
 | --- | --- | --- |
-| 1 | Valor | 5% do preço de **cada ingresso comprado** (cada unidade do carrinho), mínimo R$ 1,00 por unidade. Cortesia não paga. |
+| 1 | Valor | **7%** do preço de **cada ingresso comprado** (cada unidade do carrinho), mínimo R$ 1,00 por unidade. Cortesia não paga. (Em 2026-10-04 era 5%; Levi alterou para 7% em 2026-10-17. Mínimo permanece R$ 1,00.) |
 | 2 | Transparência | Comprador vê a taxa desde a escolha: "R$ 50,00 + R$ 2,50 de taxa" e total com taxa. Texto "taxa de serviço", sem citar fornecedores. Pedido, ingresso/e-mail e página do pedido mostram ingressos + taxa + total. |
 | 3 | Gravação | Percentual e centavos gravados na compra. Pedidos antigos = 0. Só servidor/banco calculam. O banco de pagamento recebe o total com taxa; `confirmOrderPaid` continua exigindo pago == `total_cents`. |
-| 4 | Tarifa do banco | A tarifa do banco de pagamento sobre a taxa fica com o Espaço; o desenvolvedor recebe a taxa cheia. |
+| 4 | Tarifa do banco | **Revisto em 2026-10-17:** a tarifa conhecida do banco (bruto − líquido, inclusive juros de parcelamento que reduzam o valor recebido) sai do saldo da taxa de serviço. O desenvolvedor recebe a taxa já líquida dessa tarifa. A coluna `fee_due_cents` continua a taxa bruta dos pedidos válidos; `balance_cents` desconta a tarifa. A parte do organizador não sofre esse desconto. A decisão de 2026-10-04 ("desenvolvedor recebe a taxa cheia") não vale mais. |
 | 5 | Estorno | Todo estorno (individual, "Estornar todos", sessão cancelada) devolve 100% com a taxa e reduz o valor a repassar daquele evento. |
 | 6 | Telas da equipe | Quadro "Financeiro do evento" + página "Taxa de serviço" com totais, lista de eventos e "Baixar planilha" (CSV). |
 | 7 | Quem vê | **Somente Admin.** Secretaria não vê. Garantido no servidor e no banco. |
@@ -82,13 +82,17 @@ taxa_pedido  = soma das taxa_linha
 total        = soma dos preços + taxa_pedido
 ```
 
-- Percentual em pontos-base (`500` = 5%) e mínimo em centavos (`100`), para conta inteira sem ponto flutuante.
+- Percentual em pontos-base (`100` = 1%; a taxa vigente desde 2026-10-17 é `700` = 7%) e mínimo em centavos (`100`), para conta inteira sem ponto flutuante.
 - Arredondamento meio-para-cima ao centavo: `(preço_centavos × 500 + 5000) / 10000` em divisão inteira.
 - Taxa calculada **por unidade** (não sobre o total do pedido), para o mínimo valer por ingresso e o valor ser igual no checkout, no pedido e no estorno.
 - Cortesia: taxa 0 (pedido de cortesia tem total 0).
 - Pedido criado com a taxa desligada: taxa 0, percentual 0.
 
-### 4.2 Exemplos
+### 4.2 Exemplos da fórmula a 500 pontos-base
+
+A tabela abaixo é a paridade da fórmula com `rate_bps = 500` (teste e `scripts/db-tests/service-fee.mjs`). Não é o percentual comercial vigente.
+
+**Vigente desde 2026-10-17:** 7% (`700`), mínimo R$ 1,00. Ingresso de R$ 50,00 → taxa R$ 3,50, total R$ 53,50. O mínimo de R$ 1,00 passa a ser maior que 7% abaixo de cerca de R$ 14,29.
 
 | Item | Preço | 5% exato | Taxa | Total da unidade |
 | --- | --- | --- | --- | --- |
@@ -417,7 +421,7 @@ No celular, cada evento vira um card com as mesmas informações (padrão mobile
 | Saldo negativo sem próximo evento | Fica "Desconto pendente" até o próximo repasse; a página mostra o total pendente no topo. |
 | Percentual alterado com venda em andamento | Pedidos já criados mantêm o gravado; checkout aberto recebe `TAXA_MUDOU`. |
 | Taxa ligada com evento já à venda | Pedidos novos passam a ter taxa (ver pergunta 6). |
-| Ingresso de R$ 0,01 a R$ 19,99 | Paga o mínimo R$ 1,00 (acima de 5%). |
+| Ingresso barato | Paga o mínimo R$ 1,00 quando 7% fica abaixo disso (cerca de R$ 14,29). |
 | Reserva "Alterar seleção" | Pedido novo recalculado com a taxa vigente. |
 | Valor mínimo do cartão no banco de pagamento | Total com taxa só aumenta o valor; sem impacto negativo. |
 
@@ -427,7 +431,7 @@ No celular, cada evento vira um card com as mesmas informações (padrão mobile
 
 - **`/privacidade`:** a taxa não envolve dado pessoal novo. **Sem mudança** de texto nem de versão (`PRIVACY_POLICY_VERSION` continua `2026-10-03`). O CSV não leva dados de compradores.
 - **Termos de compra (página pendente):** precisa de uma seção "Taxa de serviço":
-  - o que é, quanto é (5% por ingresso, mínimo R$ 1,00) e que aparece antes da compra;
+  - o que é, quanto é (7% por ingresso desde 2026-10-17, mínimo R$ 1,00) e que aparece antes da compra;
   - **devolvida integralmente** em todo estorno, inclusive desistência em até 7 dias da compra (art. 49 do CDC) e cancelamento de sessão ou evento;
   - não é cobrada em cortesias.
 - **[S]** Aplicação do art. 49 a ingressos e regras de meia-entrada: confirmar com quem cuida da parte jurídica. A decisão do dono (sempre devolver a taxa) já é a mais favorável ao comprador.

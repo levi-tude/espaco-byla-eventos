@@ -34,9 +34,9 @@ const finance = (o: Partial<OrganizerEventFinance> = {}): OrganizerEventFinance 
   bankFeeCents: 1095,
   pendingFeeOrders: 0,
   pendingCents: 0,
-  shareCents: 43905,
+  shareCents: 45000,
   paidOutCents: 0,
-  balanceCents: 43905,
+  balanceCents: 45000,
   decisionOrders: 0,
   serviceFeeCents: 2250,
   flag: null,
@@ -65,7 +65,8 @@ describe("bloco Organizador na página do evento", () => {
   it("mostra a situação, os valores e o botão de repasse para o Admin do Espaço", () => {
     const text = html(finance());
     expect(text).toContain("A pagar até 30/10");
-    expect(text).toContain("Parte do organizador||R$ 439,05");
+    expect(text).toContain("Parte do organizador||R$ 450,00");
+    expect(text).toContain("Tarifa do banco (sai da taxa de serviço)");
     expect(text).toContain("Marcar repasse");
     expect(text).toContain("Lançar ajuste");
     expect(text).not.toContain("Lançar tarifa do extrato");
@@ -84,11 +85,17 @@ describe("bloco Organizador na página do evento", () => {
     expect(text).not.toContain("Marcar repasse");
   });
 
-  it("tarifa pendente oferece o lançamento do extrato", () => {
-    const text = html(finance({ pendingFeeOrders: 2, balanceCents: 0, shareCents: 0 }));
-    expect(text).toContain("Conferindo a tarifa do banco de 2 pedidos");
-    expect(text).toContain("Lançar tarifa do extrato");
-    expect(text).not.toContain("Marcar repasse");
+  it("tarifa pendente não segura o repasse e ainda oferece o lançamento do extrato", () => {
+    const waiting = html(finance({ pendingFeeOrders: 2 }));
+    expect(waiting).toContain("A pagar até 30/10");
+    expect(waiting).toContain("Falta a tarifa do banco de 2 pedidos. Isso não muda a parte do organizador.");
+    expect(waiting).toContain("Lançar tarifa do extrato");
+    expect(waiting).toContain("Marcar repasse");
+
+    const empty = html(finance({ pendingFeeOrders: 2, balanceCents: 0, shareCents: 0 }));
+    expect(empty).toContain("Sem valor a repassar");
+    expect(empty).toContain("Lançar tarifa do extrato");
+    expect(empty).not.toContain("Marcar repasse");
   });
 
   it("evento em andamento não tem ações", () => {

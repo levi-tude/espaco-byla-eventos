@@ -8,7 +8,7 @@ export const TERMS_UPDATED_LABEL = legalVersionLabel(TERMS_VERSION);
 export const TERMS_PATH = "/termos";
 
 /** Taxa descrita nos termos; o valor cobrado de fato vem do banco e aparece antes do pagamento. */
-export const TERMS_SERVICE_FEE = { rateBps: 500, minCents: 100 } as const;
+export const TERMS_SERVICE_FEE = { rateBps: 700, minCents: 100 } as const;
 
 export const WITHDRAWAL_DAYS = 7;
 

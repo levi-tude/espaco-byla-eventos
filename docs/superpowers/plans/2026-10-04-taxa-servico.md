@@ -54,6 +54,16 @@ Recusas: `TAXA_ADMIN`, `TAXA_DEV`, `TAXA_PRAZO`, `TAXA_MUDOU:<centavos>`, `TAXA_
 5. (Recomendado) publicar "Termos de compra" com a seção da taxa.
 6. **Ligar a taxa** (painel do banco, com "pode" do dono): `update public.service_fee_settings set enabled = true where id = 1;` Compra de teste pequena feita pelo dono + estorno dela; conferir valor no banco de pagamento, e-mail e quadro.
 7. Para desligar: `update public.service_fee_settings set enabled = false where id = 1;` (pedidos já feitos mantêm a taxa gravada).
+8. **Percentual vigente desde 2026-10-17: 7% (700 pontos-base), mínimo R$ 1,00.** Não há migration nem tela da equipe para isso. No SQL Editor do projeto Eventos, junto com o deploy que publica os termos de 2026-10-17 (senão o checkout recusa com `TAXA_MUDOU`):
+
+```sql
+update public.service_fee_settings
+set rate_bps = 700
+where id = 1
+returning id, enabled, rate_bps, min_cents;
+```
+
+`min_cents` permanece 100. Pedidos já pagos guardam a taxa que estava no pedido.
 
 ## Antes de alguém virar Admin
 

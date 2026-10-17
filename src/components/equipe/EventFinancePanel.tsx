@@ -162,13 +162,13 @@ export function EventFinancePanel({ id, className, eventId, summary, canWrite, o
     {
       label: "Valor do Espaço",
       value: formatMoney(summary.espacoCents),
-      hint: "Antes das tarifas do banco de pagamento.",
+      hint: "Valor dos ingressos que continuam válidos. A tarifa do banco não entra aqui.",
       strong: true,
     },
     {
       label: "Taxa a repassar",
-      value: formatMoney(summary.feeDueCents),
-      hint: `Já repassado ${formatMoney(summary.paidOutCents)}.`,
+      value: formatMoney(summary.paidOutCents + summary.balanceCents),
+      hint: `Taxa dos pedidos que contam ${formatMoney(summary.feeDueCents)}, já sem a tarifa do banco conhecida. Já repassado ${formatMoney(summary.paidOutCents)}.`,
       strong: true,
     },
     ...(summary.decisionOrders > 0

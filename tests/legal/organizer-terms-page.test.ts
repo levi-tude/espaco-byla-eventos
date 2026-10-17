@@ -110,14 +110,19 @@ describe("página Termos do organizador", () => {
     const page = text(await renderPage());
     const percent = TERMS_SERVICE_FEE.rateBps / 100;
     const min = formatMoney(TERMS_SERVICE_FEE.minCents).replace(/\s/g, " ");
+    expect(TERMS_SERVICE_FEE).toEqual({ rateBps: 700, minCents: 100 });
     expect(page).toContain(`taxa de serviço (${percent}% por item, mínimo ${min})`);
-    expect(page).toContain("num pagamento de R$ 52,50, sendo R$ 50,00 de ingresso e R$ 2,50 de taxa de serviço");
+    expect(page).toContain("num pagamento de R$ 53,50, sendo R$ 50,00 de ingresso e R$ 3,50 de taxa de serviço");
+    expect(page).toContain("você recebe os R$ 50,00");
     expect(page).toContain("não sai da sua parte");
+    expect(page).toContain("Essa tarifa sai da taxa de serviço e não da sua parte");
+    expect(page).not.toContain("sai da sua parte, pelo");
     expect(page).toContain("não cobra comissão");
     expect(page).toContain("tarifa em cada pagamento");
     expect(page).toContain("a tarifa do PIX fica em torno de 0,99%");
     expect(page).toContain("cartão de crédito em torno de 3,98% a 4,98%");
     expect(page).toContain("o parcelamento pode acrescentar juros");
+    expect(page).toContain("Quando esses juros reduzem o valor que o banco repassa, eles entram na tarifa");
     expect(page).toContain("definidos pelo banco e podem mudar");
   });
 
@@ -149,7 +154,11 @@ describe("página Termos do organizador", () => {
     const page = text(await renderPage());
     expect(page).toContain("em até 5 dias úteis");
     expect(page).toContain("o Dois de Julho");
-    expect(page).toContain("Sua parte = valor dos ingressos vendidos − estornos − contestações no cartão − tarifas do banco.");
+    expect(page).toContain("Sua parte = valor dos ingressos vendidos − estornos − contestações no cartão.");
+    expect(page).toContain("O repasse não espera a conferência da tarifa do banco: ela não muda a sua parte.");
+    expect(page).toContain("se o banco não devolver a tarifa, o Espaço Byla arca com ela");
+    expect(page).not.toContain("− tarifas do banco");
+    expect(page).not.toContain("Se houver tarifa ainda em conferência");
     expect(page).toContain("você devolve o valor por PIX ao Espaço Byla em até 10 dias depois do aviso");
     expect(page).toContain("apague em até 90 dias depois do evento");
     expect(page).toContain("avise o Espaço Byla em até 24 horas");
