@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** O organizador vê, por evento, quanto vendeu, quanto já recebeu e quando recebe; a equipe Admin registra os repasses por PIX manual (imutáveis, com quem e quando), com a tarifa real do banco de pagamento descontada da parte do organizador, prazo de 5 dias úteis de Salvador, desconto/devolução depois de estornos tardios e troca de chave PIX protegida. Também fecha as pendências da fase 2 que precisam estar prontas antes de existir organizador real.
+**Goal:** O organizador vê, por evento, quanto vendeu, quanto já recebeu e quando recebe; a equipe Admin registra os repasses por PIX manual (imutáveis, com quem e quando), prazo de 5 dias úteis de Salvador, desconto/devolução depois de estornos tardios e troca de chave PIX protegida. Também fecha as pendências da fase 2 que precisam estar prontas antes de existir organizador real.
+
+> **Atualização 2026-10-17:** a tarifa do banco **não** é mais descontada da parte do organizador. Ela sai do saldo da taxa de serviço (`event_fee_balance.balance_cents`). A parte é o valor dos ingressos válidos, mesmo quando a tarifa ainda não foi gravada. O texto abaixo descreve o que foi construído em 2026-10-15; a migration `20261021110000_bank_fee_on_service_fee.sql` substitui a fórmula. Não aplicar sem o "pode" do dono.
 
 **Architecture:** Banco decide todo valor (centavos inteiros, funções `security definer` só para `service_role`, recebendo o ID de quem age), igual à taxa de serviço (`20261013100000_service_fee.sql`). Três migrations novas: (A) tarifa por pagamento + calendário de dias úteis; (B) repasses, saldos, descontos/devoluções e visão do organizador/equipe; (C) troca de chave PIX, cota de código de login separada para organizadores e aviso de estorno "uma vez só". O app captura a tarifa no banco de pagamento depois de confirmar o pagamento (sem nunca atrasar ou quebrar a confirmação) e o cron diário tenta de novo. Telas: aba "Financeiro" do evento do organizador, página "Repasses" da equipe, "Trocar chave PIX".
 
@@ -36,7 +38,7 @@
 
 ## Decisões de desenho (detalhes que a spec deixou para o plano)
 
-1. **Tarifa ainda em conferência não segura o repasse inteiro** (Termos do organizador já publicados: "o repasse pode ser feito com o valor conferido até ali e o restante acertado no próximo repasse"). Só entram na "Sua parte" os pedidos com tarifa conhecida; os demais aparecem como "Em conferência (N pedidos · R$ X)" e entram quando a tarifa chegar (automática ou lançada pelo Admin). Conta exibida: vendido − estornos − contestações − em conferência − tarifa = sua parte.
+1. **Tarifa ainda em conferência não segura o repasse inteiro** — regra de 2026-10-15, **substituída em 2026-10-17**. Agora a tarifa não entra na parte em nenhum caso. Pedido sem tarifa conta o ingresso inteiro (`pending_cents` = 0). A equipe ainda lança a tarifa pelo extrato, porque ela reduz o saldo da taxa de serviço. `ORG_TARIFA_PENDENTE` deixa de ser emitido. Conta do organizador: vendido − estornos − contestações = sua parte.
 2. **Compensação sem PIX.** Se o saldo de um evento for todo consumido por desconto pendente de outro evento do mesmo organizador, o registro vira `kind = 'compensacao'` (valor 0, sem PIX), com as linhas +saldo e −desconto. Assim o evento sai de "Atrasado" sem inventar um PIX de R$ 0,00. Descontos são abatidos do saldo negativo mais antigo para o mais novo, inclusive parcialmente.
 3. **Devolução recebida pode ser parcial.** O Admin digita o valor que chegou (até o total devido); abate do saldo negativo mais antigo para o mais novo.
 4. **Ajuste manual** (`kind = 'ajuste'`) com motivo obrigatório, nas duas direções: "a favor do organizador" (aumenta o saldo; linha negativa) e "a favor do Espaço" (diminui o saldo; linha positiva). A tela mostra em palavras, nunca o sinal.
@@ -1177,12 +1179,12 @@ $$;
 
   Permissões: `revoke execute ... from public, anon, authenticated` + `grant execute ... to service_role` para todas as funções novas.
 - [ ] **Step 4: Matriz local** (mesmo `scripts/db-tests/organizer-finance.mjs`):
-  1. **Exemplo da spec (R$ 439,05):** evento de organizador com 10 pedidos pagos de 1 Inteira (subtotal 5000, total 5250, taxa de serviço ligada); tarifas: 6 × 52 e 4 × 261; estornar um pedido de cartão e gravar a tarifa dele como 0 → `share_cents = 43905`, `bank_fee_cents = 1095`, `refunded_cents = 5000`, `service_fee_cents = 2250`.
-  2. **Em conferência:** mesmo evento com 2 pedidos sem tarifa → `pending_fee_orders = 2`, `pending_cents = 10000`, `share` só dos outros; depois de gravar as tarifas, `share` sobe.
+  1. **Exemplo (desde 2026-10-17, R$ 450,00):** evento de organizador com 10 pedidos pagos de 1 Inteira (subtotal 5000, total 5250, taxa de serviço ligada); tarifas: 6 × 52 e 4 × 261; estornar um pedido de cartão e gravar a tarifa dele como 0 → `share_cents = 45000`, `bank_fee_cents = 1095`, `refunded_cents = 5000`, `service_fee_cents = 2250`. (O plano original esperava 43905, com a tarifa descontada.)
+  2. **Tarifa desconhecida:** mesmo evento com 2 pedidos sem tarifa → `pending_fee_orders = 2`, `pending_cents = 0`, `share` inclui esses ingressos; depois de gravar as tarifas, `share` não muda e o saldo da taxa cai.
   3. **Prazo:** repasse antes do dia seguinte à última sessão → `ORG_PRAZO`; data do PIX no futuro → `ORG_DATA`.
-  4. **Valor que mudou:** `p_expected_amount_cents` diferente → `ORG_MUDOU:43905`.
+  4. **Valor que mudou:** `p_expected_amount_cents` diferente → `ORG_MUDOU:45000` (no plano original, 43905).
   5. **Papéis:** secretaria → `TAXA_ADMIN`; Admin desenvolvedor → `TAXA_DEV`.
-  6. **Desconto no próximo repasse:** E1 com repasse de 43905; depois, estorno tardio de um pedido PIX de E1 (subtotal 5000, tarifa 52 mantida pelo banco) → saldo de E1 = −5000; E2 do mesmo organizador com saldo 20000 → `p_expected_amount_cents = 15000`, itens E2 +20000 e E1 −5000, E1 volta a 0 e a marcação fecha.
+  6. **Desconto no próximo repasse:** E1 com repasse de 45000 (no plano original, 43905); depois, estorno tardio de um pedido PIX de E1 (subtotal 5000, tarifa 52 mantida pelo banco) → saldo de E1 = −5000 (a tarifa que ficou sai da taxa, não da parte); E2 do mesmo organizador com saldo 20000 → `p_expected_amount_cents = 15000`, itens E2 +20000 e E1 −5000, E1 volta a 0 e a marcação fecha.
   7. **Compensação:** E1 com −5000 e E2 com 3000 → `kind = 'compensacao'`, valor 0, itens E2 +3000 e E1 −3000; E1 fica com −2000.
   8. **Devolução:** marcação com `negative_since` = hoje − 30 → `refresh_organizer_balance_flags()` devolve a linha com `return_due_date = hoje + 10`; `mark_balance_flag_notified` → some da lista; prazo vencido → `organizer_overdue_refunds = 1` e `submit_event_for_approval` → `ORG_DEVOLUCAO`; `record_organizer_refund_received` parcial e depois total → marcação resolvida; valor maior que o devido → `ORG_VALOR:<devido>`.
   9. **Imutável:** `update`/`delete`/`truncate` em `organizer_payouts` e itens → erro.
@@ -1368,7 +1370,7 @@ export function financeRefusalMessage(message: string | undefined): string;
 - [ ] **Step 1: Testes que falham** — tabela de casos da spec 10.4:
   - hoje < `startDate` → `andamento` ("Repasse previsto até 30/10" / "Prazo a confirmar" se `dueDate` nulo);
   - saldo > 0, dentro do prazo, sem pendentes → `a_pagar` (organizador: "Em conferência — previsto até 30/10"; equipe: "A pagar até 30/10");
-  - pendentes > 0 e saldo ≤ 0 → `conferindo` ("Conferindo a tarifa do banco de 2 pedidos"); pendentes > 0 e saldo > 0 → `a_pagar` com aviso extra "2 pedidos ainda em conferência";
+  - **Desde 2026-10-17** a tarifa pendente não cria a situação `conferindo` nem o aviso "ainda em conferência". Saldo > 0 → `a_pagar`; saldo = 0 → `sem_valor` ou `pago`; saldo < 0 → `desconto`/`devolucao`. (O plano original: pendentes > 0 e saldo ≤ 0 → `conferindo`.)
   - passou do prazo com saldo > 0 → `atrasado` (organizador: "Previsto até 30/10 — o Espaço foi avisado"; equipe: "Atrasado desde 30/10");
   - saldo 0 com repasse → `pago` ("Pago em 29/10 · R$ 439,05"); saldo 0 sem nada → `sem_valor`;
   - saldo < 0 sem marcação vencida → `desconto` ("−R$ 50,00 será descontado do próximo repasse");
@@ -1574,7 +1576,7 @@ git commit -m "feat(midia): limite diário de capas e limpeza de órfãs"
 ## Publicação (cada passo só com "pode" do dono)
 
 1. **Ensaio em produção:** declarar MCP `user-supabase-eventos` + projeto Espaço Byla Eventos, conferir a impressão digital, rodar `supabase/tests/organizer_finance_check.sql` numa única chamada `execute_sql` → precisa terminar em `ENSAIO OK`.
-2. **Aplicar as migrations** na ordem `20261019100000`, `20261019110000`, `20261019120000` com `apply_migration`; depois conferir `list_migrations`, `get_advisors` (segurança) e que nenhuma tabela nova aparece para `anon`/`authenticated`.
+2. **Aplicar as migrations** na ordem `20261019100000`, `20261019110000`, `20261019120000` e, com o "pode" desta mudança, `20261021110000_bank_fee_on_service_fee.sql`, com `apply_migration`; depois conferir `list_migrations`, `get_advisors` (segurança) e que nenhuma tabela nova aparece para `anon`/`authenticated`. No mesmo momento do deploy dos termos, gravar a taxa de 7%: `update public.service_fee_settings set rate_bps = 700 where id = 1;` (`min_cents` continua 100).
 3. **Push** de `main` (avanço rápido).
 4. **Deploy** no Cloud Run (`gcloud builds submit --config=infra/cloudrun/cloudbuild.yaml`, com as substituições `NEXT_PUBLIC_*` de sempre).
 5. **Ambiente:** o dono coloca `ORGANIZER_REFUND_PIX_KEY` (chave PIX do Espaço para devoluções) no Cloud Run; o agente não vê o valor.

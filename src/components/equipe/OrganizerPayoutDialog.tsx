@@ -91,7 +91,7 @@ function PayoutDialog({
   const [isPending, startTransition] = useTransition();
   const amount = details.expectedAmountCents;
   const compensation = details.kind === "compensacao";
-  const blocked = details.kind === null || details.pendingFeeOrders > 0 || (!compensation && !details.pixKey);
+  const blocked = details.kind === null || (!compensation && !details.pixKey);
   const ready = !blocked && confirmed && (compensation || pixDate !== "") && !/[\r\n]/.test(note);
 
   async function copyKey() {
@@ -162,9 +162,10 @@ function PayoutDialog({
       </div>
 
       {details.pendingFeeOrders > 0 ? (
-        <Notice live={false} tone="warning">
+        <Notice live={false} tone="info">
           Ainda falta a tarifa do banco de {details.pendingFeeOrders}{" "}
-          {details.pendingFeeOrders === 1 ? "pedido" : "pedidos"}. Lance as tarifas antes de registrar o repasse.
+          {details.pendingFeeOrders === 1 ? "pedido" : "pedidos"}. Isso não muda o valor do organizador: a tarifa
+          sai da taxa de serviço. Lance pelo extrato quando quiser, para a conta da taxa.
         </Notice>
       ) : null}
 

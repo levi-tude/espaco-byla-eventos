@@ -14,11 +14,13 @@ import { startOrganizerLoginAction } from "@/app/organizador/verificar/actions";
 import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { controlClasses, Field, labelClasses } from "@/components/ui/Field";
+import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { AREAS } from "@/lib/auth/area";
+import { PixKeyFields } from "@/components/organizer/PixKeyFields";
 import { ORGANIZER_TERMS_PATH } from "@/lib/legal/organizer-terms";
 import { inviteTokenFromHash } from "@/lib/organizer/invite-token-format";
+import { pixKeyIsDocument } from "@/lib/organizer/pix-key";
 import { parseEmail, parseOrganizerProfile, parsePassword } from "@/lib/organizer/validation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -50,20 +52,6 @@ export function takeTokenFromLocation(): { present: boolean; token: string | nul
   return { present: true, token: inviteTokenFromHash(hash) };
 }
 
-const PIX_TYPES = [
-  { value: "cpf", label: "CPF" },
-  { value: "cnpj", label: "CNPJ" },
-  { value: "email", label: "E-mail" },
-  { value: "telefone", label: "Celular" },
-  { value: "aleatoria", label: "Chave aleatória" },
-] as const;
-
-const PIX_KEY_INPUT: Record<string, { inputMode: "email" | "tel" | "text"; hint: string }> = {
-  email: { inputMode: "email", hint: "O e-mail cadastrado como chave PIX." },
-  telefone: { inputMode: "tel", hint: "O celular cadastrado como chave PIX, com DDD." },
-  aleatoria: { inputMode: "text", hint: "Copie a chave aleatória do aplicativo do seu banco." },
-};
-
 type FormState = {
   fullName: string;
   publicName: string;
@@ -94,17 +82,13 @@ const EMPTY_FORM: FormState = {
   terms: false,
 };
 
-function usesDocumentAsKey(type: string): boolean {
-  return type === "cpf" || type === "cnpj";
-}
-
 function profileFrom(form: FormState) {
   return {
     fullName: form.fullName,
     publicName: form.publicName,
     phone: form.phone,
     pixKeyType: form.pixKeyType,
-    pixKey: usesDocumentAsKey(form.pixKeyType) ? form.pixHolderDocument : form.pixKey,
+    pixKey: pixKeyIsDocument(form.pixKeyType) ? form.pixHolderDocument : form.pixKey,
     pixHolderName: form.pixHolderName,
     pixHolderDocument: form.pixHolderDocument,
   };
@@ -454,68 +438,14 @@ export function SignupWizard({ terms }: { terms?: ReactNode }) {
           <Notice live={false} tone="warning">
             O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado.
           </Notice>
-          <div className="flex flex-col gap-1.5">
-            <label className={labelClasses} htmlFor="pix-key-type">
-              Tipo da chave PIX
-            </label>
-            <select
-              className={`${controlClasses} min-h-12`}
-              id="pix-key-type"
-              name="pixKeyType"
-              onChange={(event) => update("pixKeyType", event.target.value)}
-              required
-              value={form.pixKeyType}
-            >
-              <option disabled value="">
-                Escolha
-              </option>
-              {PIX_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Field
-            autoComplete="off"
-            hint="Como está no banco: você ou a sua empresa."
-            label="Nome do titular"
-            maxLength={120}
-            minLength={2}
-            name="pixHolderName"
-            onChange={(event) => update("pixHolderName", event.target.value)}
-            required
-            value={form.pixHolderName}
+          <PixKeyFields
+            holderDocument={form.pixHolderDocument}
+            holderName={form.pixHolderName}
+            idPrefix="pix"
+            onChange={update}
+            pixKey={form.pixKey}
+            pixKeyType={form.pixKeyType}
           />
-          <Field
-            autoComplete="off"
-            hint="Só os números ou com pontos, como preferir."
-            inputMode="numeric"
-            label="CPF ou CNPJ do titular"
-            maxLength={18}
-            name="pixHolderDocument"
-            onChange={(event) => update("pixHolderDocument", event.target.value)}
-            required
-            value={form.pixHolderDocument}
-          />
-          {form.pixKeyType && !usesDocumentAsKey(form.pixKeyType) ? (
-            <Field
-              autoCapitalize="none"
-              autoComplete="off"
-              hint={PIX_KEY_INPUT[form.pixKeyType]?.hint}
-              inputMode={PIX_KEY_INPUT[form.pixKeyType]?.inputMode ?? "text"}
-              label="Chave PIX"
-              maxLength={77}
-              name="pixKey"
-              onChange={(event) => update("pixKey", event.target.value)}
-              required
-              spellCheck={false}
-              value={form.pixKey}
-            />
-          ) : null}
-          {usesDocumentAsKey(form.pixKeyType) ? (
-            <p className="text-sm text-byla-muted">A chave PIX é o CPF ou CNPJ do titular informado acima.</p>
-          ) : null}
           {error ? <Notice tone="danger">{error}</Notice> : null}
           <Button fullWidth size="lg" type="submit">
             Continuar

@@ -43,7 +43,7 @@ export function EventOrganizerPayout({ id, className, eventName, finance, canWri
     canWrite && !finance.pix.changePending && (situation.kind === "a_pagar" || situation.kind === "atrasado");
   const rows = [
     { label: "Parte do organizador", value: formatMoney(finance.shareCents) },
-    { label: "Tarifa do banco de pagamento", value: formatMoney(finance.bankFeeCents) },
+    { label: "Tarifa do banco (sai da taxa de serviço)", value: formatMoney(finance.bankFeeCents) },
     { label: "Já repassado", value: formatMoney(finance.paidOutCents) },
     {
       label: finance.balanceCents < 0 ? "A devolver ou descontar" : "A pagar",
@@ -74,6 +74,12 @@ export function EventOrganizerPayout({ id, className, eventName, finance, canWri
         <Notice live={false} tone="warning">
           A chave PIX do organizador mudou há pouco. Confira o titular antes de pagar.
         </Notice>
+      ) : null}
+      {finance.pendingFeeOrders > 0 && ended ? (
+        <p className="text-sm text-byla-muted">
+          Falta a tarifa do banco de {finance.pendingFeeOrders}{" "}
+          {finance.pendingFeeOrders === 1 ? "pedido" : "pedidos"}. Isso não muda a parte do organizador.
+        </p>
       ) : null}
       {canWrite && ended ? (
         <div className="grid gap-2 sm:grid-cols-2">

@@ -80,6 +80,61 @@ describe("validação", () => {
     ).toEqual({ ok: true, value: expect.objectContaining({ pixKey: "123e4567-e89b-12d3-a456-426614174000" }) });
     expect(parseOrganizerProfile({ ...profile, pixKeyType: "boleto" }).ok).toBe(false);
   });
+  it("perfil: celular com máscara, 0, 55 e DDD 55; recusa DDD inválido e fixo", () => {
+    for (const pixKey of ["071999999999", "55 71 99999-9999", "+55 (071) 99999-9999"]) {
+      expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey })).toEqual({
+        ok: true,
+        value: expect.objectContaining({ pixKey: "+5571999999999" }),
+      });
+    }
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "55999999999" })).toEqual({
+      ok: true,
+      value: expect.objectContaining({ pixKey: "+5555999999999" }),
+    });
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "+55 55 99999-9999" })).toEqual({
+      ok: true,
+      value: expect.objectContaining({ pixKey: "+5555999999999" }),
+    });
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "(23) 99999-9999" })).toEqual({
+      ok: false,
+      error: "Informe um celular com DDD válido. Pode usar espaços, traços ou +55.",
+    });
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "telefone", pixKey: "(71) 3000-0000" }).ok).toBe(false);
+  });
+  it("perfil: e-mail até 77, EVP sem traços e CNPJ com letras", () => {
+    const email77 = `${"a".repeat(64)}@${"b".repeat(8)}.com`;
+    expect(email77).toHaveLength(77);
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "email", pixKey: ` ${email77.toUpperCase()} ` })).toEqual({
+      ok: true,
+      value: expect.objectContaining({ pixKey: email77 }),
+    });
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "email", pixKey: `${email77}x` }).ok).toBe(false);
+    expect(
+      parseOrganizerProfile({
+        ...profile,
+        pixKeyType: "aleatoria",
+        pixKey: "123E4567E89B12D3A456426614174000",
+      }),
+    ).toEqual({ ok: true, value: expect.objectContaining({ pixKey: "123e4567-e89b-12d3-a456-426614174000" }) });
+    expect(
+      parseOrganizerProfile({ ...profile, pixKeyType: "aleatoria", pixKey: "00000000000000000000000000000000" }),
+    ).toEqual({ ok: true, value: expect.objectContaining({ pixKey: "00000000-0000-0000-0000-000000000000" }) });
+    expect(parseOrganizerProfile({ ...profile, pixKeyType: "aleatoria", pixKey: "nao-e-uuid" })).toEqual({
+      ok: false,
+      error: "A chave aleatória tem 32 letras e números (pode colar com ou sem traços).",
+    });
+    expect(
+      parseOrganizerProfile({
+        ...profile,
+        pixKeyType: "cnpj",
+        pixKey: "12.abc.345/01de-35",
+        pixHolderDocument: "12ABC34501DE35",
+      }),
+    ).toEqual({
+      ok: true,
+      value: expect.objectContaining({ pixKey: "12ABC34501DE35", pixHolderDocument: "12ABC34501DE35" }),
+    });
+  });
   it("perfil: telefone de 10 a 13 dígitos, nomes aparados e titular com documento válido", () => {
     expect(parseOrganizerProfile({ ...profile, phone: "7190000" }).ok).toBe(false);
     expect(parseOrganizerProfile({ ...profile, phone: "55719000000030" }).ok).toBe(false);

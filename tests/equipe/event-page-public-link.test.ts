@@ -2,6 +2,8 @@ import { createElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { publicAppBaseUrl, SHARE_PENDING_MESSAGE, SHARE_REJECTED_MESSAGE } from "@/lib/events/share-link";
+
 type Result = { data: unknown; error: unknown };
 
 const STAFF_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -91,13 +93,17 @@ function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }
 
-async function renderPage(): Promise<string> {
+async function renderHtml(): Promise<string> {
   const { default: EventoEquipePage } = await import("@/app/equipe/eventos/[id]/page");
   const element = await EventoEquipePage({
     params: Promise.resolve({ id: EVENT_ID }),
     searchParams: Promise.resolve({}),
   } as never);
-  return text(renderToStaticMarkup(element as ReactElement));
+  return renderToStaticMarkup(element as ReactElement);
+}
+
+async function renderPage(): Promise<string> {
+  return text(await renderHtml());
 }
 
 function eventRow(extra: Record<string, unknown> = {}) {
@@ -147,21 +153,71 @@ beforeEach(() => {
 });
 
 describe("página do evento da equipe: link “Ver página”", () => {
-  it("evento do Espaço mostra o link", async () => {
-    expect(await renderPage()).toContain("Ver página");
+  it("evento do Espaço mostra o link e o card para compartilhar, mesmo com venda pausada", async () => {
+    const html = await renderHtml();
+    const page = text(html);
+    const url = `${publicAppBaseUrl()}/eventos/peca-y`;
+    expect(page).toContain("Ver página");
+    expect(page).toContain("Copiar link");
+    expect(page).toContain("Enviar pelo WhatsApp");
+    expect(html).toContain(`value="${url}"`);
+    expect(html).toContain('href="https://wa.me/?text=');
+    expect(page).not.toContain("Compartilhar");
   });
 
   it("evento de organizador aprovado mostra o link", async () => {
     mocks.serverTables.events = { data: eventRow({ organizer_id: ORGANIZER_ID }), error: null };
-    expect(await renderPage()).toContain("Ver página");
+    const page = await renderPage();
+    expect(page).toContain("Ver página");
+    expect(page).toContain("Copiar link");
   });
 
-  it.each(["rascunho", "em_analise", "recusado"])("evento de organizador %s não mostra o link", async (status) => {
+  it.each(["rascunho", "em_analise"])("evento de organizador %s ainda não tem link para copiar", async (status) => {
     mocks.serverTables.events = {
       data: eventRow({ organizer_id: ORGANIZER_ID, approval_status: status }),
       error: null,
     };
-    expect(await renderPage()).not.toContain("Ver página");
+    const page = await renderPage();
+    expect(page).not.toContain("Ver página");
+    expect(page).not.toContain("Copiar link");
+    expect(page).toContain(SHARE_PENDING_MESSAGE);
+  });
+
+  it("evento de organizador recusado pede ajuste e não mostra o link", async () => {
+    mocks.serverTables.events = {
+      data: eventRow({ organizer_id: ORGANIZER_ID, approval_status: "recusado" }),
+      error: null,
+    };
+    const page = await renderPage();
+    expect(page).not.toContain("Ver página");
+    expect(page).not.toContain("Copiar link");
+    expect(page).toContain(SHARE_REJECTED_MESSAGE);
+  });
+
+  it("evento encerrado mostra o link em tom mais baixo", async () => {
+    mocks.serverTables.events = {
+      data: eventRow({ starts_at: "2020-01-01T15:00:00Z" }),
+      error: null,
+    };
+    mocks.serverTables.event_sessions = {
+      data: [
+        {
+          id: SESSION_ID,
+          name: null,
+          starts_at: "2020-01-01T15:00:00Z",
+          ends_at: null,
+          capacity: 80,
+          inteira_quota: null,
+          meia_quota: null,
+          sales_open: false,
+          status: "ativa",
+        },
+      ],
+      error: null,
+    };
+    const page = await renderPage();
+    expect(page).toContain("Link da página do evento encerrado");
+    expect(page).toContain("Copiar link");
   });
 
   it("evento de organizador excluído não mostra o link", async () => {
@@ -169,6 +225,10 @@ describe("página do evento da equipe: link “Ver página”", () => {
       data: eventRow({ organizer_id: ORGANIZER_ID, deleted_at: "2026-10-10T10:00:00Z" }),
       error: null,
     };
-    expect(await renderPage()).not.toContain("Ver página");
+    const page = await renderPage();
+    expect(page).not.toContain("Ver página");
+    expect(page).not.toContain("Copiar link");
+    expect(page).not.toContain(SHARE_PENDING_MESSAGE);
+    expect(page).not.toContain(SHARE_REJECTED_MESSAGE);
   });
 });

@@ -119,10 +119,11 @@ begin
     perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
     perform public.record_payment_fee(v_orders[10], 5250, 0, '[]'::jsonb, null, true);
 
-    -- T6.1) Exemplo da spec: parte R$ 439,05.
+    -- T6.1) Parte do organizador = ingressos válidos (9 × R$ 50,00). A tarifa não entra.
     select * into v_row from public.organizer_event_balance(v_e1);
-    r := r || ' t6_1_exemplo_spec=' || case when v_row.share_cents = 43905 and v_row.bank_fee_cents = 1095
-      and v_row.refunded_cents = 5000 and v_row.service_fee_cents = 2250 and v_row.balance_cents = 43905
+    r := r || ' t6_1_exemplo_spec=' || case when v_row.share_cents = 45000 and v_row.bank_fee_cents = 1095
+      and v_row.refunded_cents = 5000 and v_row.service_fee_cents = 2250 and v_row.balance_cents = 45000
+      and v_row.pending_cents = 0
       then 'ok' else 'falhou' end;
 
     -- T6.3) Prazo e data do PIX.
@@ -133,7 +134,7 @@ begin
       r := r || ' t6_3_prazo=' || case when sqlerrm like 'ORG_PRAZO%' then 'ok' else 'falhou' end;
     end;
     begin
-      perform public.record_organizer_payout(v_admin, v_e1, 43905, v_today + 1, null);
+      perform public.record_organizer_payout(v_admin, v_e1, 45000, v_today + 1, null);
       r := r || ' t6_3_data_futura=falhou';
     exception when others then
       r := r || ' t6_3_data_futura=' || case when sqlerrm like 'ORG_DATA%' then 'ok' else 'falhou' end;
@@ -146,7 +147,7 @@ begin
     end;
     -- Repasse de E1 com a chave atual.
     begin
-      v_out := public.record_organizer_payout(v_admin, v_e1, 43905, v_today, null);
+      v_out := public.record_organizer_payout(v_admin, v_e1, 45000, v_today, null);
       r := r || ' t6_repasse_e1=' || case when v_out ->> 'kind' = 'repasse' then 'ok' else 'falhou' end;
     exception when others then
       r := r || ' t6_repasse_e1=falhou';
@@ -193,7 +194,7 @@ begin
 
     -- T7.3) Repasse com troca pendente.
     begin
-      perform public.record_organizer_payout(v_admin, v_e2, 14792, v_today, null);
+      perform public.record_organizer_payout(v_admin, v_e2, 15000, v_today, null);
       r := r || ' t7_3_repasse_bloqueado=falhou';
     exception when others then
       r := r || ' t7_3_repasse_bloqueado=' || case when sqlerrm like 'ORG_PIX_PENDENTE%' then 'ok' else 'falhou' end;
@@ -224,9 +225,9 @@ begin
       r := r || ' t7_4_aprovada=falhou';
     end;
 
-    -- T6.6) E2 (saldo 19792) paga já descontando os -5000 de E1.
+    -- T6.6) E2 (parte 20000) paga já descontando os -5000 de E1.
     begin
-      v_out := public.record_organizer_payout(v_admin, v_e2, 14792, v_today, null);
+      v_out := public.record_organizer_payout(v_admin, v_e2, 15000, v_today, null);
       r := r || ' t6_6_desconto_no_repasse=' || case when v_out ->> 'kind' = 'repasse'
         and (v_out ->> 'discount_cents')::integer = 5000
         and (select b.balance_cents from public.organizer_event_balance(v_e1) b) = 0 then 'ok' else 'falhou' end;

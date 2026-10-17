@@ -1,4 +1,12 @@
-import { isValidTaxDocument, onlyDigits } from "@/lib/organizer/documents";
+import { isValidTaxDocument, normalizeTaxDocument, onlyDigits } from "@/lib/organizer/documents";
+import {
+  canonicalTaxDocument,
+  isPixKeyType,
+  ORGANIZER_EMAIL_PATTERN,
+  PIX_KEY_TYPES,
+  storedPixKey,
+  type PixKeyType,
+} from "@/lib/organizer/pix-key";
 import { checkPassword, type PasswordPersonalInfo } from "@/lib/security/password-policy";
 
 export type FieldResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -10,8 +18,7 @@ export type SignupRequestInput = {
   approxDate: string | null;
 };
 
-export const PIX_KEY_TYPES = ["cpf", "cnpj", "email", "telefone", "aleatoria"] as const;
-export type PixKeyType = (typeof PIX_KEY_TYPES)[number];
+export { PIX_KEY_TYPES, type PixKeyType };
 
 export type OrganizerProfileInput = {
   fullName: string;
@@ -23,9 +30,7 @@ export type OrganizerProfileInput = {
   pixHolderDocument: string;
 };
 
-const EMAIL_PATTERN = /^[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{2,}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PIX_KEY_MAX = 77;
+const EMAIL_PATTERN = ORGANIZER_EMAIL_PATTERN;
 
 function fail(error: string): { ok: false; error: string } {
   return { ok: false, error };
@@ -95,36 +100,16 @@ function parsePhoneDigits(value: unknown): string | null {
   return digits.length >= 10 && digits.length <= 13 ? digits : null;
 }
 
-/** Celular de chave PIX no formato +55DDDNÚMERO. 12 ou 13 dígitos começando com 55 já têm o código do país. */
-function parsePixPhone(value: unknown): string | null {
-  const digits = parsePhoneDigits(value);
-  if (!digits) return null;
-  if (digits.length <= 11) return `+55${digits}`;
-  return digits.startsWith("55") ? `+${digits}` : null;
-}
-
 function parsePixKey(type: PixKeyType, value: unknown, holderDocument: string): FieldResult<string> {
+  const raw = typeof value === "string" ? value : "";
+  const stored = storedPixKey(type, raw, holderDocument);
+  if (stored) return { ok: true, value: stored };
   if (type === "cpf" || type === "cnpj") {
-    const digits = typeof value === "string" ? onlyDigits(value) : "";
-    const expectedLength = type === "cpf" ? 11 : 14;
-    if (digits.length !== expectedLength || digits !== holderDocument) {
-      return fail("Para chave CPF/CNPJ, use o documento do titular informado.");
-    }
-    return { ok: true, value: digits };
+    return fail("Para chave CPF/CNPJ, use o documento do titular informado.");
   }
-  if (type === "email") {
-    const email = parseEmail(value);
-    if (!email.ok || email.value.length > PIX_KEY_MAX) return fail("Informe um e-mail válido para a chave PIX.");
-    return email;
-  }
-  if (type === "telefone") {
-    const phone = parsePixPhone(value);
-    return phone ? { ok: true, value: phone } : fail("Informe o celular da chave PIX com DDD.");
-  }
-  if (typeof value !== "string" || !UUID_PATTERN.test(value.trim())) {
-    return fail("A chave aleatória tem o formato 123e4567-e89b-12d3-a456-426614174000.");
-  }
-  return { ok: true, value: value.trim().toLowerCase() };
+  if (type === "email") return fail("Informe um e-mail válido para a chave PIX.");
+  if (type === "telefone") return fail("Informe um celular com DDD válido. Pode usar espaços, traços ou +55.");
+  return fail("A chave aleatória tem 32 letras e números (pode colar com ou sem traços).");
 }
 
 export function parseOrganizerProfile(input: unknown): FieldResult<OrganizerProfileInput> {
@@ -148,13 +133,16 @@ export function parsePixDetails(input: unknown): FieldResult<PixDetailsInput> {
   const data = record(input);
   if (!data) return fail("Confira os dados e tente de novo.");
   const pixKeyType = data.pixKeyType;
-  if (typeof pixKeyType !== "string" || !(PIX_KEY_TYPES as readonly string[]).includes(pixKeyType)) {
+  if (typeof pixKeyType !== "string" || !isPixKeyType(pixKeyType)) {
     return fail("Escolha o tipo da chave PIX.");
   }
   const pixHolderName = text(data.pixHolderName, 2, 120, "Informe o nome do titular da chave (de 2 a 120 caracteres).");
   if (!pixHolderName.ok) return pixHolderName;
-  const pixHolderDocument = typeof data.pixHolderDocument === "string" ? onlyDigits(data.pixHolderDocument) : "";
-  if (!isValidTaxDocument(pixHolderDocument)) return fail("Confira o CPF ou CNPJ do titular.");
+  const pixHolderDocument =
+    typeof data.pixHolderDocument === "string" ? normalizeTaxDocument(data.pixHolderDocument) : "";
+  if (!isValidTaxDocument(pixHolderDocument) || !canonicalTaxDocument(pixHolderDocument)) {
+    return fail("Confira o CPF ou CNPJ do titular.");
+  }
   const pixKey = parsePixKey(pixKeyType as PixKeyType, data.pixKey, pixHolderDocument);
   if (!pixKey.ok) return pixKey;
   return {

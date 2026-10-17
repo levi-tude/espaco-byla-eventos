@@ -5,7 +5,7 @@
 
 export type ServiceFeePolicy = {
   enabled: boolean;
-  /** Pontos-base: 500 = 5%. */
+  /** Pontos-base: 100 = 1%. A taxa descrita nos termos usa 700 (7%). */
   rateBps: number;
   minCents: number;
 };

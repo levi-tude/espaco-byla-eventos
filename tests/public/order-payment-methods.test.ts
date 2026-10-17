@@ -1,0 +1,102 @@
+// @vitest-environment jsdom
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { INSTALLMENT_INTEREST_NOTE } from "@/lib/legal/terms";
+
+const mp = vi.hoisted(() => ({
+  init: vi.fn(),
+  methods: null as Record<string, string> | null,
+}));
+
+vi.mock("@mercadopago/sdk-react", () => ({
+  initMercadoPago: mp.init,
+  Payment: (props: { customization: { paymentMethods: Record<string, string> } }) => {
+    mp.methods = props.customization.paymentMethods;
+    return createElement("div", { "data-testid": "payment-brick" });
+  },
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
+vi.mock("@/components/public/HumanCheck", () => ({
+  useHumanCheck: () => ({ slot: null, takeToken: async () => null }),
+}));
+vi.mock("@/app/pedidos/[publicToken]/actions", () => ({
+  payOrder: vi.fn(),
+  checkOrderPayment: vi.fn(),
+  changeOrderSelection: vi.fn(),
+}));
+
+import { OrderPayment } from "@/components/public/OrderPayment";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+let container: HTMLDivElement;
+let root: Root;
+
+async function render(element: ReturnType<typeof createElement>) {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => root.render(element));
+}
+
+function payment(extra: { initialPix?: { qrCode: string; qrCodeBase64: string } | null } = {}) {
+  return createElement(OrderPayment, {
+    publicKey: "TEST-PUBLIC",
+    publicToken: "pedido-1",
+    amountCents: 5250,
+    buyerEmail: "comprador@exemplo.com",
+    initialPix: extra.initialPix ?? null,
+    reservationExpiresAt: null,
+  });
+}
+
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+  mp.methods = null;
+});
+
+describe("pagamento do comprador", () => {
+  it("abre no PIX, com o selo de mais rápido, e o cartão logo abaixo", async () => {
+    await render(payment());
+    const radios = [...container.querySelectorAll<HTMLInputElement>('input[name="forma-pagamento"]')];
+    expect(radios.map((radio) => radio.value)).toEqual(["pix", "cartao"]);
+    expect(radios[0]?.checked).toBe(true);
+    expect(radios[1]?.checked).toBe(false);
+    expect(container.querySelector("legend")?.textContent).toBe("Como você quer pagar");
+    expect(container.textContent).toContain("Mais rápido");
+    expect(container.textContent?.toLowerCase()).not.toContain("desconto");
+    expect(mp.methods).toEqual({ bankTransfer: "all" });
+    expect(container.textContent).not.toContain(INSTALLMENT_INTEREST_NOTE);
+    expect(mp.init).toHaveBeenCalledWith("TEST-PUBLIC", { locale: "pt-BR" });
+  });
+
+  it("no cartão mostra só o cartão e o aviso de juros das parcelas", async () => {
+    await render(payment());
+    const card = container.querySelector<HTMLInputElement>('input[value="cartao"]');
+    await act(async () => card?.click());
+    expect(card?.checked).toBe(true);
+    expect(mp.methods).toEqual({ creditCard: "all" });
+    expect(container.textContent).toContain(INSTALLMENT_INTEREST_NOTE);
+    expect(
+      [...container.querySelectorAll<HTMLInputElement>('input[name="forma-pagamento"]')].map((radio) => radio.value),
+    ).toEqual(["pix", "cartao"]);
+    const pix = container.querySelector<HTMLInputElement>('input[value="pix"]');
+
+    await act(async () => pix?.click());
+    expect(pix?.checked).toBe(true);
+    expect(mp.methods).toEqual({ bankTransfer: "all" });
+    expect(container.textContent).not.toContain(INSTALLMENT_INTEREST_NOTE);
+  });
+
+  it("PIX já gerado continua na tela do QR, sem a escolha de forma", async () => {
+    await render(payment({ initialPix: { qrCode: "000201", qrCodeBase64: "aaaa" } }));
+    expect(container.textContent).toContain("Pague com PIX");
+    expect(container.querySelector('input[name="forma-pagamento"]')).toBeNull();
+    expect(container.querySelector("[data-testid='payment-brick']")).toBeNull();
+  });
+});

@@ -4,7 +4,7 @@ Data: 2026-10-13 · Status: **aprovado pelo dono em 2026-10-13** (todas as pergu
 
 Legenda: **[V]** verificado no código · **[S]** suposição, a confirmar · **[R]** recomendação desta spec.
 
-Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, professores) poderão fazer eventos no Espaço Byla vendendo ingressos pelo site. O dinheiro continua caindo 100% na conta do Espaço no banco de pagamento; depois do evento, o Espaço paga ao organizador a parte dele por PIX manual. O Espaço não cobra comissão; existe só a taxa de serviço do desenvolvedor (5%, quando ligada), paga pelo comprador.
+Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, professores) poderão fazer eventos no Espaço Byla vendendo ingressos pelo site. O dinheiro continua caindo 100% na conta do Espaço no banco de pagamento; depois do evento, o Espaço paga ao organizador a parte dele por PIX manual. O Espaço não cobra comissão; existe só a taxa de serviço do desenvolvedor (7% desde 2026-10-17; na origem desta spec era 5%), paga pelo comprador.
 
 ## Resumo executivo
 
@@ -14,7 +14,7 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 - **Estorno:** o organizador **pede**; a equipe do Espaço faz, pelo botão "Estornar pedido" que já existe.
 - **Cortesia:** o organizador **não emite**; pede à equipe do Espaço pelo WhatsApp, e a equipe emite pelo botão de cortesia que já existe.
 - **Mudanças depois de aprovado:** textos, fotos, pausar vendas e sessão nova valem na hora; nome, local, preço já vendido, menos lugares, troca de horário e cancelamento viram pedido ao Admin.
-- **Dinheiro:** painel por evento mostra **vendido, tarifa do banco, estornos, sua parte e situação do repasse**. A tarifa real de cada pagamento (inteira, inclusive a parte cobrada sobre a taxa de serviço) sai da parte do organizador. Repasse por PIX em até **5 dias úteis** depois do evento (calendário de Salvador, com Carnaval), para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse é descontado do próximo repasse (ou devolvido por PIX).
+- **Dinheiro:** painel por evento mostra **vendido, estornos, contestações, sua parte e situação do repasse**. Desde 2026-10-17 a tarifa do banco sai da taxa de serviço, não da parte do organizador: ele recebe o valor dos ingressos que continuam válidos. Repasse por PIX em até **5 dias úteis** depois do evento (calendário de Salvador, com Carnaval), para a chave de um titular com CPF/CNPJ igual ao do organizador; o Admin marca "Pago" (registro que não se apaga). Estorno ou contestação depois do repasse desconta o valor do ingresso do próximo repasse (ou é devolvido por PIX). A tarifa não volta para essa conta.
 - **Compradores:** o organizador vê **nome e e-mail** dos compradores dos próprios eventos (sem telefone, sem link do pedido, sem QR Code). A página do evento e o e-mail do ingresso mostram "Produção: <nome do organizador>". A Política de Privacidade ganha uma versão nova dizendo isso.
 - **Portaria:** o organizador faz check-in só de ingressos dos próprios eventos; o banco recusa os outros sem revelar de qual evento são.
 - **Verificação em duas etapas obrigatória por código no e-mail** para organizadores **e** para a equipe atual: depois da senha, o site manda um código de 6 dígitos (vale 10 minutos) para o e-mail da conta; quem marca "Lembrar este aparelho" não digita código de novo nesse aparelho por 30 dias. Sem aplicativo, sem custo, sem trancar ninguém para fora (decisão 9, revista em 2026-10-14).
@@ -62,14 +62,15 @@ Ponto de partida (dono, 2026-10-13): pessoas de fora (produtores, coletivos, pro
 | 16 (perg. 5) | Nome do organizador ao comprador | **A** — "Produção: <nome público>" na página do evento e no e-mail do ingresso. | 12.1, 14, 15 |
 | 17 (perg. 6) | Confirmar e-mail no cadastro | **A** — código de 6 dígitos por e-mail durante o cadastro. | 5.3, 7.3, 14 |
 | 18 (perg. 7) | Portaria do organizador | **A** — sem subcontas nesta entrega; o próprio organizador (ou a equipe do Espaço) faz o check-in. | 19 |
-| 19 (perg. 8) | Tarifa do banco sobre a taxa de serviço | **A** — o organizador paga a **tarifa real inteira** de cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço. O Espaço fica neutro nos eventos de organizador. Nos eventos do próprio Espaço continua valendo a decisão 4 da spec da taxa de serviço. | 10.1, 10.2, 13 |
+| 19 (perg. 8) | Tarifa do banco sobre a taxa de serviço | **Revisto em 2026-10-17 (decisão 24).** A escolha original **A** (a tarifa inteira saía da parte do organizador) não vale mais. | 10.1, 10.2, 13 |
+| 24 (2026-10-17) | Tarifa do banco na taxa de serviço | A parte do organizador é o valor dos ingressos válidos (vendido − estornos − contestações). A tarifa conhecida do banco sai do saldo da taxa de serviço. Pedido sem tarifa não segura o repasse. Se a taxa for zero ou menor que a tarifa, o saldo da taxa fica negativo e abate o próximo repasse do desenvolvedor. | 10.1, 10.2, 13 |
 | 20 (perg. 9) | Dias úteis do prazo do repasse | **A** — Espaço Byla fica em Salvador (BA): dias úteis = segunda a sexta, fora feriados nacionais, o feriado estadual da Bahia, os feriados municipais de Salvador e os dias sem expediente bancário (segunda e terça de Carnaval). Lista, fontes e manutenção na seção 7.9. | 7.9, 10.3, 13 |
 | 21 (plano fase 2, perg. 1 — 2026-10-14) | Troca da chave PIX pelo organizador | **A** — fica para a fase 3, antes do primeiro repasse. Na fase 2 a tela "Minha conta" mostra a chave mascarada e "Para trocar a chave PIX, fale com o Espaço Byla". | 4.2, 7.2, 8.4, 12.2, 18 |
 | 22 (plano fase 2, perg. 2 — 2026-10-14) | Trocar o local depois da aprovação | **A** — vira "Pedir mudança" ao Admin, como nome e preço. | 6.4, 13 (item 3) |
 | 23 (plano fase 2, perg. 3 — 2026-10-14) | Quando publicar os textos legais | **B** — Termos do organizador, nova Política de Privacidade e novos Termos de compra vão ao ar junto com o resto da fase 2 (sem deploy separado). A leitura do jurídico/contador (21.1) continua obrigatória antes de aprovar o primeiro evento real de organizador, que só acontece depois da fase 3. | 18, 21.1 |
 **Cortesia a pedido — escolha desta spec [R]:** o pedido de cortesia vai **pelo WhatsApp**, sem tela nova. Motivo: a cortesia precisa de nome e e-mail do convidado; um formulário no painel guardaria esses dados num pedido intermediário (mais dados pessoais guardados, mais uma tela e mais uma regra), enquanto o botão "Emitir cortesia" que a equipe já usa resolve com uma conversa. O organizador vê as cortesias emitidas no próprio evento (lista de pedidos, valor R$ 0,00) e elas não mexem na parte dele. Se o volume crescer, um "Pedir cortesia" no painel pode entrar depois (fora de escopo).
 
-**Tarifa (decisão 19):** "tarifa real de cada pagamento" = a tarifa inteira que o banco cobrou sobre aquele pagamento. Exemplo: o comprador paga R$ 52,50 no cartão (R$ 50,00 de ingresso + R$ 2,50 de taxa de serviço) e o banco cobra R$ 2,61; os R$ 2,61 saem da parte do organizador, e a taxa de serviço chega inteira ao desenvolvedor.
+**Tarifa (decisão 24, 2026-10-17):** "tarifa real de cada pagamento" = bruto − líquido que o banco informou. Exemplo com a taxa vigente: o comprador paga R$ 53,50 (R$ 50,00 de ingresso + R$ 3,50 de taxa). A tarifa daquele pagamento sai da taxa de serviço. O organizador recebe os R$ 50,00. A decisão 19 original (os R$ 2,61 de um exemplo a 5% saíam da parte do organizador) foi substituída.
 
 **Carnaval (escolha desta spec, dentro da decisão 20) [R]:** segunda e terça de Carnaval **não** são dias úteis para o prazo, embora não sejam feriado por lei (são ponto facultativo), porque os bancos não têm expediente e o mercado financeiro não as conta como dias úteis (Resolução CMN 4.880/2020). A Quarta-feira de Cinzas **conta** como dia útil: a contagem é por dia inteiro, os bancos abrem às 12h e o PIX funciona o dia todo. Mesma lógica para Corpus Christi (já é feriado municipal em Salvador) e para 24/12 e 31/12 (contam como dias úteis; PIX funciona).
 
@@ -163,7 +164,7 @@ Página `/convite` (celular primeiro), em passos com barra de progresso:
 2. **Seus dados** — nome completo (para contato), nome público (aparece como "Produção: <nome público>" na página do evento e no e-mail do ingresso; pode ser o nome da produtora ou do coletivo), WhatsApp, e-mail.
 3. **Confirmação do e-mail** — código de 6 dígitos enviado ao e-mail (1 e-mail; vale 15 min; 5 tentativas; "Reenviar código" no máximo 2 vezes por convite). Só o hash do código é guardado (seção 7.3). Sem confirmar, o cadastro não continua.
 4. **Senha** — mínimo 12 caracteres, sem outras regras de composição; aviso para não reaproveitar senha de outro site.
-5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado."
+5. **Recebimento** — tipo e chave PIX, nome do titular e CPF ou CNPJ do titular (validados pelos dígitos verificadores). O titular tem de ser o próprio organizador (CPF) ou a empresa dele (CNPJ); a tela diz: "O repasse vai para esta chave. O titular precisa ser você ou a sua empresa. Confira com cuidado." Celular aceita espaços, parênteses, traço, 0 e +55 e fica `+55` + DDD válido + 9 + 8 dígitos. Chave aleatória aceita colagem sem traços (não exige UUID versão 4). E-mail em minúsculas, até 77 caracteres. CNPJ pode ter letras (IN RFB 2.229/2024). A tela mostra a chave já normalizada antes de confirmar.
 6. **Termos** — texto dos "Termos do organizador" com rolagem e caixa "Li e aceito os Termos do organizador e a Política de Privacidade". Versão gravada.
 7. Servidor: confere o token de novo, cria a conta com a chave `service_role` (`auth.admin.createUser`, e-mail já confirmado), chama `accept_organizer_invite` (marca o convite usado e cria o perfil na mesma transação). Se a função falhar, apaga a conta recém-criada (compensação) e mostra erro genérico. Dois envios ao mesmo tempo: só um passa (trava no convite).
 8. **Duas etapas** — nada a cadastrar: o e-mail confirmado no passo 3 é o canal do código de acesso. A tela final explica: "A cada acesso em um aparelho novo, enviaremos um código para o seu e-mail." O primeiro login logo depois do cadastro já pede o código (mesmo fluxo da equipe, seção 11), com "Lembrar este aparelho por 30 dias".
@@ -653,9 +654,9 @@ Cortesia: **nenhuma função nova** (decisão 13). `issue_courtesy_ticket` e `ca
 ### 10.1 Quem paga o quê
 
 - **Comprador** paga: preço do ingresso + taxa de serviço (quando ligada).
-- **Taxa de serviço** é do desenvolvedor; **não entra nem sai** da parte do organizador.
-- **Tarifa do banco** (cobrada sobre o pagamento inteiro) sai inteira da parte do organizador, inclusive a parte cobrada sobre a taxa de serviço (decisões 5 e 19).
-- **Espaço** não cobra comissão.
+- **Taxa de serviço** é do desenvolvedor; **não entra** na parte do organizador. Desde 2026-10-17 ela também **absorve a tarifa do banco**.
+- **Tarifa do banco** (bruto − líquido, inclusive juros de parcelamento que reduzam o valor recebido) sai do saldo da taxa de serviço. Não sai da parte do organizador, mesmo que o banco não a devolva num estorno (decisão 24).
+- **Espaço** não cobra comissão. Se a taxa de serviço estiver desligada ou for menor que a tarifa, o Espaço cobre o buraco: o saldo da taxa fica negativo e abate o próximo repasse do desenvolvedor.
 
 ### 10.2 Contas do evento
 
@@ -663,12 +664,13 @@ Cortesia: **nenhuma função nova** (decisão 13). `issue_courtesy_ticket` e `ca
 - **Vendido** = soma de `tickets_subtotal_cents` desses pedidos (só ingressos, sem a taxa de serviço).
 - **Estornos** = soma de `tickets_subtotal_cents` dos estornados.
 - **Contestações** = soma de `tickets_subtotal_cents` dos pagos contestados (registro manual já existente, `order_chargebacks`).
-- **Tarifa do banco** = soma de `order_payment_fees.fee_cents` dos pedidos que contam (com o valor atualizado depois de estornos).
-- **Sua parte** = vendido − estornos − contestações − tarifa do banco.
+- **Tarifa do banco** = soma de `order_payment_fees.fee_cents` já conhecidas. Aparece para a equipe na conta da taxa. **Não entra** na parte do organizador. Pedido sem tarifa continua na parte (`pending_cents` = 0); a equipe ainda vê a quantidade para lançar pelo extrato.
+- **Sua parte** = vendido − estornos − contestações.
 - **Já repassado** = soma de `organizer_payout_items` do evento (devoluções do organizador entram negativas).
 - **Saldo** = sua parte − já repassado. Negativo = desconto pendente (decisão 15, seção 10.5).
+- **Saldo da taxa** (`event_fee_balance.balance_cents`) = taxa de serviço bruta dos pedidos válidos − tarifas conhecidas (pagos e estornados) − já repassado ao desenvolvedor. `fee_due_cents` permanece a taxa bruta, para o "Valor do Espaço" continuar sendo só o dinheiro dos ingressos.
 
-Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inteiras de R$ 50,00 com taxa de 5% ligada. Vendido R$ 500,00. Compradores pagaram R$ 525,00. Cada pedido de 1 Inteira paga R$ 52,50. Tarifa do banco: 6 pagamentos PIX (~0,99% = R$ 0,52 cada) + 4 no cartão (~4,98% = R$ 2,61 cada) = R$ 3,12 + R$ 10,44 = R$ 13,56. Um pedido de cartão foi estornado (R$ 50,00 de ingresso; o banco devolveu a tarifa de R$ 2,61), então a tarifa do evento fica R$ 10,95. Sua parte = 500,00 − 50,00 − 0 − 10,95 = **R$ 439,05**.
+Exemplo do ensaio (pedidos gravados com taxa de R$ 2,50, não com os 7% vigentes): 10 Inteiras de R$ 50,00. Vendido R$ 500,00. Um pedido de cartão estornado (R$ 50,00 de ingresso; o banco devolveu a tarifa daquele). Sua parte = 500,00 − 50,00 = **R$ 450,00**. A tarifa que sobrou (R$ 10,95 no ensaio) sai da taxa de serviço, não dessa parte. Com a taxa vigente de 7%, um ingresso novo de R$ 50,00 gera R$ 3,50 de taxa (total R$ 53,50); isso não altera a conta do organizador.
 
 ### 10.3 Prazo do repasse
 
@@ -683,7 +685,7 @@ Exemplo **[S: percentuais só ilustrativos; os reais vêm do extrato]**: 10 Inte
 | --- | --- | --- |
 | Evento em andamento | antes do dia seguinte à última sessão | "Repasse previsto até dd/mm" |
 | A pagar até dd/mm | depois, saldo > 0, dentro do prazo | "Em conferência — previsto até dd/mm" |
-| Conferindo tarifas | há pedido sem tarifa | "Conferindo a tarifa do banco de N pedidos" |
+| Tarifa desconhecida | há pedido sem tarifa | Não muda a situação nem a parte. A equipe vê "Falta a tarifa…" para a conta da taxa. |
 | Atrasado | passou do prazo, saldo > 0 | "Previsto até dd/mm — o Espaço foi avisado" |
 | Pago em dd/mm | saldo = 0 e há repasse | "Pago em dd/mm · R$ X" |
 | Sem valor a repassar | saldo = 0 sem repasse | "Sem valor a repassar" |
@@ -742,7 +744,7 @@ Tabelas (RLS ligada, **sem nenhuma política**: só funções `security definer`
 ### 12.1 Público
 
 - **Rodapé:** link "Quero fazer meu evento" ao lado de "Termos de compra".
-- **Página inicial:** no fim, bloco discreto "Quer fazer seu evento no Espaço Byla? → Fale com a gente".
+- **Página inicial:** no fim, bloco discreto "Realize seu evento no Espaço Byla → Fale com a gente".
 - **`/quero-fazer-meu-evento`:** formulário da seção 5.1; link para `/termos-organizador` ("Veja como funciona para organizadores").
 - **`/termos-organizador`:** texto da seção 13 (público, para ler antes de aceitar).
 - **Página do evento:** "Produção: <nome público>" abaixo do local, nos eventos de organizador (decisão 16). Eventos do próprio Espaço não mostram a linha. O e-mail do ingresso traz a mesma linha.
@@ -767,6 +769,7 @@ Selos: Rascunho · Em análise · Recusado (ver motivo) · À venda · Vendas pa
 **Página do evento** (abas no celular, colunas no computador):
 
 - **Evento** — formulário (travado em "Em análise"; depois de aprovado, os campos da seção 6.4 que pedem Admin ficam travados com o botão "Pedir mudança"); faixa de estado: "Em análise: o Espaço Byla vai conferir e responder em breve." / "Recusado: <motivo>. Ajuste e envie de novo." / "Aprovado e à venda."
+- **Link público** — card com a URL absoluta `/eventos/{slug}`, "Copiar link", "Enviar pelo WhatsApp" (nome, data e URL) e "Compartilhar" quando o aparelho permitir. Aparece à venda, com vendas pausadas e encerrado (encerrado em tom mais baixo). Rascunho e em análise: "O link fica disponível quando o Espaço Byla aprovar o evento." Recusado: pedir para ajustar. A página do evento na equipe mostra o mesmo card.
 - **Vendas** — por sessão: vendidos, disponíveis, "Pausar vendas" / "Reabrir vendas".
 - **Pedidos** — busca por nome ou número; cada pedido: Nº, nome, e-mail, sessão, itens, situação, "2 de 3 já entraram", botão "Pedir estorno" (não aparece em cortesia). Cortesias emitidas pela equipe aparecem com o selo "Cortesia". Aviso no topo: "Use estes dados só para a operação deste evento (Termos do organizador, item 9)." Lembrete: "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
 - **Portaria** — botão "Abrir leitor de QR Code" (mesmo leitor da equipe).
@@ -776,19 +779,17 @@ Selos: Rascunho · Em análise · Recusado (ver motivo) · À venda · Vendas pa
 Financeiro do evento                     Repasse: previsto até 30/10
 ──────────────────────────────────────────────────────────────
 Vendido (ingressos)                     R$ 500,00   10 pedidos
-Tarifa do banco                         −R$ 10,95   ⓘ cobrada em cada pagamento
 Estornos                                −R$ 50,00   1 pedido
 Contestações                             R$ 0,00
 ──────────────────────────────────────────────────────────────
-Sua parte                               R$ 439,05
+Sua parte                               R$ 450,00
 Já repassado                             R$ 0,00
 Situação do repasse                     Em conferência — previsto até 30/10
 Chave PIX: e-mail •••@•••.com
 ──────────────────────────────────────────────────────────────
-A taxa de serviço paga pelos compradores (R$ 22,50) não entra na sua parte.
+A tarifa do banco sai da taxa de serviço, não da sua parte.
+A taxa de serviço paga pelos compradores não entra na sua parte.
 ```
-
-  ⓘ "Tarifa do banco: valor que o banco responsável pelo pagamento cobra em cada venda (PIX ou cartão). Mostramos o valor real de cada pagamento."
 - **Pedidos à equipe** — lista de estorno/exclusão/mudança com situação.
 - Rodapé da página: "Excluir evento" (ou "Pedir exclusão" quando houve vendas).
 
@@ -800,7 +801,7 @@ Menu (Admin): **Eventos** · **Aprovações** (com número de pendências) · **
 
 - **Aprovações:** abas "Eventos" (cards com prévia, lista de conferência — inclusive o nome público que vai aparecer como "Produção" —, "Aprovar e publicar" / "Aprovar sem publicar" / "Recusar"), "Mudanças" (pedidos da seção 6.4: a equipe aplica a mudança pelo editor normal e marca "Feito", ou "Recusar" com motivo) e "Exclusões".
 - **Organizadores:** abas "Pedidos do site" (Nova/Convidada/Arquivada; "Gerar convite", "Arquivar"), "Convites" (gerar, copiar, WhatsApp, revogar) e "Contas" (status, eventos, "Suspender", "Esquecer aparelhos lembrados", "Link para nova senha", trocas de PIX pendentes com "Confirmar"/"Recusar").
-- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). Tudo o mais igual a hoje.
+- **Eventos (lista e página):** selo "Organizador: <nome público>" nos eventos de organizador; faixa "Pedido de estorno do organizador" no pedido. O botão "Emitir cortesia" de hoje serve também para eventos de organizador (a equipe emite quando ele pede pelo WhatsApp). A página do evento também mostra o card do link público (seção 12.2). Tudo o mais igual a hoje.
 - **Repasses** (`/equipe/repasses`): totais "A pagar", "Atrasados", "Pago no período", "A receber de organizadores"; uma linha/card por evento de organizador (organizador, data, sua parte, situação, prazo) e "Marcar como pago" (Admin não desenvolvedor) com a chave PIX completa e o titular (nome e CPF/CNPJ completos) só nessa tela. Eventos com saldo negativo mostram "Desconto pendente", "Devolução pendente até dd/mm" ou "Devolução atrasada", com o botão "Devolução recebida" (Admin não desenvolvedor; valor e data do PIX).
 - **Equipe → Segurança da equipe** (Admin, fase 2): aparelhos lembrados de cada conta; "Esquecer aparelhos" de outra conta.
 
@@ -857,22 +858,22 @@ Eventos ilegais ou que incentivem crime; discriminação ou discurso de ódio; c
 
 - Todo pagamento cai na conta do Espaço Byla no banco responsável pelo pagamento. O Espaço Byla **não cobra comissão** sobre as suas vendas.
 - O site pode cobrar do comprador uma **taxa de serviço** ({percentual}% por item, mínimo {mínimo}), que paga a manutenção do site. Ela é paga pelo comprador e **não sai da sua parte**.
-- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da sua parte**, pelo **valor real e inteiro** cobrado em cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço (por exemplo: num pagamento de R$ 52,50, sendo R$ 50,00 de ingresso e R$ 2,50 de taxa de serviço, toda a tarifa daquele pagamento sai da sua parte). Os valores de cada tipo de pagamento são definidos pelo banco e podem mudar.
-- **Sua parte** = valor dos ingressos vendidos − estornos − contestações no cartão − tarifas do banco.
-- No painel do evento você acompanha: vendido, tarifa do banco, estornos, sua parte e a situação do repasse.
+- O banco responsável pelo pagamento cobra uma **tarifa em cada pagamento** (PIX ou cartão). Essa tarifa **sai da taxa de serviço e não da sua parte**. Por exemplo: num pagamento de R$ 53,50, sendo R$ 50,00 de ingresso e R$ 3,50 de taxa de serviço, você recebe os R$ 50,00. Como referência, a tarifa do PIX fica em torno de 0,99% e a do cartão de crédito em torno de 3,98% a 4,98%. No cartão, o parcelamento pode acrescentar juros; quando eles reduzem o valor que o banco repassa, também saem da taxa de serviço. Esses percentuais são definidos pelo banco e podem mudar.
+- **Sua parte** = valor dos ingressos vendidos − estornos − contestações no cartão.
+- No painel do evento você acompanha: vendido, estornos, contestações, sua parte e a situação do repasse.
 
 **7. Repasse**
 
 - O Espaço Byla paga sua parte por PIX, na chave cadastrada, **em até 5 dias úteis** contados do dia seguinte à última sessão do evento. Dias úteis: segunda a sexta, exceto feriados nacionais, o Dois de Julho, os feriados municipais de Salvador e a segunda e a terça de Carnaval (dias sem expediente bancário). O painel do evento mostra a data-limite já calculada.
 - Ao registrar o pagamento, o Espaço Byla envia um e-mail com valor e data. O registro não pode ser apagado.
 - O titular da chave PIX deve ser você (CPF) ou a sua empresa (CNPJ). Pedimos o nome e o CPF ou CNPJ do titular no cadastro para conferir isso e para a nossa contabilidade. Se a lei exigir, você emite nota fiscal ou recibo do valor recebido.
-- Se houver tarifa ainda em conferência, o repasse pode ser feito com o valor conferido até ali e o restante acertado no próximo repasse.
+- O repasse não espera a conferência da tarifa do banco: ela não muda a sua parte.
 
 **8. Estornos, contestações e cancelamentos**
 
 - Pedidos de reembolso dos compradores são analisados e feitos pelo Espaço Byla, conforme os Termos de compra (por exemplo: desistência em até 7 dias da compra e pelo menos 48 horas antes da sessão; troca de horário; sessão cancelada; pagamento sem lugar).
 - Você pode pedir o estorno de um pedido do seu evento pelo painel. O Espaço Byla decide e faz o estorno, que devolve 100% ao comprador, incluindo a taxa de serviço.
-- Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos. Se o banco não devolver a tarifa daquele pagamento, ela continua descontada.
+- Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos. A tarifa daquele pagamento não é descontada da sua parte: se o banco não devolver a tarifa, o Espaço Byla arca com ela.
 - **Estorno ou contestação depois do repasse:** o valor é descontado do seu próximo repasse. Se em 30 dias não houver repasse que cubra esse valor, você devolve o valor por PIX ao Espaço Byla em até 10 dias depois do aviso. Enquanto houver devolução atrasada, você não consegue enviar evento novo para aprovação.
 - Para cancelar uma sessão ou o evento depois de vender, peça pelo painel. Todos os compradores recebem 100% de volta, e não há repasse sobre pedidos estornados.
 

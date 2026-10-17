@@ -647,7 +647,7 @@ try {
     }
   };
 
-  // R1/R2/R11) Exemplo da spec (R$ 439,05), em conferência e pago sem vaga
+  // R1/R2/R11) Parte = ingressos válidos (a tarifa sai da taxa de serviço) e pago sem vaga
   const e1 = await orgEvent(orgP, "Show Um", addDays(today, -10));
   const e1Orders = [];
   for (let i = 0; i < 10; i += 1) e1Orders.push(await orgOrderOf(e1));
@@ -661,18 +661,21 @@ try {
   await refundOrder(e1Orders[9]);
   await record(e1Orders[9], 5250, 0, { afterRefund: true });
   let b = await balance(e1);
-  check("R2. dois pedidos sem tarifa: em conferência 2 pedidos / R$ 100,00 e parte só dos outros",
-    b.pending_fee_orders === 2 && Number(b.pending_cents) === 10000 && Number(b.share_cents) === 7 * 5000 - 573
-      && Number(b.balance_cents) === 7 * 5000 - 573, JSON.stringify(b));
+  check("R2. dois pedidos sem tarifa entram na parte; pending_cents fica 0",
+    b.pending_fee_orders === 2 && Number(b.pending_cents) === 0 && Number(b.share_cents) === 9 * 5000
+      && Number(b.balance_cents) === 9 * 5000 && Number(b.bank_fee_cents) === 573, JSON.stringify(b));
   await record(e1Orders[7], 5250, 261);
   await record(e1Orders[8], 5250, 261);
   b = await balance(e1);
-  check("R1. exemplo da spec: parte 43905, tarifa 1095, estornos 5000, taxa de serviço 2250",
-    Number(b.share_cents) === 43905 && Number(b.bank_fee_cents) === 1095 && Number(b.refunded_cents) === 5000
+  check("R1. parte 45000, tarifa 1095, estornos 5000, taxa de serviço 2250",
+    Number(b.share_cents) === 45000 && Number(b.bank_fee_cents) === 1095 && Number(b.refunded_cents) === 5000
       && b.refunded_orders === 1 && Number(b.sold_cents) === 50000 && b.sold_orders === 10
       && Number(b.service_fee_cents) === 2250 && b.pending_fee_orders === 0 && Number(b.pending_cents) === 0
-      && Number(b.paid_out_cents) === 0 && Number(b.balance_cents) === 43905, JSON.stringify(b));
-  check("R2. depois das tarifas a parte sobe", Number(b.share_cents) > 7 * 5000 - 573);
+      && Number(b.paid_out_cents) === 0 && Number(b.balance_cents) === 45000, JSON.stringify(b));
+  check("R2. quando a tarifa chega a parte do organizador não muda", Number(b.share_cents) === 9 * 5000);
+  const feeBal = await one("select * from public.event_fee_balance($1)", [e1]);
+  check("R1. taxa a repassar = taxa bruta dos válidos menos a tarifa conhecida",
+    Number(feeBal.fee_due_cents) === 2250 && Number(feeBal.balance_cents) === 2250 - 1095, JSON.stringify(feeBal));
   check("R11. pago sem vaga fora do vendido e da parte, contado em decision_orders",
     b.decision_orders === 1 && Number(b.sold_cents) === 50000, JSON.stringify(b));
 
@@ -681,36 +684,36 @@ try {
   const futureOrder = await orgOrderOf(eFuture);
   await record(futureOrder, 5250, 52);
   await rejects("R3. repasse antes do dia seguinte à última sessão: ORG_PRAZO",
-    () => pay(admin, eFuture, 4948), /^ORG_PRAZO/);
-  await rejects("R3. data do PIX no futuro: ORG_DATA", () => pay(admin, e1, 43905, addDays(today, 1)), /^ORG_DATA/);
-  await rejects("R3. data do PIX antes do fim do evento: ORG_DATA", () => pay(admin, e1, 43905, addDays(today, -15)), /^ORG_DATA/);
-  await rejects("R3. data do PIX vazia: ORG_DATA", () => pay(admin, e1, 43905, null), /^ORG_DATA/);
-  await rejects("R3. nota com quebra de linha: ORG_NOTA", () => pay(admin, e1, 43905, today, "a\nb"), /^ORG_NOTA/);
+    () => pay(admin, eFuture, 5000), /^ORG_PRAZO/);
+  await rejects("R3. data do PIX no futuro: ORG_DATA", () => pay(admin, e1, 45000, addDays(today, 1)), /^ORG_DATA/);
+  await rejects("R3. data do PIX antes do fim do evento: ORG_DATA", () => pay(admin, e1, 45000, addDays(today, -15)), /^ORG_DATA/);
+  await rejects("R3. data do PIX vazia: ORG_DATA", () => pay(admin, e1, 45000, null), /^ORG_DATA/);
+  await rejects("R3. nota com quebra de linha: ORG_NOTA", () => pay(admin, e1, 45000, today, "a\nb"), /^ORG_NOTA/);
   await rejects("R3. evento sem organizador: ORG_ACESSO", () => pay(admin, ev, 100), /^ORG_ACESSO/);
 
   // R4) Valor que mudou
-  await rejects("R4. valor esperado diferente: ORG_MUDOU:43905", () => pay(admin, e1, 43000), /^ORG_MUDOU:43905$/);
-  await rejects("R4. valor esperado vazio: ORG_MUDOU:43905", () => pay(admin, e1, null), /^ORG_MUDOU:43905$/);
+  await rejects("R4. valor esperado diferente: ORG_MUDOU:45000", () => pay(admin, e1, 43000), /^ORG_MUDOU:45000$/);
+  await rejects("R4. valor esperado vazio: ORG_MUDOU:45000", () => pay(admin, e1, null), /^ORG_MUDOU:45000$/);
 
   // R5) Papéis
-  await rejects("R5. secretaria: TAXA_ADMIN", () => pay(sec, e1, 43905), /^TAXA_ADMIN/);
-  await rejects("R5. Admin desenvolvedor: TAXA_DEV", () => pay(dev, e1, 43905), /^TAXA_DEV/);
-  await rejects("R5. organizador: TAXA_ADMIN", () => pay(orgP, e1, 43905), /^TAXA_ADMIN/);
+  await rejects("R5. secretaria: TAXA_ADMIN", () => pay(sec, e1, 45000), /^TAXA_ADMIN/);
+  await rejects("R5. Admin desenvolvedor: TAXA_DEV", () => pay(dev, e1, 45000), /^TAXA_DEV/);
+  await rejects("R5. organizador: TAXA_ADMIN", () => pay(orgP, e1, 45000), /^TAXA_ADMIN/);
   await rejects("R5. ajuste pela secretaria: TAXA_ADMIN", () => adjust(sec, e1, 100, "Motivo do ajuste"), /^TAXA_ADMIN/);
   await rejects("R5. ajuste pelo desenvolvedor: TAXA_DEV", () => adjust(dev, e1, 100, "Motivo do ajuste"), /^TAXA_DEV/);
   await rejects("R5. devolução pelo desenvolvedor: TAXA_DEV", () => received(dev, orgP, 100), /^TAXA_DEV/);
   await rejects("R5. repasse espera a trava do dinheiro do organizador",
-    () => whileLocked(orgP, "select public.record_organizer_payout($1, $2, 43905, current_date, null)", [admin, e1]), /lock timeout/);
+    () => whileLocked(orgP, "select public.record_organizer_payout($1, $2, 45000, current_date, null)", [admin, e1]), /lock timeout/);
   check("R5. nada gravado pelas tentativas recusadas",
     (await one("select count(*)::int as n from public.organizer_payout_items where event_id = $1", [e1])).n === 0);
 
   const d1 = await details(admin, e1);
   check("R10. detalhes (Admin): chave completa e valor esperado igual ao do registro",
     d1.pix_key === "52998224725" && d1.pix_holder_document === "52998224725" && d1.pix_key_type === "cpf"
-      && Number(d1.expected_amount_cents) === 43905 && d1.discounts.length === 0, JSON.stringify(d1));
-  const p1 = await pay(admin, e1, 43905, today, "  PIX conferido  ");
-  check("R. repasse registrado: tipo repasse, valor 43905, sem desconto",
-    p1.kind === "repasse" && Number(p1.amount_cents) === 43905 && Number(p1.discount_cents) === 0 && p1.organizer_id === orgP,
+      && Number(d1.expected_amount_cents) === 45000 && d1.discounts.length === 0, JSON.stringify(d1));
+  const p1 = await pay(admin, e1, 45000, today, "  PIX conferido  ");
+  check("R. repasse registrado: tipo repasse, valor 45000, sem desconto",
+    p1.kind === "repasse" && Number(p1.amount_cents) === 45000 && Number(p1.discount_cents) === 0 && p1.organizer_id === orgP,
     JSON.stringify(p1));
   const p1Row = await one("select * from public.organizer_payouts where id = $1", [p1.payout_id]);
   check("R. repasse guarda a chave PIX do momento, quem registrou e a nota sem espaços",
@@ -722,18 +725,30 @@ try {
   const p1Audit = await one("select * from public.audit_log where action = 'repasse_registrado' and event_id = $1", [e1]);
   check("R. histórico do repasse só com valores",
     p1Audit?.organizer_id === orgP && p1Audit?.actor_kind === "admin"
-      && JSON.stringify(p1Audit.details) === JSON.stringify({ amount_cents: 43905, discount_cents: 0 }), JSON.stringify(p1Audit));
+      && JSON.stringify(p1Audit.details) === JSON.stringify({ amount_cents: 45000, discount_cents: 0 }), JSON.stringify(p1Audit));
 
-  // R2b) Tarifa pendente com saldo zero
+  // R2b) Tarifa desconhecida não segura o ingresso
   const ePending = await orgEvent(orgS, "Show Pendente", addDays(today, -6));
   await orgOrderOf(ePending);
-  await rejects("R2. saldo zero com tarifa pendente: ORG_TARIFA_PENDENTE:1", () => pay(admin, ePending, 0), /^ORG_TARIFA_PENDENTE:1$/);
+  await rejects("R2. tarifa pendente não zera a parte: valor 0 vira ORG_MUDOU:5000",
+    () => pay(admin, ePending, 0), /^ORG_MUDOU:5000$/);
+  const eZero = await orgEvent(orgS, "Taxa desligada", addDays(today, -4));
+  await record(await orgOrderOf(eZero, { subtotal: 5000, svcFee: 0 }), 5000, 52);
+  const zOrg = await balance(eZero);
+  const zFee = await one("select * from public.event_fee_balance($1)", [eZero]);
+  check("R1b. taxa de serviço zero: organizador recebe o ingresso e a tarifa deixa o saldo da taxa negativo",
+    Number(zOrg.share_cents) === 5000 && Number(zOrg.balance_cents) === 5000
+      && Number(zFee.fee_due_cents) === 0 && Number(zFee.balance_cents) === -52, JSON.stringify({ zOrg, zFee }));
 
   // R6) Desconto no próximo repasse
   await refundOrder(e1Orders[0]);
   await record(e1Orders[0], 5250, 52, { afterRefund: true });
   check("R6. estorno tardio de PIX (tarifa mantida): saldo de E1 = −5000",
     Number((await balance(e1)).balance_cents) === -5000, JSON.stringify(await balance(e1)));
+  const feeAfterRefund = await one("select * from public.event_fee_balance($1)", [e1]);
+  check("R6. a tarifa que o banco não devolve continua no saldo da taxa, não na parte do organizador",
+    Number(feeAfterRefund.fee_due_cents) === 2000 && Number(feeAfterRefund.balance_cents) === 2000 - 1095,
+    JSON.stringify(feeAfterRefund));
   check("R6. cron abre a marcação de E1 (sem e-mail ainda)",
     (await refresh()).every((r) => r.event_id !== e1) && (await openFlag(e1))?.negative_since instanceof Date);
   const e2 = await orgEvent(orgP, "Show Dois", addDays(today, -5));
@@ -858,7 +873,7 @@ try {
       && fOwner.flag === null && fOwner.team === null, ownerJson);
   check("R10. dono: histórico sem quem registrou",
     fOwner.history.length === 2 && fOwner.history.every((h) => !("created_by_name" in h) && h.reason === null)
-      && fOwner.history.some((h) => h.kind === "repasse" && Number(h.item_cents) === 43905 && h.note === "PIX conferido")
+      && fOwner.history.some((h) => h.kind === "repasse" && Number(h.item_cents) === 45000 && h.note === "PIX conferido")
       && fOwner.history.some((h) => Number(h.item_cents) === -5000 && Number(h.payout_cents) === 15000), ownerJson);
   const orderNumber = e1Orders[0].replaceAll("-", "").slice(0, 8).toUpperCase();
   check("R10. dono: só o estorno depois do repasse em late_changes, com o número do pedido",
@@ -992,16 +1007,26 @@ try {
       && Number((await balance(eA)).balance_cents) === 0 && Number((await balance(eB)).balance_cents) === -2000
       && (await openFlag(eA)) === undefined, JSON.stringify(rVItems));
 
-  // F2) Tarifa em conferência: não cobra devolução
+  // F2) Tarifa desconhecida não muda a dívida do organizador
   const orgW = await newOrg("w@exemplo.com", "Produtora W", "cpf", "52998224725");
   const eW = await orgEvent(orgW, "Show W", addDays(today, -40));
   const wOrder = await orgOrderOf(eW);
-  await adjust(admin, eW, 5000, "Contestação depois do repasse");
+  await adjust(admin, eW, 5300, "Ajuste maior que o ingresso");
   let bW = await balance(eW);
-  check("F2. saldo negativo com tarifa em conferência",
-    Number(bW.balance_cents) === -5000 && bW.pending_fee_orders === 1, JSON.stringify(bW));
+  check("F2. saldo negativo mesmo com tarifa desconhecida (parte 5000 − ajuste 5300)",
+    Number(bW.share_cents) === 5000 && Number(bW.balance_cents) === -300 && bW.pending_fee_orders === 1
+      && Number(bW.pending_cents) === 0, JSON.stringify(bW));
   await refresh();
-  check("F2. cron não abre marcação com tarifa em conferência", (await openFlag(eW)) === undefined);
+  const wOpened = await openFlag(eW);
+  check("F2. cron abre a marcação sem esperar a tarifa", wOpened?.negative_since instanceof Date);
+  await q("update public.organizer_balance_flags set negative_since = $2::date where event_id = $1 and resolved_at is null",
+    [eW, addDays(today, -40)]);
+  const wDue = await refresh();
+  check("F2. marcação antiga ganha prazo mesmo com tarifa desconhecida",
+    (await one("select return_due_date from public.organizer_balance_flags where event_id = $1 and resolved_at is null", [eW])).return_due_date instanceof Date
+      && wDue.some((r) => r.event_id === eW));
+  await q("update public.organizer_balance_flags set return_due_date = $2::date where event_id = $1 and resolved_at is null",
+    [eW, addDays(today, -1)]);
   const draftW = await orgEvent(orgW, "Rascunho W", addDays(today, 20), "rascunho");
   const submitW = async () => {
     try {
@@ -1011,32 +1036,16 @@ try {
       return error.message;
     }
   };
-  check("F2. sem ORG_DEVOLUCAO enquanto a tarifa é conferida", !/ORG_DEVOLUCAO/.test(await submitW()));
-  const wFlag = (await one(
-    "insert into public.organizer_balance_flags (event_id, organizer_id, negative_since) values ($1, $2, $3::date) returning id",
-    [eW, orgW, addDays(today, -40)])).id;
-  const wDue = await refresh();
-  check("F2. marcação antiga com tarifa em conferência não ganha prazo nem e-mail",
-    (await one("select return_due_date from public.organizer_balance_flags where id = $1", [wFlag])).return_due_date === null
-      && wDue.every((r) => r.event_id !== eW));
-  await q("update public.organizer_balance_flags set return_due_date = $2::date where id = $1", [wFlag, addDays(today, -1)]);
-  check("F2. prazo vencido mas tarifa em conferência: sem devolução atrasada",
-    (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 0 && (await summary()).late_refunds === 0
-      && !/ORG_DEVOLUCAO/.test(await submitW()));
+  check("F2. prazo vencido conta como devolução atrasada com tarifa ainda desconhecida",
+    (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 1
+      && /^ORG_DEVOLUCAO/.test(await submitW()));
   await manual(admin, wOrder, 300, "Extrato do banco");
   bW = await balance(eW);
-  check("F2. tarifa lançada: saldo −300, devolução atrasada conta (e resumo também)",
-    Number(bW.balance_cents) === -300 && bW.pending_fee_orders === 0
-      && (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 1 && (await summary()).late_refunds === 1,
-    JSON.stringify(bW));
-  check("F2. agora o envio recusa com ORG_DEVOLUCAO", /^ORG_DEVOLUCAO/.test(await submitW()));
-  await manual(admin, wOrder, 0, "Correção pelo extrato");
-  check("F2. correção leva o saldo a 0: sem atraso na hora (antes do cron)",
-    Number((await balance(eW)).balance_cents) === 0 && (await openFlag(eW))?.id === wFlag
-      && (await scalar("select public.organizer_overdue_refunds($1) as v", [orgW])) === 0 && (await summary()).late_refunds === 0
-      && !/ORG_DEVOLUCAO/.test(await submitW()));
-  await refresh();
-  check("F2. o cron seguinte fecha a marcação", (await openFlag(eW)) === undefined);
+  check("F2. lançar a tarifa não muda o saldo do organizador",
+    Number(bW.balance_cents) === -300 && bW.pending_fee_orders === 0, JSON.stringify(bW));
+  const feeW = await one("select * from public.event_fee_balance($1)", [eW]);
+  check("F2. a tarifa lançada sai do saldo da taxa de serviço",
+    Number(feeW.fee_due_cents) === 250 && Number(feeW.balance_cents) === 250 - 300, JSON.stringify(feeW));
 
   // F4) Contestação depois do repasse
   const orgU = await newOrg("u@exemplo.com", "Produtora U", "cpf", "52998224725");
@@ -1140,7 +1149,7 @@ try {
   await record(await orgOrderOf(cA1), 5250, 52);
   const cA2 = await orgEvent(orgC, "Show C2", addDays(today, -10));
   await record(await orgOrderOf(cA2), 5250, 52);
-  await pay(admin, cA1, 4948);
+  await pay(admin, cA1, 5000);
 
   await ageCodes(orgC);
   check("C2. código para a troca: ok", (await issueCode(orgC, "343434")) === "ok");
@@ -1151,7 +1160,7 @@ try {
     () => requestPix(orgC, "343434", "email", "outra@exemplo.com", "Titular Secreto", "52998224725"), /^ORG_PIX_PENDENTE/);
 
   // C3) Repasse com troca pendente
-  await rejects("C3. repasse com troca pendente: ORG_PIX_PENDENTE", () => pay(admin, cA2, 4948), /^ORG_PIX_PENDENTE/);
+  await rejects("C3. repasse com troca pendente: ORG_PIX_PENDENTE", () => pay(admin, cA2, 5000), /^ORG_PIX_PENDENTE/);
 
   const stC = await pixState(orgC);
   check("C3. tela do organizador: pendente com chave nova mascarada",
@@ -1180,7 +1189,7 @@ try {
     approved.status === "confirmada" && profC.pix_key_type === "email" && profC.pix_key === "nova.chave@exemplo.com"
       && profC.pix_key_changed_at !== null, JSON.stringify(approved));
   await rejects("C4. decidir de novo: ORG_ESTADO", () => decidePix(admin, asked.request_id, false, "Motivo qualquer"), /^ORG_ESTADO/);
-  await pay(admin, cA2, 4948);
+  await pay(admin, cA2, 5000);
   const snap = async (eventId) => (await one(
     `select p.pix_key_snapshot, p.pix_key_changed_at_snapshot from public.organizer_payouts p
      join public.organizer_payout_items i on i.payout_id = p.id where i.event_id = $1 and p.kind = 'repasse'`, [eventId]));

@@ -31,6 +31,13 @@ describe("serviceFeeForPrice", () => {
     expect(serviceFeeForPrice(price, ON)).toBe(fee);
   });
 
+  it("taxa comercial de 7% (700 pontos-base) com mínimo de R$ 1,00", () => {
+    const commercial = { enabled: true, rateBps: 700, minCents: 100 };
+    expect(serviceFeeForPrice(5000, commercial)).toBe(350);
+    expect(serviceFeeForPrice(1000, commercial)).toBe(100);
+    expect(serviceFeeForPrice(0, commercial)).toBe(0);
+  });
+
   it("cortesia e preço inválido não pagam taxa", () => {
     expect(serviceFeeForPrice(0, ON)).toBe(0);
     expect(serviceFeeForPrice(-100, ON)).toBe(0);

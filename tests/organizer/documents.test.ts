@@ -5,6 +5,7 @@ import {
   isValidTaxDocument,
   maskPixKey,
   maskTaxDocument,
+  normalizeTaxDocument,
   onlyDigits,
 } from "@/lib/organizer/documents";
 
@@ -24,6 +25,15 @@ describe("CPF e CNPJ", () => {
     expect(onlyDigits("529.982.247-25")).toBe("52998224725");
     expect(maskTaxDocument("52998224725")).toBe("•••.982.247-••");
     expect(maskTaxDocument("11222333000181")).toBe("••.•••.333/0001-••");
+  });
+  it("CNPJ alfanumérico vale com a mesma conta e a máscara preserva as letras", () => {
+    expect(isValidCnpj("12ABC34501DE35")).toBe(true);
+    expect(isValidCnpj("ABCDEFGHIJKL80")).toBe(true);
+    expect(isValidCnpj("12ABC34501DE00")).toBe(false);
+    expect(isValidCnpj("12abc34501de35")).toBe(false);
+    expect(isValidTaxDocument(normalizeTaxDocument("12.abc.345/01de-35"))).toBe(true);
+    expect(maskTaxDocument("12abc34501de35")).toBe("••.•••.345/01DE-••");
+    expect(maskPixKey("cnpj", "12ABC34501DE35")).toBe(maskTaxDocument("12ABC34501DE35"));
   });
   it("documento genérico: CPF ou CNPJ pelo tamanho, outro tamanho recusa", () => {
     expect(isValidTaxDocument("52998224725")).toBe(true);

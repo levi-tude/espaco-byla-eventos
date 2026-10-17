@@ -6,6 +6,7 @@ import { AutoRefresh } from "@/components/equipe/AutoRefresh";
 import { DecisionQueue } from "@/components/equipe/DecisionQueue";
 import { EventFinancePanel } from "@/components/equipe/EventFinancePanel";
 import { EventOrganizerPayout } from "@/components/equipe/EventOrganizerPayout";
+import { EventSharePanel } from "@/components/events/EventSharePanel";
 import { EventForm } from "@/components/equipe/EventForm";
 import { EventGalleryManager } from "@/components/equipe/EventGalleryManager";
 import { OrganizerRefundRequests } from "@/components/equipe/OpsRequestCard";
@@ -17,6 +18,7 @@ import { SessionOpsPanel } from "@/components/equipe/SessionOpsPanel";
 import { SessionSalesToggle } from "@/components/equipe/SessionSalesToggle";
 import { CourtesyForm, TicketList } from "@/components/equipe/TicketList";
 import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
+import { formatEventDays } from "@/components/organizer/OrganizerEventCard";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
@@ -44,6 +46,7 @@ import { sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { isRecentlyPaid } from "@/lib/domain/status";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { todayKey } from "@/lib/domain/fee-payout";
+import { eventShareModel, publicAppBaseUrl } from "@/lib/events/share-link";
 import { loadEventFinance } from "@/lib/finance/load";
 import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { loadEventGallery } from "@/lib/media/gallery";
@@ -419,6 +422,7 @@ export default async function EventoEquipePage({
     multi && selected ? `?sessao=${selected.id}` : ""
   }`;
 
+  const shareLast = activeSessions.at(-1);
   const courtesySessions = activeSessions.map((session) => ({
     id: session.id,
     label: labels.get(session.id) ?? "",
@@ -493,6 +497,18 @@ export default async function EventoEquipePage({
             shownInPast={!event.hidden_from_past}
           />
         ) : null}
+        <EventSharePanel
+          model={eventShareModel({
+            name: event.name,
+            slug: event.slug,
+            whenLabel: formatEventDays(activeSessions.map((session) => session.starts_at)),
+            approvalStatus: event.approval_status,
+            organizerId: event.organizer_id,
+            deletedAt: event.deleted_at,
+            lastSessionAt: shareLast ? (shareLast.ends_at ?? shareLast.starts_at) : null,
+            appUrl: publicAppBaseUrl(),
+          })}
+        />
       </header>
 
       {event.deleted_at ? (

@@ -317,11 +317,10 @@ export function payoutSituation(f: SituationInput): PayoutSituation {
   if (!f.startDate || f.today < f.startDate) return { kind: "andamento", dueDate: f.dueDate };
   if (f.balanceCents > 0) {
     if (f.dueDate && f.today > f.dueDate) {
-      return { kind: "atrasado", dueDate: f.dueDate, balanceCents: f.balanceCents, pendingOrders: f.pendingFeeOrders };
+      return { kind: "atrasado", dueDate: f.dueDate, balanceCents: f.balanceCents, pendingOrders: 0 };
     }
-    return { kind: "a_pagar", dueDate: f.dueDate, balanceCents: f.balanceCents, pendingOrders: f.pendingFeeOrders };
+    return { kind: "a_pagar", dueDate: f.dueDate, balanceCents: f.balanceCents, pendingOrders: 0 };
   }
-  if (f.pendingFeeOrders > 0) return { kind: "conferindo", pendingOrders: f.pendingFeeOrders, dueDate: f.dueDate };
   if (f.balanceCents < 0) {
     const owedCents = -f.balanceCents;
     if (f.flag?.returnDueDate) {
@@ -382,7 +381,7 @@ export function situationLabel(s: PayoutSituation, audience: "organizador" | "eq
         : team
           ? `A pagar até ${shortDay(s.dueDate)}`
           : `Em conferência — previsto até ${shortDay(s.dueDate)}`;
-      return s.pendingOrders > 0 ? `${base} · ${orders(s.pendingOrders)} ainda em conferência` : base;
+      return base;
     }
     case "conferindo":
       return `Conferindo a tarifa do banco de ${orders(s.pendingOrders)}`;

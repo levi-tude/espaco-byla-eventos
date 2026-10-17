@@ -56,18 +56,13 @@ describe("payoutSituation + situationLabel", () => {
     expect(org(payoutSituation({ ...base, balanceCents: 43905, dueDate: null }))).toBe("Prazo a confirmar");
   });
 
-  it("saldo positivo com pedidos em conferência: a pagar com aviso", () => {
-    const s = payoutSituation({ ...base, balanceCents: 43905, pendingFeeOrders: 2 });
-    expect(s.kind).toBe("a_pagar");
-    expect(team(s)).toBe("A pagar até 30/10 · 2 pedidos ainda em conferência");
-  });
-
-  it("pedidos em conferência e saldo zero ou negativo: conferindo", () => {
-    const s = payoutSituation({ ...base, pendingFeeOrders: 2 });
-    expect(s).toEqual({ kind: "conferindo", pendingOrders: 2, dueDate: "2026-10-30" });
-    expect(org(s)).toBe("Conferindo a tarifa do banco de 2 pedidos");
-    expect(payoutSituation({ ...base, pendingFeeOrders: 1, balanceCents: -100 }).kind).toBe("conferindo");
-    expect(org(payoutSituation({ ...base, pendingFeeOrders: 1 }))).toBe("Conferindo a tarifa do banco de 1 pedido");
+  it("tarifa ainda desconhecida não muda a situação nem segura saldo negativo", () => {
+    const paying = payoutSituation({ ...base, balanceCents: 43905, pendingFeeOrders: 2 });
+    expect(paying.kind).toBe("a_pagar");
+    expect(team(paying)).toBe("A pagar até 30/10");
+    expect(org(paying)).toBe("Em conferência — previsto até 30/10");
+    expect(payoutSituation({ ...base, pendingFeeOrders: 2 }).kind).toBe("sem_valor");
+    expect(payoutSituation({ ...base, pendingFeeOrders: 1, balanceCents: -100 }).kind).toBe("desconto");
   });
 
   it("passou do prazo com saldo: atrasado", () => {

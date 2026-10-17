@@ -152,19 +152,20 @@ export function OrganizerTermsText() {
           </li>
           <li>
             O banco responsável pelo pagamento cobra uma <B>tarifa em cada pagamento</B> (PIX ou
-            cartão). Essa tarifa <B>sai da sua parte</B>, pelo <B>valor real e inteiro</B> cobrado em
-            cada pagamento, inclusive a parte que o banco cobra sobre a taxa de serviço (por
-            exemplo: num pagamento de {formatMoney(EXAMPLE_TICKET_CENTS + exampleFee)}, sendo{" "}
+            cartão). Essa tarifa <B>sai da taxa de serviço e não da sua parte</B>. Por exemplo: num
+            pagamento de {formatMoney(EXAMPLE_TICKET_CENTS + exampleFee)}, sendo{" "}
             {formatMoney(EXAMPLE_TICKET_CENTS)} de ingresso e {formatMoney(exampleFee)} de taxa de
-            serviço, toda a tarifa daquele pagamento sai da sua parte). Os valores de cada tipo de
-            pagamento são definidos pelo banco e podem mudar.
+            serviço, você recebe os {formatMoney(EXAMPLE_TICKET_CENTS)}. Como referência, a tarifa do
+            PIX fica em torno de 0,99% e a do cartão de crédito em torno de 3,98% a 4,98%, conforme
+            o prazo em que o banco libera o dinheiro. No cartão, o parcelamento pode acrescentar
+            juros. Quando esses juros reduzem o valor que o banco repassa, eles entram na tarifa e
+            também saem da taxa de serviço. Esses percentuais são definidos pelo banco e podem mudar.
           </li>
           <li>
-            <B>Sua parte</B> = valor dos ingressos vendidos − estornos − contestações no cartão −
-            tarifas do banco.
+            <B>Sua parte</B> = valor dos ingressos vendidos − estornos − contestações no cartão.
           </li>
           <li>
-            No painel do evento você acompanha: vendido, tarifa do banco, estornos, sua parte e a
+            No painel do evento você acompanha: vendido, estornos, contestações, sua parte e a
             situação do repasse.
           </li>
         </ul>
@@ -189,8 +190,7 @@ export function OrganizerTermsText() {
             lei exigir, você emite nota fiscal ou recibo do valor recebido.
           </li>
           <li>
-            Se houver tarifa ainda em conferência, o repasse pode ser feito com o valor conferido
-            até ali e o restante acertado no próximo repasse.
+            O repasse não espera a conferência da tarifa do banco: ela não muda a sua parte.
           </li>
         </ul>
       </Section>
@@ -209,7 +209,8 @@ export function OrganizerTermsText() {
           </li>
           <li>
             Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos.
-            Se o banco não devolver a tarifa daquele pagamento, ela continua descontada.
+            A tarifa daquele pagamento não é descontada da sua parte: se o banco não devolver a
+            tarifa, o Espaço Byla arca com ela.
           </li>
           <li>
             <B>Estorno ou contestação depois do repasse:</B> o valor é descontado do seu próximo

@@ -15,6 +15,7 @@ import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
+import { INSTALLMENT_INTEREST_NOTE } from "@/lib/legal/terms";
 import type { PixData } from "@/lib/payments/types";
 
 const POLL_INTERVAL_MS = 4000;
@@ -79,6 +80,7 @@ export function OrderPayment({
   const [message, setMessage] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [brickKey, setBrickKey] = useState(0);
+  const [method, setMethod] = useState<"pix" | "cartao">("pix");
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [changingSelection, setChangingSelection] = useState(false);
@@ -92,13 +94,13 @@ export function OrderPayment({
   );
   const customization = useMemo(
     () => ({
-      paymentMethods: {
-        bankTransfer: "all" as const,
-        creditCard: "all" as const,
-      },
+      paymentMethods:
+        method === "pix"
+          ? { bankTransfer: "all" as const }
+          : { creditCard: "all" as const },
       visual: { style: { theme: "dark" as const } },
     }),
-    [],
+    [method],
   );
 
   useEffect(() => {
@@ -262,10 +264,49 @@ export function OrderPayment({
       </p>
       <ReservationNotice expiresAt={holdExpiresAt} />
       {message ? <Notice tone="warning">{message}</Notice> : null}
+      <fieldset className="grid gap-2">
+        <legend className="text-sm font-medium text-foreground">Como você quer pagar</legend>
+        <label
+          className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
+            method === "pix" ? "border-byla-blue bg-byla-blue/10" : "border-byla-border bg-byla-surface"
+          }`}
+        >
+          <input
+            checked={method === "pix"}
+            className="h-5 w-5 accent-byla-blue"
+            name="forma-pagamento"
+            onChange={() => setMethod("pix")}
+            type="radio"
+            value="pix"
+          />
+          <span className="font-semibold text-foreground">PIX</span>
+          <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
+            Mais rápido
+          </span>
+        </label>
+        <label
+          className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
+            method === "cartao" ? "border-byla-blue bg-byla-blue/10" : "border-byla-border bg-byla-surface"
+          }`}
+        >
+          <input
+            checked={method === "cartao"}
+            className="h-5 w-5 accent-byla-blue"
+            name="forma-pagamento"
+            onChange={() => setMethod("cartao")}
+            type="radio"
+            value="cartao"
+          />
+          <span className="font-semibold text-foreground">Cartão de crédito</span>
+        </label>
+      </fieldset>
+      {method === "cartao" ? (
+        <p className="text-sm text-byla-muted">{INSTALLMENT_INTEREST_NOTE}</p>
+      ) : null}
       <Payment
         customization={customization}
         initialization={initialization}
-        key={brickKey}
+        key={`${method}-${brickKey}`}
         locale="pt"
         onError={(error) => console.error("[pagamento] Brick:", error)}
         onSubmit={handleSubmit}
