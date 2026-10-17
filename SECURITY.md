@@ -10,7 +10,8 @@ Responderemos assim que possível e avisaremos quando a correção for publicada
 
 ## Escopo
 
-- Site publicado: https://espaco-byla-eventos.vercel.app
+- Site publicado: https://ingressos.espacobyla.online (Google Cloud Run). O
+  endereço antigo https://espaco-byla-eventos.vercel.app só redireciona para ele.
 - Código deste repositório.
 
 Fora do escopo: ataques de negação de serviço, engenharia social e testes que

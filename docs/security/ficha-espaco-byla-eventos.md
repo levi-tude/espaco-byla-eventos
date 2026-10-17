@@ -18,8 +18,12 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
 - Pagamentos: Mercado Pago — Payment Brick (cartão tokenizado no navegador) +
   API de Orders (`/v1/orders`) no servidor; webhook configurado no painel.
 - E-mail: Resend, remetente `ingressos@espacobyla.online` (DKIM/SPF/DMARC).
-- Hospedagem: Vercel (Hobby), deploy automático a partir de `main`; cron diário
-  que mantém o banco ativo.
+- Hospedagem: Google Cloud Run (projeto `espaco-byla-eventos`, `us-central1`),
+  deploy automático a partir de `main` via GitHub Actions (só se o CI passar;
+  Workload Identity Federation, sem chave JSON); Cloud Scheduler chama 1x/dia o
+  keep-alive que mantém o banco ativo. A Vercel fica só com os previews de PR
+  (protegidos por Vercel Authentication) e o redirecionamento do endereço
+  antigo (`vercel.json`).
 - Repositório: GitHub **público** (portfólio).
 - Domínio/DNS: `espacobyla.online` na Hostinger; o mesmo domínio atende o n8n
   do Espaço (subdomínio `n8n`) — só **adicionar** registros, nunca editar ou
@@ -42,7 +46,7 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
 - **Equipe (Admin/secretaria, mesmo nível):** tudo da área `/equipe`: criar e
   editar eventos, abrir/fechar venda, cortesia, cancelar ingresso, check-in.
 - **Atacante anônimo / com conta Supabase sem cadastro de equipe / bot.**
-- **Provedores:** Mercado Pago (webhook), Resend, Vercel Cron.
+- **Provedores:** Mercado Pago (webhook), Resend, Google Cloud Scheduler.
 
 ## Pontos de entrada
 - Páginas públicas: `/`, `/eventos/[slug]`, `/eventos/[slug]/checkout`,
@@ -51,7 +55,7 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
 - Área restrita: `/equipe/**` (login em `/equipe/login`); ações `createEvent`,
   `updateEvent`, `setSalesOpen`, `issueCourtesy`, `cancelTicket`, `signOut`.
 - APIs: `POST /api/check-in` (equipe), `GET|POST /api/payments/webhook`
-  (Mercado Pago), `GET /api/cron/keep-alive` (Vercel Cron com segredo).
+  (Mercado Pago), `GET /api/cron/keep-alive` (Cloud Scheduler com segredo).
 - Banco exposto pela API do Supabase com a chave pública (`anon`): tabelas com
   RLS e funções RPC.
 
@@ -67,8 +71,9 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
 
 ## Onde ficam os segredos
 - Local: `.env.local` (ignorado pelo Git).
-- Produção: variáveis da Vercel **somente** no ambiente Production (segredos
-  como "Secret").
+- Produção: Secret Manager e variáveis do serviço no Cloud Run - nunca no
+  repositório nem no workflow de deploy (lá ficam só as `NEXT_PUBLIC_*`, que são
+  públicas).
 
 ## Restrições do agente
 - Português simples; o dono não é técnico. Uma pergunta por vez.
@@ -84,5 +89,5 @@ cortesias, cancela ingressos e faz check-in por QR na porta.
 - Local: ataques simulados permitidos, mas o ambiente local usa **o mesmo
   banco** de produção — só ataques que devem ser barrados antes de escrever,
   com retrato do banco antes/depois.
-- Painéis que só o dono acessa (Mercado Pago, Resend, Hostinger, Vercel web,
-  Supabase web, GitHub web) são verificados com a ajuda dele.
+- Painéis que só o dono acessa (Mercado Pago, Resend, Hostinger, Google Cloud,
+  Vercel web, Supabase web, GitHub web) são verificados com a ajuda dele.
