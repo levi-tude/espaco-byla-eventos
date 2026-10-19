@@ -42,11 +42,14 @@ const checkoutInput = {
 const pendingOrder = {
   id: "00000000-0000-4000-8000-000000000010",
   event_id: "00000000-0000-4000-8000-000000000001",
+  session_id: "00000000-0000-4000-8000-000000000002",
   status: "pendente",
   total_cents: 100,
   buyer_email: "comprador@example.com",
   expires_at: new Date(Date.now() + 600_000).toISOString(),
   created_at: new Date().toISOString(),
+  hold_extended_at: null,
+  payment_method: "card",
 };
 
 function selectResult(data: unknown) {

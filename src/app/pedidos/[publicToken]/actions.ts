@@ -58,6 +58,9 @@ const PIX_ALREADY_USED_MESSAGE =
 const SESSION_CANCELLED_MESSAGE =
   "Esta sessão foi cancelada. Nenhuma cobrança foi feita.";
 
+const FORMA_MUDOU_MESSAGE =
+  "A forma de pagamento mudou. Confira o total e escolha de novo Pix ou cartão.";
+
 async function loadOrder(publicToken: string) {
   if (typeof publicToken !== "string" || !publicToken || publicToken.length > 100) {
     return null;
@@ -66,7 +69,7 @@ async function loadOrder(publicToken: string) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, event_id, session_id, status, total_cents, buyer_email, expires_at, created_at, hold_extended_at",
+      "id, event_id, session_id, status, total_cents, buyer_email, expires_at, created_at, hold_extended_at, payment_method",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -222,6 +225,11 @@ export async function payOrder(
     }
     const refusal = await sessionPaymentRefusal(loaded, payment.paymentMethodId === "pix");
     if (refusal) return refusal;
+
+    const payingMethod = payment.paymentMethodId === "pix" ? "pix" : "card";
+    if (order.payment_method !== payingMethod) {
+      return { status: "rejected", message: FORMA_MUDOU_MESSAGE };
+    }
 
     const withinLimits =
       (await consumeRateLimit(admin, RATE_LIMITS.paymentPerOrder, order.id)) &&

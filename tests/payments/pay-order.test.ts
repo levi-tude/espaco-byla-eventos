@@ -46,6 +46,7 @@ function pendingOrder(overrides: Record<string, unknown> = {}) {
     expires_at: new Date(Date.now() + 600_000).toISOString(),
     created_at: new Date().toISOString(),
     hold_extended_at: null,
+    payment_method: "pix",
     ...overrides,
   };
 }
@@ -142,7 +143,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("cartão continua possível dentro da reserva", async () => {
-    useOrder(pendingOrder({ hold_extended_at: new Date().toISOString() }));
+    useOrder(pendingOrder({ hold_extended_at: new Date().toISOString(), payment_method: "card" }));
     mocks.createPayment.mockResolvedValue({
       status: "approved",
       paymentId: "ORD2",
@@ -161,8 +162,23 @@ describe("pagamento com reserva de 15 min e PIX", () => {
     );
   });
 
+  it("método divergente da forma gravada no pedido é recusado (FORMA_MUDOU)", async () => {
+    useOrder(pendingOrder({ payment_method: "pix" }));
+    const result = await payOrder("token", cardSubmission);
+    expect(result).toEqual({
+      status: "rejected",
+      message: "A forma de pagamento mudou. Confira o total e escolha de novo Pix ou cartão.",
+    });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+  });
+
   it("reserva vencida não gera cobrança", async () => {
-    useOrder(pendingOrder({ expires_at: new Date(Date.now() - 1000).toISOString() }));
+    useOrder(
+      pendingOrder({
+        expires_at: new Date(Date.now() - 1000).toISOString(),
+        payment_method: "card",
+      }),
+    );
 
     const result = await payOrder("token", cardSubmission);
     expect(result.status).toBe("unavailable");
@@ -170,7 +186,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("pagamento aprovado sem vaga não mostra ingressos", async () => {
-    useOrder(pendingOrder());
+    useOrder(pendingOrder({ payment_method: "card" }));
     mocks.createPayment.mockResolvedValue({ status: "approved", paymentId: "ORD3" });
     mocks.confirmOrderPaid.mockResolvedValue("needs_decision_capacity");
 
@@ -203,7 +219,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("cartão dentro da reserva não depende da venda da sessão", async () => {
-    useOrder(pendingOrder());
+    useOrder(pendingOrder({ payment_method: "card" }));
     mocks.rpc.mockImplementation(async (fn: string) =>
       fn === "order_pix_allowed" ? { data: false, error: null } : { data: true, error: null },
     );
@@ -215,7 +231,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("sessão cancelada não gera cobrança", async () => {
-    useOrder(pendingOrder(), { status: "cancelada" });
+    useOrder(pendingOrder({ payment_method: "card" }), { status: "cancelada" });
 
     await expect(payOrder("token", cardSubmission)).resolves.toEqual({
       status: "unavailable",
@@ -225,7 +241,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("sem conseguir ler a sessão, não cobra (falha fechada)", async () => {
-    useOrder(pendingOrder(), null);
+    useOrder(pendingOrder({ payment_method: "card" }), null);
 
     const result = await payOrder("token", cardSubmission);
     expect(result.status).toBe("rejected");
@@ -233,7 +249,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("pagamento aprovado depois do fim das vendas vai para a decisão da equipe", async () => {
-    useOrder(pendingOrder());
+    useOrder(pendingOrder({ payment_method: "card" }));
     mocks.createPayment.mockResolvedValue({ status: "approved", paymentId: "ORD5" });
     mocks.confirmOrderPaid.mockResolvedValue("needs_decision_sales_closed");
 
@@ -245,7 +261,7 @@ describe("pagamento com reserva de 15 min e PIX", () => {
   });
 
   it("pedido aguardando decisão não aceita novo pagamento", async () => {
-    useOrder(pendingOrder({ status: "aguardando_decisao" }));
+    useOrder(pendingOrder({ status: "aguardando_decisao", payment_method: "card" }));
 
     const result = await payOrder("token", cardSubmission);
     expect(result.status).toBe("unavailable");

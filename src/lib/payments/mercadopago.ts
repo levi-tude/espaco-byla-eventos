@@ -190,7 +190,8 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         "Content-Type": "application/json",
-        "X-Idempotency-Key": crypto.randomUUID(),
+        // Inclui método e total para não reaproveitar order MP com outro valor.
+        "X-Idempotency-Key": `${input.orderId}:${isPix ? "pix" : "card"}:${input.amountCents}`,
       },
       body: JSON.stringify(body),
     });

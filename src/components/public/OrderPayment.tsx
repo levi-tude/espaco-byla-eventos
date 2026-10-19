@@ -15,6 +15,7 @@ import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
+import { formatMoney, pixSavingsLabel } from "@/lib/domain/service-fee";
 import { INSTALLMENT_INTEREST_NOTE } from "@/lib/legal/terms";
 import type { PixData } from "@/lib/payments/types";
 
@@ -58,17 +59,28 @@ function ensureMercadoPago(publicKey: string) {
   initializedKey = publicKey;
 }
 
+type MethodChoice = "pix" | "cartao";
+
+function toApiMethod(method: MethodChoice): "pix" | "card" {
+  return method === "pix" ? "pix" : "card";
+}
+
 export function OrderPayment({
   publicKey,
   publicToken,
   amountCents,
+  pixTotalCents,
+  cardTotalCents,
   buyerEmail,
   initialPix,
   reservationExpiresAt,
 }: {
   publicKey: string;
   publicToken: string;
+  /** Total atual do pedido (após a última escolha no servidor). */
   amountCents: number;
+  pixTotalCents: number;
+  cardTotalCents: number;
   buyerEmail: string;
   initialPix: PixData | null;
   /** Fim da reserva; ao gerar o PIX ela passa a acompanhar o vencimento dele. */
@@ -80,17 +92,22 @@ export function OrderPayment({
   const [message, setMessage] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [brickKey, setBrickKey] = useState(0);
-  const [method, setMethod] = useState<"pix" | "cartao">("pix");
+  const [method, setMethod] = useState<MethodChoice>("pix");
+  const [totalCents, setTotalCents] = useState(amountCents);
+  const [locking, setLocking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [changingSelection, setChangingSelection] = useState(false);
   const humanCheck = useHumanCheck("payment");
 
+  const savingsCents = Math.max(0, cardTotalCents - pixTotalCents);
+  const showDual = pixTotalCents !== cardTotalCents;
+
   ensureMercadoPago(publicKey);
 
   const initialization = useMemo(
-    () => ({ amount: amountCents / 100, payer: { email: buyerEmail } }),
-    [amountCents, buyerEmail],
+    () => ({ amount: totalCents / 100, payer: { email: buyerEmail } }),
+    [totalCents, buyerEmail],
   );
   const customization = useMemo(
     () => ({
@@ -124,6 +141,48 @@ export function OrderPayment({
       clearInterval(timer);
     };
   }, [pix, waiting, changingSelection, publicToken, router]);
+
+  // Confirma a forma no servidor (recalcula total) ao montar e ao trocar.
+  useEffect(() => {
+    if (pix || waiting) return;
+    let cancelled = false;
+    async function lockMethod(next: MethodChoice) {
+      setLocking(true);
+      setMessage("");
+      try {
+        const response = await fetch(
+          `/api/pedidos/${encodeURIComponent(publicToken)}/forma`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ method: toApiMethod(next) }),
+          },
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          totalCents?: number;
+          error?: string;
+        } | null;
+        if (cancelled) return;
+        if (!response.ok || typeof payload?.totalCents !== "number") {
+          setMessage(payload?.error ?? "Não foi possível atualizar o total. Tente de novo.");
+          router.refresh();
+          return;
+        }
+        setTotalCents(payload.totalCents);
+        setBrickKey((key) => key + 1);
+      } catch {
+        if (!cancelled) {
+          setMessage("Não foi possível atualizar o total. Tente de novo.");
+        }
+      } finally {
+        if (!cancelled) setLocking(false);
+      }
+    }
+    void lockMethod(method);
+    return () => {
+      cancelled = true;
+    };
+  }, [method, publicToken, pix, waiting, router]);
 
   async function handleSubmit({
     paymentType,
@@ -166,6 +225,9 @@ export function OrderPayment({
     setMessage(result.message);
     // Recria o formulário para permitir nova tentativa com dados limpos.
     setBrickKey((key) => key + 1);
+    if (result.message.includes("forma de pagamento")) {
+      router.refresh();
+    }
   }
 
   async function copyPixCode() {
@@ -264,7 +326,7 @@ export function OrderPayment({
       </p>
       <ReservationNotice expiresAt={holdExpiresAt} />
       {message ? <Notice tone="warning">{message}</Notice> : null}
-      <fieldset className="grid gap-2">
+      <fieldset className="grid gap-2" disabled={locking}>
         <legend className="text-sm font-medium text-foreground">Como você quer pagar</legend>
         <label
           className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
@@ -279,9 +341,22 @@ export function OrderPayment({
             type="radio"
             value="pix"
           />
-          <span className="font-semibold text-foreground">PIX</span>
-          <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
-            Mais rápido
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-foreground">PIX</span>
+              {showDual && savingsCents > 0 ? (
+                <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
+                  {pixSavingsLabel(savingsCents)}
+                </span>
+              ) : (
+                <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
+                  Mais rápido
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 block text-sm text-byla-muted">
+              {formatMoney(pixTotalCents)}
+            </span>
           </span>
         </label>
         <label
@@ -297,16 +372,26 @@ export function OrderPayment({
             type="radio"
             value="cartao"
           />
-          <span className="font-semibold text-foreground">Cartão de crédito</span>
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold text-foreground">Cartão de crédito</span>
+            <span className="mt-0.5 block text-sm text-byla-muted">
+              {formatMoney(cardTotalCents)}
+              {showDual ? " (até 12x, juros do banco)" : ""}
+            </span>
+          </span>
         </label>
       </fieldset>
+      <p className="text-base font-semibold text-foreground" aria-live="polite">
+        Total: {formatMoney(totalCents)}
+        {locking ? "…" : ""}
+      </p>
       {method === "cartao" ? (
         <p className="text-sm text-byla-muted">{INSTALLMENT_INTEREST_NOTE}</p>
       ) : null}
       <Payment
         customization={customization}
         initialization={initialization}
-        key={`${method}-${brickKey}`}
+        key={`${method}-${brickKey}-${totalCents}`}
         locale="pt"
         onError={(error) => console.error("[pagamento] Brick:", error)}
         onSubmit={handleSubmit}

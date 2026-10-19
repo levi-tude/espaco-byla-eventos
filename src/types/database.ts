@@ -474,6 +474,10 @@ export type Database = {
           service_fee_cents: number;
           service_fee_min_cents: number;
           service_fee_rate_bps: number;
+          card_rate_bps_snapshot: number | null;
+          pix_rate_bps_snapshot: number | null;
+          fee_priced_at: string | null;
+          payment_method: string | null;
           session_id: string;
           status: Database["public"]["Enums"]["order_status"];
           terms_accepted_at: string | null;
@@ -509,6 +513,10 @@ export type Database = {
           service_fee_cents?: number;
           service_fee_min_cents?: number;
           service_fee_rate_bps?: number;
+          card_rate_bps_snapshot?: number | null;
+          pix_rate_bps_snapshot?: number | null;
+          fee_priced_at?: string | null;
+          payment_method?: string | null;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
           terms_accepted_at?: string | null;
@@ -544,6 +552,10 @@ export type Database = {
           service_fee_cents?: number;
           service_fee_min_cents?: number;
           service_fee_rate_bps?: number;
+          card_rate_bps_snapshot?: number | null;
+          pix_rate_bps_snapshot?: number | null;
+          fee_priced_at?: string | null;
+          payment_method?: string | null;
           session_id?: string;
           status?: Database["public"]["Enums"]["order_status"];
           terms_accepted_at?: string | null;
@@ -849,7 +861,27 @@ export type Database = {
       };
       service_fee_policy: {
         Args: Record<PropertyKey, never>;
-        Returns: { enabled: boolean; min_cents: number; rate_bps: number }[];
+        Returns: {
+          enabled: boolean;
+          min_cents: number;
+          rate_bps: number;
+          card_rate_bps: number;
+          pix_rate_bps: number;
+          per_method_enabled: boolean;
+        }[];
+      };
+      set_order_payment_method: {
+        Args: { p_order_id: string; p_method: string };
+        Returns: {
+          payment_method: string;
+          service_fee_cents: number;
+          total_cents: number;
+          service_fee_rate_bps: number;
+        }[];
+      };
+      accept_organizer_terms: {
+        Args: { p_user_id: string; p_terms_version: string };
+        Returns: undefined;
       };
       staff_finance_role: {
         Args: { p_staff_user_id: string };
