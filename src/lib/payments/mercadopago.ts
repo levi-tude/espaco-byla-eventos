@@ -191,7 +191,7 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
         Authorization: `Bearer ${this.accessToken}`,
         "Content-Type": "application/json",
         // Única por tentativa: cartão recusado ou PIX vencido não reaproveita a order antiga.
-        "X-Idempotency-Key": `${input.orderId}:${isPix ? "pix" : "card"}:${input.amountCents}:${crypto.randomUUID()}`,
+        "X-Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify(body),
     });

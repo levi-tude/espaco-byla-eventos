@@ -58,9 +58,9 @@ describe("MercadoPagoPaymentProvider.createPayment", () => {
     expect(url).toBe("https://api.mercadopago.com/v1/orders");
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer APP_USR-TOKEN");
-    expect(headers["X-Idempotency-Key"]).toMatch(
-      new RegExp(`^${orderId}:card:2500:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, "i"),
-    );
+    const key = headers["X-Idempotency-Key"];
+    expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(key.length).toBeLessThanOrEqual(64);
 
     expect(sentBody(fetchMock)).toEqual({
       type: "online",
