@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   adminRpc: vi.fn(),
   tables: {} as Record<string, Result>,
+  adminTables: {} as Record<string, Result>,
   queries: [] as { table: string; calls: [string, unknown[]][] }[],
+  adminQueries: [] as { table: string; calls: [string, unknown[]][] }[],
 }));
 
 vi.mock("server-only", () => ({}));
@@ -41,7 +43,32 @@ vi.mock("@/lib/auth/login-verification", () => ({ readLoginState: mocks.readLogi
 vi.mock("@/lib/auth/actor", () => ({ getActor: mocks.getActor }));
 vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: mocks.areaEnabled }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.adminRpc }) }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    rpc: mocks.adminRpc,
+    from: (table: string) => {
+      const query = { table, calls: [] as [string, unknown[]][] };
+      mocks.adminQueries.push(query);
+      const builder: Record<string, unknown> = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            if (prop === "then") {
+              const result = mocks.adminTables[table] ?? { data: null, error: { message: "sem tabela" } };
+              return (resolve: (value: Result) => unknown, reject: (reason: unknown) => unknown) =>
+                Promise.resolve(result).then(resolve, reject);
+            }
+            return (...args: unknown[]) => {
+              query.calls.push([String(prop), args]);
+              return builder;
+            };
+          },
+        },
+      );
+      return builder;
+    },
+  }),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({
     auth: { getUser: mocks.getUser },
@@ -123,7 +150,9 @@ beforeEach(() => {
   mocks.pathname = "/organizador";
   mocks.cookies = {};
   mocks.tables = {};
+  mocks.adminTables = {};
   mocks.queries = [];
+  mocks.adminQueries = [];
   mocks.areaEnabled.mockResolvedValue(true);
   mocks.readLoginState.mockResolvedValue(verified);
   mocks.getActor.mockResolvedValue({ kind: "organizador", userId: USER_ID });
@@ -281,15 +310,14 @@ describe("selos e datas dos cards", () => {
 });
 
 describe("Meus eventos", () => {
-  const SESSION_A = "11111111-1111-4111-8111-111111111111";
-  const SESSION_B = "22222222-2222-4222-8222-222222222222";
+  const APPROVED_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
   function events() {
     mocks.tables.events = {
       error: null,
       data: [
         {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          id: APPROVED_EVENT,
           name: "Peça Y",
           starts_at: "2099-12-12T22:00:00Z",
           cover_image_url: "https://exemplo.com/capa.jpg",
@@ -298,8 +326,8 @@ describe("Meus eventos", () => {
           approval_note: null,
           organizer_id: USER_ID,
           event_sessions: [
-            { id: SESSION_B, starts_at: "2099-12-13T22:00:00Z", ends_at: null, status: "ativa", archived_at: null, capacity: 50 },
-            { id: SESSION_A, starts_at: "2099-12-12T22:00:00Z", ends_at: null, status: "ativa", archived_at: null, capacity: 50 },
+            { id: "22222222-2222-4222-8222-222222222222", starts_at: "2099-12-13T22:00:00Z", ends_at: null, status: "ativa", archived_at: null, capacity: 50 },
+            { id: "11111111-1111-4111-8111-111111111111", starts_at: "2099-12-12T22:00:00Z", ends_at: null, status: "ativa", archived_at: null, capacity: 50 },
             { id: "33333333-3333-4333-8333-333333333333", starts_at: "2099-12-14T22:00:00Z", ends_at: null, status: "cancelada", archived_at: null, capacity: 50 },
           ],
         },
@@ -318,11 +346,10 @@ describe("Meus eventos", () => {
         },
       ],
     };
-    mocks.adminRpc.mockImplementation(async (fn: string, args: { p_session_id: string }) => {
-      if (fn !== "session_availability") return { data: null, error: { message: "inesperado" } };
-      const sold = args.p_session_id === SESSION_A ? 20 : 18;
-      return { data: { capacity: 50, sold, held: 0, categories: {}, types: [] }, error: null };
-    });
+    mocks.adminTables.tickets = {
+      error: null,
+      data: Array.from({ length: 38 }, () => ({ event_id: APPROVED_EVENT })),
+    };
   }
 
   it("lista só os próprios eventos não excluídos, com capa, datas, selo e vendidos", async () => {
@@ -340,7 +367,7 @@ describe("Meus eventos", () => {
     expect(page).toContain("12 e 13 de dezembro · 2 sessões");
     expect(page).toContain("À venda");
     expect(page).toContain("38 de 100 vendidos");
-    expect(html).toContain('href="/organizador/eventos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"');
+    expect(html).toContain(`href="/organizador/eventos/${APPROVED_EVENT}"`);
 
     expect(page).toContain("Show Z");
     expect(page).toContain("Recusado");
@@ -351,8 +378,9 @@ describe("Meus eventos", () => {
     expect(html).toContain('href="/organizador/eventos/novo"');
     expect(page).toContain("Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp.");
 
-    const sessionsAsked = mocks.adminRpc.mock.calls.map(([, args]) => (args as { p_session_id: string }).p_session_id);
-    expect(sessionsAsked.sort()).toEqual([SESSION_A, SESSION_B].sort());
+    const ticketsQuery = mocks.adminQueries.find((q) => q.table === "tickets");
+    expect(ticketsQuery?.calls).toContainEqual(["in", ["event_id", [APPROVED_EVENT]]]);
+    expect(ticketsQuery?.calls).toContainEqual(["in", ["status", ["pago", "check_in"]]]);
   });
 
   it("sem eventos: convida a criar o primeiro", async () => {
@@ -364,7 +392,7 @@ describe("Meus eventos", () => {
 
   it("falha ao contar vendidos mostra só a lotação", async () => {
     events();
-    mocks.adminRpc.mockResolvedValue({ data: null, error: { message: "boom" } });
+    mocks.adminTables.tickets = { data: null, error: { message: "boom" } };
     const page = text(render(await MyEventsPage()));
     expect(page).not.toContain("vendidos");
     expect(page).toContain("100 lugares");

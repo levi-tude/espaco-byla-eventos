@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { ActionError } from "@/lib/action-result";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -17,7 +19,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * Quem está agindo, conferido com a sessão do usuário (is_staff/is_organizer exigem
  * o código do e-mail). Qualquer falha = null (falha fechada).
  */
-export async function getActor(): Promise<Actor | null> {
+export const getActor = cache(async (): Promise<Actor | null> => {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -47,7 +49,7 @@ export async function getActor(): Promise<Actor | null> {
   }
   if (organizer.data === true) return { kind: "organizador", userId: user.id };
   return null;
-}
+});
 
 export async function requireActor(): Promise<Actor> {
   const actor = await getActor();
@@ -68,21 +70,21 @@ export async function requireTeamAdmin(): Promise<{ userId: string; isDeveloper:
 }
 
 /** Equipe acessa qualquer evento; organizador, só os próprios (resposta do banco). */
-export async function requireEventAccess(
-  eventId: unknown,
-): Promise<{ actor: Actor; access: "equipe" | "dono" }> {
-  if (typeof eventId !== "string" || !UUID_PATTERN.test(eventId)) {
-    throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
-  }
-  const actor = await requireActor();
-  const { data, error } = await createAdminClient().rpc("actor_event_access", {
-    p_actor_user_id: actor.userId,
-    p_event_id: eventId,
-  });
-  if (error) {
-    console.error("[acesso] Falha ao conferir o evento.", error.code);
-    throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
-  }
-  if (data !== "equipe" && data !== "dono") throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
-  return { actor, access: data };
-}
+export const requireEventAccess = cache(
+  async (eventId: unknown): Promise<{ actor: Actor; access: "equipe" | "dono" }> => {
+    if (typeof eventId !== "string" || !UUID_PATTERN.test(eventId)) {
+      throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
+    }
+    const actor = await requireActor();
+    const { data, error } = await createAdminClient().rpc("actor_event_access", {
+      p_actor_user_id: actor.userId,
+      p_event_id: eventId,
+    });
+    if (error) {
+      console.error("[acesso] Falha ao conferir o evento.", error.code);
+      throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
+    }
+    if (data !== "equipe" && data !== "dono") throw new ActionError(EVENT_NOT_FOUND_MESSAGE);
+    return { actor, access: data };
+  },
+);
