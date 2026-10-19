@@ -468,6 +468,11 @@ function CheckoutFormFields({
                         {unitContentsLabel(type.peoplePerUnit, type.kind)}
                       </p>
                     ) : null}
+                    {type.kind === "meia" ? (
+                      <p className="text-sm text-byla-muted">
+                        Meia-entrada: apresente documento que comprove o direito na entrada (Lei 12.933/2013).
+                      </p>
+                    ) : null}
                     {typeNotice ? (
                       <p className="mt-0.5 text-sm font-semibold text-byla-accent-text">
                         {typeNotice}

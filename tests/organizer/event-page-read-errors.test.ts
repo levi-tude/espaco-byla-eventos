@@ -61,7 +61,9 @@ vi.mock("@/lib/auth/actor", () => ({
   requireEventAccess: async () => ({ access: "dono" }),
 }));
 vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: async () => true }));
-vi.mock("@/lib/media/gallery", () => ({ loadEventGallery: async () => [] }));
+vi.mock("@/lib/organizer/load-finance", () => ({
+  loadOrganizerEventFinance: async () => null,
+}));
 vi.mock("@/lib/domain/event-availability", () => ({
   loadEventSessions: async () => ({ sessions: [] }),
   loadSessionAvailability: async () => ({
@@ -95,6 +97,16 @@ vi.mock("@/components/organizer/OpsRequestList", () => ({ OpsRequestList: () => 
 vi.mock("@/components/organizer/OrganizerOrderList", () => ({ OrganizerOrderList: () => null }));
 vi.mock("@/components/organizer/OrganizerSalesPanel", () => ({ OrganizerSalesPanel: () => null }));
 vi.mock("@/components/organizer/OrganizerNoAccess", () => ({ OrganizerNoAccess: () => null }));
+vi.mock("@/components/organizer/OrganizerEventTabs", () => ({
+  ORGANIZER_EVENT_TABS: [],
+  OrganizerEventTabs: ({
+    evento,
+    deleteSection,
+  }: {
+    evento: ReactNode;
+    deleteSection: ReactNode;
+  }) => createElement("div", null, evento, deleteSection),
+}));
 
 import EventoOrganizadorPage from "@/app/organizador/eventos/[id]/page";
 
@@ -114,6 +126,51 @@ async function renderPage(): Promise<string> {
 
 const failed = { data: null, error: { code: "XX000", message: "falhou" } };
 
+function nestedEvent() {
+  return {
+    id: EVENT_ID,
+    slug: "peca-y",
+    name: "Peça Y",
+    venue: "Espaço Byla",
+    description: "Uma peça.",
+    cover_image_url: "https://exemplo.test/capa.jpg",
+    sales_open: true,
+    approval_status: "aprovado",
+    approval_note: null,
+    organizer_id: ORGANIZER_ID,
+    deleted_at: null,
+    ticket_types: [
+      {
+        id: TYPE_ID,
+        preset: "inteira",
+        name: "Inteira",
+        kind: "inteira",
+        people_per_unit: 1,
+        sort_order: 0,
+        archived_at: null,
+      },
+    ],
+    event_sessions: [
+      {
+        id: SESSION_ID,
+        name: null,
+        starts_at: "2099-12-12T22:00:00Z",
+        ends_at: null,
+        capacity: 80,
+        inteira_quota: null,
+        meia_quota: null,
+        sales_open: true,
+        status: "ativa",
+        archived_at: null,
+        session_ticket_types: [
+          { ticket_type_id: TYPE_ID, price_cents: 5000, max_units: null, on_sale: true },
+        ],
+      },
+    ],
+    event_images: [],
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -124,43 +181,7 @@ beforeEach(() => {
   mocks.deleteProps = [];
   mocks.serverTables = {
     events: {
-      data: {
-        id: EVENT_ID,
-        slug: "peca-y",
-        name: "Peça Y",
-        venue: "Espaço Byla",
-        description: "Uma peça.",
-        cover_image_url: "https://exemplo.test/capa.jpg",
-        sales_open: true,
-        approval_status: "aprovado",
-        approval_note: null,
-        organizer_id: ORGANIZER_ID,
-        deleted_at: null,
-      },
-      error: null,
-    },
-    ticket_types: {
-      data: [{ id: TYPE_ID, preset: "inteira", name: "Inteira", kind: "inteira", people_per_unit: 1 }],
-      error: null,
-    },
-    event_sessions: {
-      data: [
-        {
-          id: SESSION_ID,
-          name: null,
-          starts_at: "2099-12-12T22:00:00Z",
-          ends_at: null,
-          capacity: 80,
-          inteira_quota: null,
-          meia_quota: null,
-          sales_open: true,
-          status: "ativa",
-        },
-      ],
-      error: null,
-    },
-    session_ticket_types: {
-      data: [{ session_id: SESSION_ID, ticket_type_id: TYPE_ID, price_cents: 5000, max_units: null, on_sale: true }],
+      data: nestedEvent(),
       error: null,
     },
   };
@@ -177,9 +198,7 @@ describe("página do evento do organizador: falha ao ler os dados", () => {
 
   it.each([
     ["pedidos", () => (mocks.adminTables.orders = failed)],
-    ["preços das sessões", () => (mocks.serverTables.session_ticket_types = failed)],
-    ["tipos de ingresso", () => (mocks.serverTables.ticket_types = failed)],
-    ["sessões", () => (mocks.serverTables.event_sessions = failed)],
+    ["evento (consulta aninhada)", () => (mocks.serverTables.events = failed)],
   ])("falha ao ler %s: não mostra formulário editável, só o aviso", async (_name, fail) => {
     fail();
     const page = await renderPage();

@@ -10,7 +10,6 @@ import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Notice } from "@/components/ui/Notice";
 import { getActor } from "@/lib/auth/actor";
-import { loadSessionAvailability } from "@/lib/domain/event-availability";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -32,16 +31,23 @@ type SessionRow = {
 const byStart = (a: { starts_at: string }, b: { starts_at: string }) =>
   Date.parse(a.starts_at) - Date.parse(b.starts_at);
 
-/**
- * Vendidos = soma das sessões ativas (`session_availability`, só service_role). Os IDs
- * vêm da lista já filtrada pela sessão do organizador; em falha, o card mostra só a lotação.
- */
-async function soldCount(sessions: SessionRow[]): Promise<number | null> {
-  if (!sessions.length) return 0;
-  const admin = createAdminClient();
-  const results = await Promise.all(sessions.map((session) => loadSessionAvailability(admin, session.id)));
-  if (results.some((result) => result === null)) return null;
-  return results.reduce((total, result) => total + (result?.sold ?? 0), 0);
+/** Ingressos pagos ou já usados na portaria, por evento (uma consulta para todos os cards). */
+async function soldByEvent(eventIds: string[]): Promise<Map<string, number> | null> {
+  if (!eventIds.length) return new Map();
+  const { data, error } = await createAdminClient()
+    .from("tickets")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .in("status", ["pago", "check_in"]);
+  if (error) {
+    console.error("[organizador] Falha ao contar ingressos vendidos.", error.code);
+    return null;
+  }
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    counts.set(row.event_id, (counts.get(row.event_id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export default async function OrganizerEventsPage() {
@@ -51,7 +57,6 @@ export default async function OrganizerEventsPage() {
   }
 
   const supabase = await createServerClient();
-  // A RLS também mostra eventos públicos de outros: filtra pelo dono e tira os excluídos.
   const { data: rows, error } = await supabase
     .from("events")
     .select(
@@ -62,29 +67,30 @@ export default async function OrganizerEventsPage() {
     .order("starts_at", { ascending: true });
 
   const own = (rows ?? []).filter((row) => row.organizer_id === actor.userId);
-  const events: OrganizerEventCardData[] = await Promise.all(
-    own.map(async ({ event_sessions: sessions, ...event }) => {
-      const active = ((sessions ?? []) as SessionRow[])
-        .filter((session) => session.status === "ativa" && session.archived_at === null)
-        .sort(byStart);
-      const lastSession = active.at(-1);
-      const approved = event.approval_status === "aprovado";
-      return {
-        id: event.id,
-        name: event.name,
-        coverImageUrl: event.cover_image_url,
-        sessionStarts: active.length ? active.map((session) => session.starts_at) : [event.starts_at],
-        status: organizerEventStatus({
-          approvalStatus: event.approval_status,
-          salesOpen: event.sales_open,
-          lastSessionAt: lastSession ? (lastSession.ends_at ?? lastSession.starts_at) : event.starts_at,
-        }),
-        refusalNote: event.approval_status === "recusado" ? event.approval_note : null,
-        capacity: active.reduce((total, session) => total + session.capacity, 0),
-        sold: approved ? await soldCount(active) : null,
-      };
-    }),
-  );
+  const approvedIds = own.filter((row) => row.approval_status === "aprovado").map((row) => row.id);
+  const soldCounts = approvedIds.length ? await soldByEvent(approvedIds) : new Map<string, number>();
+
+  const events: OrganizerEventCardData[] = own.map(({ event_sessions: sessions, ...event }) => {
+    const active = ((sessions ?? []) as SessionRow[])
+      .filter((session) => session.status === "ativa" && session.archived_at === null)
+      .sort(byStart);
+    const lastSession = active.at(-1);
+    const approved = event.approval_status === "aprovado";
+    return {
+      id: event.id,
+      name: event.name,
+      coverImageUrl: event.cover_image_url,
+      sessionStarts: active.length ? active.map((session) => session.starts_at) : [event.starts_at],
+      status: organizerEventStatus({
+        approvalStatus: event.approval_status,
+        salesOpen: event.sales_open,
+        lastSessionAt: lastSession ? (lastSession.ends_at ?? lastSession.starts_at) : event.starts_at,
+      }),
+      refusalNote: event.approval_status === "recusado" ? event.approval_note : null,
+      capacity: active.reduce((total, session) => total + session.capacity, 0),
+      sold: approved ? (soldCounts === null ? null : (soldCounts.get(event.id) ?? 0)) : null,
+    };
+  });
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
