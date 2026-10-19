@@ -22,6 +22,7 @@ describe("migration payment_method_fees", () => {
   });
 
   it("expõe service_fee_policy e set_order_payment_method só para service_role", () => {
+    expect(sql).toContain("drop function if exists public.service_fee_policy();");
     expect(sql).toContain("create or replace function public.service_fee_policy()");
     expect(sql).toContain("create or replace function public.set_order_payment_method(");
     expect(sql).toMatch(

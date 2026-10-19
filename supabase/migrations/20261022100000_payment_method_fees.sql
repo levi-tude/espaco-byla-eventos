@@ -20,6 +20,9 @@ alter table public.service_fee_settings
   add constraint service_fee_settings_pix_le_card
     check (pix_rate_bps <= card_rate_bps);
 
+-- Retorno muda de 3 para 6 colunas: CREATE OR REPLACE não troca o tipo OUT.
+drop function if exists public.service_fee_policy();
+
 create or replace function public.service_fee_policy()
 returns table (
   enabled boolean,
