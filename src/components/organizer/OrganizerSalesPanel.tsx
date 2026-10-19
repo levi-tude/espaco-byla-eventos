@@ -99,7 +99,7 @@ export function OrganizerSalesPanel({ eventId, approved, eventSalesOpen, session
   if (!approved) {
     return (
       <p className="text-base text-byla-muted">
-        As vendas abrem depois que o Espaço Byla aprovar o evento.
+        As vendas abrem depois que o ACDH Eventos aprovar o evento.
       </p>
     );
   }

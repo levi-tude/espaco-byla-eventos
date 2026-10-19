@@ -126,6 +126,6 @@ describe("página Política de Privacidade", () => {
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "");
     const html = renderToStaticMarkup(PrivacyPage());
     expect(html).not.toContain("mailto:");
-    expect(text(html)).toContain("os canais oficiais de atendimento do Espaço Byla");
+    expect(text(html)).toContain("os canais oficiais de atendimento do ACDH Eventos");
   });
 });

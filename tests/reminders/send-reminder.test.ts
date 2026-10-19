@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { reminderEmailConfig, sendReminderEmail } from "@/lib/email/send-reminder";
 
-const config = { apiKey: "chave-teste", from: "Espaço Byla <teste@exemplo.test>", appUrl: "https://eventos.exemplo" };
+const config = { apiKey: "chave-teste", from: "ACDH Eventos <teste@exemplo.test>", appUrl: "https://eventos.exemplo" };
 const input = {
   config,
   to: "comprador@example.com",
@@ -53,7 +53,7 @@ describe("sendReminderEmail", () => {
 
   it("configuração exige chave, remetente e endereço do site", () => {
     vi.stubEnv("RESEND_API_KEY", "");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Espaço Byla <teste@exemplo.test>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <teste@exemplo.test>");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://eventos.exemplo/");
     expect(reminderEmailConfig()).toBeNull();
 

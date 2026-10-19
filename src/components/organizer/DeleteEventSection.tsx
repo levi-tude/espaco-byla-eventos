@@ -123,15 +123,14 @@ export function DeleteEventSection({ eventId, eventName, hasSales, deletionPendi
   if (deletionPending || sent) {
     body = (
       <Notice tone="warning">
-        Pedido de exclusão em análise. As vendas ficam pausadas até a resposta do Espaço Byla.
+        Pedido de exclusão em análise. As vendas ficam pausadas até a resposta do ACDH Eventos.
       </Notice>
     );
   } else if (hasSales) {
     body = (
       <>
         <p className="text-base text-byla-muted">
-          Este evento já teve vendas, então a exclusão passa pelo Espaço Byla. As vendas pausam na hora e o Espaço
-          Byla decide.
+          Este evento já teve vendas, então a exclusão passa pelo ACDH Eventos. As vendas pausam na hora e o ACDH Eventos decide.
         </p>
         {open ? (
           <RequestDeletionForm

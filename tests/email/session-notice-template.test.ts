@@ -56,9 +56,9 @@ describe("buildScheduleChangeEmail", () => {
     expect(buildScheduleChangeEmail(data).text).toContain("Em caso de dúvidas, responda este e-mail.");
     const noReply = buildScheduleChangeEmail({ ...data, replyAvailable: false });
     expect(noReply.text).not.toMatch(/respond/i);
-    expect(noReply.text).toContain("fale com a equipe do Espaço Byla");
+    expect(noReply.text).toContain("fale com a equipe do ACDH Eventos");
     expect(noReply.text).toContain(
-      "você pode pedir o reembolso até 24 horas antes dele, falando com a equipe do Espaço Byla.",
+      "você pode pedir o reembolso até 24 horas antes dele, falando com a equipe do ACDH Eventos.",
     );
   });
 

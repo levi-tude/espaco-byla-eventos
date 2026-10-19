@@ -171,15 +171,15 @@ describe("SignupWizard", () => {
     await render(createElement(SignupWizard));
 
     expect(mocks.checkInvite).not.toHaveBeenCalled();
-    expect(pageText()).toContain("Este convite não vale mais. Peça um novo ao Espaço Byla.");
+    expect(pageText()).toContain("Este convite não vale mais. Peça um novo ao ACDH Eventos.");
   });
 
   it("convite recusado mostra a mensagem do servidor", async () => {
-    mocks.checkInvite.mockResolvedValue({ ok: false, error: "Este convite não vale mais. Peça um novo ao Espaço Byla." });
+    mocks.checkInvite.mockResolvedValue({ ok: false, error: "Este convite não vale mais. Peça um novo ao ACDH Eventos." });
     openAt(`/convite#${TOKEN}`);
     await render(createElement(SignupWizard));
 
-    expect(pageText()).toContain("Este convite não vale mais. Peça um novo ao Espaço Byla.");
+    expect(pageText()).toContain("Este convite não vale mais. Peça um novo ao ACDH Eventos.");
     expect(container.querySelector('[name="fullName"]')).toBeNull();
   });
 
@@ -332,12 +332,12 @@ describe("SignupWizard", () => {
   });
 
   it("erro ao criar a conta fica no passo dos termos, sem tentar entrar", async () => {
-    mocks.completeOrganizerSignup.mockResolvedValue({ ok: false, error: "Não foi possível criar a conta. Fale com o Espaço Byla." });
+    mocks.completeOrganizerSignup.mockResolvedValue({ ok: false, error: "Não foi possível criar a conta. Fale com o ACDH Eventos." });
     await reachTermsStep();
     await act(async () => (input("terms") as HTMLInputElement).click());
     await submit();
 
-    expect(pageText()).toContain("Não foi possível criar a conta. Fale com o Espaço Byla.");
+    expect(pageText()).toContain("Não foi possível criar a conta. Fale com o ACDH Eventos.");
     expect(mocks.signInWithPassword).not.toHaveBeenCalled();
   });
 
@@ -372,7 +372,7 @@ describe("ResetPasswordForm", () => {
     openAt("/redefinir-senha");
     await render(createElement(ResetPasswordForm));
 
-    expect(pageText()).toContain("Este link não vale mais. Peça um novo ao Espaço Byla.");
+    expect(pageText()).toContain("Este link não vale mais. Peça um novo ao ACDH Eventos.");
     expect(container.querySelector('[name="password"]')).toBeNull();
   });
 });

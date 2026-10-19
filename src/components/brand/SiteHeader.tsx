@@ -31,7 +31,7 @@ export function SiteHeader({ variant = "public", onMedia = false }: Props) {
               onMedia ? "text-white" : "text-foreground"
             }`}
           >
-            Espaço Byla Eventos
+            ACDH Eventos
           </span>
         </Link>
         <ThemeToggle onMedia={onMedia} />

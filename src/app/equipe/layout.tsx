@@ -69,7 +69,7 @@ export default async function EquipeLayout({
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <BrandMark size={32} />
             <p className="truncate font-display text-lg tracking-wide text-foreground">
-              Espaço Byla Eventos
+              ACDH Eventos
             </p>
           </div>
 

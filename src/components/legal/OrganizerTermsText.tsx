@@ -225,7 +225,7 @@ export function OrganizerTermsText() {
           <li>
             Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos.
             A tarifa daquele pagamento não é descontada da sua parte: se o banco não devolver a
-            tarifa, o Espaço Byla arca com ela.
+            tarifa, o ACDH Eventos arca com ela.
           </li>
           <li>
             <B>Estorno ou contestação depois do repasse:</B> o valor é descontado do seu próximo

@@ -33,8 +33,8 @@ const MAX_CODE_SENDS = 3;
 /** Só para o texto; quem confere a validade é o banco. */
 const SIGNUP_CODE_MINUTES = 15;
 
-const INVITE_INVALID_MESSAGE = "Este convite não vale mais. Peça um novo ao Espaço Byla.";
-const NO_TOKEN_MESSAGE = "Abra de novo o link do convite que você recebeu. Se não funcionar, peça um novo ao Espaço Byla.";
+const INVITE_INVALID_MESSAGE = "Este convite não vale mais. Peça um novo ao ACDH Eventos.";
+const NO_TOKEN_MESSAGE = "Abra de novo o link do convite que você recebeu. Se não funcionar, peça um novo ao ACDH Eventos.";
 const GENERIC_ERROR = "Não foi possível continuar agora. Tente de novo em alguns minutos.";
 const TERMS_REQUIRED_MESSAGE = "Marque que leu e aceita os Termos do organizador e a Política de Privacidade.";
 export const PASSWORD_HINT =
@@ -302,7 +302,7 @@ export function SignupWizard({ terms }: { terms?: ReactNode }) {
           <StepTitle>Seus dados</StepTitle>
           <Field
             autoComplete="name"
-            hint="Para a equipe do Espaço Byla falar com você."
+            hint="Para a equipe do ACDH Eventos falar com você."
             label="Nome completo"
             maxLength={120}
             minLength={2}
@@ -389,7 +389,7 @@ export function SignupWizard({ terms }: { terms?: ReactNode }) {
               Reenviar código
             </Button>
           ) : (
-            <p className="text-sm text-byla-muted">Se o código não chegar, peça um novo convite ao Espaço Byla.</p>
+            <p className="text-sm text-byla-muted">Se o código não chegar, peça um novo convite ao ACDH Eventos.</p>
           )}
           <Button disabled={pending} fullWidth onClick={() => goTo(STEP.dados)} variant="ghost">
             Trocar e-mail

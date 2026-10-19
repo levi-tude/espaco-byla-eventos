@@ -61,7 +61,7 @@ export const PIX_EXPIRATION_MINUTES = 30;
 const PIX_EXPIRATION = `PT${PIX_EXPIRATION_MINUTES}M`;
 /** Folga na busca por data para cobrir diferença de relógio entre servidores. */
 const SEARCH_MARGIN_MS = 10 * 60_000;
-const STATEMENT_DESCRIPTOR = "ESPACO BYLA";
+const STATEMENT_DESCRIPTOR = "ACDH";
 const REFUND_TIMEOUT_MS = 15_000;
 const PROVIDER_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
 const ERROR_CODE_PATTERN = /^[a-z0-9_]{1,100}$/i;

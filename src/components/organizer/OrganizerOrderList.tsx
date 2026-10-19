@@ -68,7 +68,7 @@ export function OrganizerOrderList({ orders }: { orders: OrganizerOrder[] }) {
   return (
     <div className="grid gap-4">
       <Notice tone="info">Use estes dados só para a operação deste evento (Termos do organizador, item 9).</Notice>
-      <p className="text-base text-byla-muted">Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp.</p>
+      <p className="text-base text-byla-muted">Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp.</p>
 
       {sent ? <Notice tone="success">{REFUND_REQUEST_SENT_MESSAGE}</Notice> : null}
 

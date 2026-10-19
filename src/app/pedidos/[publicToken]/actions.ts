@@ -245,7 +245,7 @@ export async function payOrder(
     const result = await provider.createPayment({
       orderId: order.id,
       amountCents: order.total_cents,
-      description: `Ingressos — ${event?.name ?? "Espaço Byla"}`,
+      description: `Ingressos — ${event?.name ?? "ACDH Eventos"}`,
       ...payment,
     });
 

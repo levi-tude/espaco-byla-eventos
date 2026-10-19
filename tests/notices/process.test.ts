@@ -8,7 +8,7 @@ import { NOTICE_DAILY_SOFT_CAP, NOTICE_SEND_INTERVAL_MS } from "@/lib/notices/ru
 
 const config = {
   apiKey: "chave-teste",
-  from: "Espaço Byla <teste@exemplo.test>",
+  from: "ACDH Eventos <teste@exemplo.test>",
   appUrl: "https://eventos.exemplo",
   replyTo: "contato@exemplo.test",
 };

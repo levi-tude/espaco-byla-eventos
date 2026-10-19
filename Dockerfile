@@ -1,4 +1,4 @@
-# Espaço Byla Eventos — imagem para VPS (Docker + proxy reverso) ou Google Cloud Run.
+# ACDH Eventos — imagem para VPS (Docker + proxy reverso) ou Google Cloud Run.
 # Guia: docs/superpowers/plans/2026-10-07-sair-da-vercel.md
 #
 # As variáveis NEXT_PUBLIC_* entram no JavaScript do navegador durante o build:

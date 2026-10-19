@@ -24,6 +24,6 @@ export function LegalContact() {
       {contactEmail}
     </a>
   ) : (
-    "os canais oficiais de atendimento do Espaço Byla"
+    "os canais oficiais de atendimento do ACDH Eventos"
   );
 }

@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("ALERT_EMAIL", TEAM_EMAIL);
   vi.stubEnv("RESEND_API_KEY", "chave-de-teste");
-  vi.stubEnv("RESEND_FROM_EMAIL", "Espaço Byla <ingressos@exemplo.com>");
+  vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <ingressos@exemplo.com>");
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://site.example/");
   mocks.createAdminClient.mockReturnValue(admin);
   mocks.tryConsumeRateLimit.mockResolvedValue("allowed");
@@ -136,7 +136,7 @@ describe("sendOrganizerNotice", () => {
     expect(url).toBe("https://api.resend.com/emails");
     expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = sentBody();
-    expect(body.from).toBe("Espaço Byla <ingressos@exemplo.com>");
+    expect(body.from).toBe("ACDH Eventos <ingressos@exemplo.com>");
     expect(body.to).toEqual([ORGANIZER_EMAIL]);
     expect(body.subject).toBe("Seu evento foi aprovado");
     expect(body.html).toBe(content.html);

@@ -91,7 +91,7 @@ describe("página Termos de compra", () => {
     const page = text(renderToStaticMarkup(TermsPage()));
     const seller = page.indexOf("Quem vende");
     const partners = page.indexOf(
-      "Alguns eventos são produzidos por organizadores parceiros, indicados como “Produção” na página do evento e no e-mail do ingresso. Mesmo nesses casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo Espaço Byla, conforme estes termos.",
+      "Alguns eventos são produzidos por organizadores parceiros, indicados como “Produção” na página do evento e no e-mail do ingresso. Mesmo nesses casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo ACDH Eventos, conforme estes termos.",
     );
     expect(partners).toBeGreaterThan(seller);
     expect(partners).toBeLessThan(page.indexOf("Compra e pagamento"));
@@ -117,7 +117,7 @@ describe("página Termos de compra", () => {
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "");
     const html = renderToStaticMarkup(TermsPage());
     expect(html).not.toContain("mailto:");
-    expect(text(html)).toContain("os canais oficiais de atendimento do Espaço Byla");
+    expect(text(html)).toContain("os canais oficiais de atendimento do ACDH Eventos");
   });
 });
 

@@ -71,7 +71,7 @@ export async function TicketQr({
   return (
     <article className="rounded-2xl border border-byla-border bg-byla-surface p-5 text-center shadow-lg shadow-black/10 sm:p-6 dark:shadow-black/40">
       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-byla-accent-text">
-        Espaço Byla Eventos
+        ACDH Eventos
       </p>
       <h2 className="mt-2 font-display text-3xl tracking-wide text-foreground">
         {eventName}

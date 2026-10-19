@@ -134,7 +134,7 @@ describe("buildOrganizerNotice", () => {
 
   it("troca de PIX: organizador sabe o que fazer se não foi ele; equipe vê quando pode confirmar", () => {
     const own = buildOrganizerNotice("org_pix_troca_pedida", { link });
-    expect(own.text).toContain("Se não foi você, cancele na sua conta e avise o Espaço Byla.");
+    expect(own.text).toContain("Se não foi você, cancele na sua conta e avise o ACDH Eventos.");
     const team = buildOrganizerNotice("equipe_pix_troca_pedida", {
       organizerName: "Produtora X",
       confirmAfter: "2026-10-16T18:30:00Z",
@@ -153,10 +153,10 @@ describe("buildOrganizerNotice", () => {
       espacoPixKey: "financeiro@espaco.example",
       link,
     });
-    expect(withKey.text).toContain("Devolva R$\u00a047,39 por PIX ao Espaço Byla até 09/12.");
-    expect(withKey.text).toContain("Chave PIX do Espaço Byla: financeiro@espaco.example");
+    expect(withKey.text).toContain("Devolva R$\u00a047,39 por PIX ao ACDH Eventos até 09/12.");
+    expect(withKey.text).toContain("Chave PIX do ACDH Eventos: financeiro@espaco.example");
     const withoutKey = buildOrganizerNotice("org_devolucao_pendente", { eventName: "Festa", amountCents: 4739, link });
-    expect(withoutKey.text).toContain("O Espaço Byla vai te mandar a chave PIX");
+    expect(withoutKey.text).toContain("O ACDH Eventos vai te mandar a chave PIX");
   });
 
   it("pedido estornado com número e aviso de desconto", () => {

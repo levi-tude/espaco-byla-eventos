@@ -9,8 +9,8 @@ import { ORGANIZER_TERMS_PATH } from "@/lib/legal/organizer-terms";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
-  title: "Quero fazer meu evento · Espaço Byla Eventos",
-  description: "Conte sua ideia de evento e venda ingressos pelo site do Espaço Byla.",
+  title: "Quero fazer meu evento · ACDH Eventos",
+  description: "Conte sua ideia de evento e venda ingressos pelo site do ACDH Eventos.",
 };
 
 export default async function OrganizerRequestPage() {
@@ -25,7 +25,7 @@ export default async function OrganizerRequestPage() {
           Quero fazer meu evento
         </h1>
         <p className="mt-3 text-base leading-relaxed text-byla-muted">
-          Você produz eventos e quer vender ingressos pelo site do Espaço Byla? Conte sua ideia
+          Você produz eventos e quer vender ingressos pelo site do ACDH Eventos? Conte sua ideia
           que a gente responde pelo WhatsApp.
         </p>
         <div className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6">

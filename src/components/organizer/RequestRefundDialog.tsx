@@ -11,9 +11,9 @@ const MIN_LENGTH = 5;
 const MAX_LENGTH = 500;
 
 export const REFUND_REQUEST_SENT_MESSAGE =
-  "Pedido de estorno enviado. A equipe do Espaço Byla vai responder por e-mail.";
+  "Pedido de estorno enviado. A equipe do ACDH Eventos vai responder por e-mail.";
 
-/** Pedido de estorno à equipe: quem devolve o dinheiro ao comprador é o Espaço Byla. */
+/** Pedido de estorno à equipe: quem devolve o dinheiro ao comprador é o ACDH Eventos. */
 export function RequestRefundDialog({
   orderId,
   orderNumber,
@@ -75,7 +75,7 @@ export function RequestRefundDialog({
             Pedido nº {orderNumber} · {buyerName}
           </h2>
           <p className="mt-2 text-base text-byla-muted">
-            A equipe do Espaço Byla confere o pedido, devolve 100% ao comprador e avisa você por e-mail.
+            A equipe do ACDH Eventos confere o pedido, devolve 100% ao comprador e avisa você por e-mail.
           </p>
         </div>
         <TextAreaField

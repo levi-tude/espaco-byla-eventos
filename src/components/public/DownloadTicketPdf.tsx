@@ -40,7 +40,7 @@ export function DownloadTicketPdf({ ticket }: Props) {
       doc.setTextColor(255, 189, 56);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
-      doc.text("ESPAÇO BYLA EVENTOS", margin, y);
+      doc.text("ACDH EVENTOS", margin, y);
       y += 12;
 
       doc.setTextColor(255, 255, 255);

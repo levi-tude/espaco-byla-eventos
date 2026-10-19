@@ -18,42 +18,42 @@ type PurposeCopy = {
 };
 
 const LOGIN_WARNING =
-  "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe do Espaço Byla.";
+  "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe do ACDH Eventos.";
 
 const COPY: Record<LoginCodePurpose, PurposeCopy> = {
   equipe: {
-    subject: "Seu código de acesso - Espaço Byla Eventos",
+    subject: "Seu código de acesso - ACDH Eventos",
     title: "Seu código de acesso",
     usage: "Use este código para entrar no painel da equipe:",
-    textIntro: "Seu código de acesso ao painel da equipe do Espaço Byla Eventos:",
+    textIntro: "Seu código de acesso ao painel da equipe do ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning: LOGIN_WARNING,
   },
   organizador: {
-    subject: "Seu código de acesso - Espaço Byla Eventos",
+    subject: "Seu código de acesso - ACDH Eventos",
     title: "Seu código de acesso",
     usage: "Use este código para entrar na área do organizador:",
-    textIntro: "Seu código de acesso à área do organizador do Espaço Byla Eventos:",
+    textIntro: "Seu código de acesso à área do organizador do ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning: LOGIN_WARNING,
   },
   cadastro: {
-    subject: "Seu código do Espaço Byla Eventos",
+    subject: "Seu código do ACDH Eventos",
     title: "Confirme seu e-mail",
     usage: "Use este código para confirmar o seu e-mail no cadastro de organizador:",
-    textIntro: "Confirme seu e-mail no cadastro de organizador do Espaço Byla Eventos. Seu código:",
+    textIntro: "Confirme seu e-mail no cadastro de organizador do ACDH Eventos. Seu código:",
     minutes: SIGNUP_CODE_TTL_MINUTES,
     warning:
       "Se não foi você que pediu este código, não passe ele para ninguém e ignore este e-mail: nenhuma conta será criada sem ele.",
   },
   troca_pix: {
-    subject: "Código para trocar a chave PIX - Espaço Byla Eventos",
+    subject: "Código para trocar a chave PIX - ACDH Eventos",
     title: "Troca da chave PIX",
     usage: "Use este código para pedir a troca da chave PIX dos seus repasses:",
-    textIntro: "Código para pedir a troca da chave PIX dos seus repasses no Espaço Byla Eventos:",
+    textIntro: "Código para pedir a troca da chave PIX dos seus repasses no ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning:
-      "Se não foi você que pediu, não passe este código para ninguém: troque sua senha e avise a equipe do Espaço Byla. A chave atual continua valendo.",
+      "Se não foi você que pediu, não passe este código para ninguém: troque sua senha e avise a equipe do ACDH Eventos. A chave atual continua valendo.",
   },
 };
 
@@ -79,7 +79,7 @@ export function buildLoginCodeEmail({
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla Eventos</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">ACDH Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">

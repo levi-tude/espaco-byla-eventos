@@ -252,7 +252,7 @@ export function EventForm({ event, area = "equipe", lockedFields = [], inReview 
               />
               {nameLocked ? (
                 <LockedNote onRequestChange={requestFor("Nome do evento")}>
-                  Depois da aprovação, o nome muda só com o Espaço Byla.
+                  Depois da aprovação, o nome muda só com o ACDH Eventos.
                 </LockedNote>
               ) : null}
             </div>
@@ -274,7 +274,7 @@ export function EventForm({ event, area = "equipe", lockedFields = [], inReview 
               />
               {venueLocked ? (
                 <LockedNote onRequestChange={requestFor("Local")}>
-                  Depois da aprovação, o local muda só com o Espaço Byla.
+                  Depois da aprovação, o local muda só com o ACDH Eventos.
                 </LockedNote>
               ) : null}
             </div>

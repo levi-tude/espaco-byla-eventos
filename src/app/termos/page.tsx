@@ -19,9 +19,9 @@ import {
 } from "@/lib/legal/terms";
 
 export const metadata: Metadata = {
-  title: "Termos de compra · Espaço Byla Eventos",
+  title: "Termos de compra · ACDH Eventos",
   description:
-    "Regras de compra, entrada, cancelamento e reembolso dos ingressos do Espaço Byla.",
+    "Regras de compra, entrada, cancelamento e reembolso dos ingressos do ACDH Eventos.",
 };
 
 const linkClass = "font-medium text-byla-link underline underline-offset-2";

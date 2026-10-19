@@ -58,7 +58,7 @@ function formatSession(startsAt: string, endsAt?: string | null, name?: string |
 function contactLine(replyAvailable: boolean) {
   return replyAvailable
     ? "Em caso de dúvidas, responda este e-mail."
-    : "Se tiver dúvidas, fale com a equipe do Espaço Byla.";
+    : "Se tiver dúvidas, fale com a equipe do ACDH Eventos.";
 }
 
 const paragraph = (content: string) =>
@@ -73,7 +73,7 @@ function layout(input: { title: string; body: string; buttonLabel: string; butto
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">ACDH Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
@@ -109,7 +109,7 @@ export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): Session
   const refundLine = data.isCourtesy
     ? null
     : `Se não puder ir no novo horário, você pode pedir o reembolso até ${SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE} horas antes dele, ${
-        data.replyAvailable ? "respondendo este e-mail" : "falando com a equipe do Espaço Byla"
+        data.replyAvailable ? "respondendo este e-mail" : "falando com a equipe do ACDH Eventos"
       }.`;
 
   const body = [
@@ -142,7 +142,7 @@ export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): Session
     "",
     footer,
     "",
-    "Espaço Byla",
+    "ACDH Eventos",
   ].join("\n");
 
   return { subject, html, text };
@@ -181,7 +181,7 @@ export function buildSessionCancelledEmail(data: SessionCancelledEmailData): Ses
     "",
     footer,
     "",
-    "Espaço Byla",
+    "ACDH Eventos",
   ].join("\n");
 
   return { subject, html, text };

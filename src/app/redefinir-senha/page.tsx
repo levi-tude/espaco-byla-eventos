@@ -7,7 +7,7 @@ import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { ResetPasswordForm } from "./ResetPasswordForm";
 
 export const metadata: Metadata = {
-  title: "Nova senha · Espaço Byla Eventos",
+  title: "Nova senha · ACDH Eventos",
   robots: { index: false },
 };
 

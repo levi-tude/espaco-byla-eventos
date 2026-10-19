@@ -11,7 +11,7 @@ describe("buildLoginCodeEmail", () => {
   const email = buildLoginCodeEmail({ code: "042917", purpose: "equipe" });
 
   it("assunto sem o código", () => {
-    expect(email.subject).toBe("Seu código de acesso - Espaço Byla Eventos");
+    expect(email.subject).toBe("Seu código de acesso - ACDH Eventos");
     expect(email.subject).not.toContain("042917");
   });
 
@@ -32,7 +32,7 @@ describe("buildLoginCodeEmail", () => {
 
   it("organizador: fala da área do organizador", () => {
     const org = buildLoginCodeEmail({ code: "042917", purpose: "organizador" });
-    expect(org.subject).toBe("Seu código de acesso - Espaço Byla Eventos");
+    expect(org.subject).toBe("Seu código de acesso - ACDH Eventos");
     expect(org.subject).not.toContain("042917");
     for (const body of [org.html, org.text]) {
       expect(body).toContain("042917");
@@ -47,7 +47,7 @@ describe("buildLoginCodeEmail", () => {
 
   it("cadastro: confirma o e-mail e vale 15 minutos", () => {
     const signup = buildLoginCodeEmail({ code: "042917", purpose: "cadastro" });
-    expect(signup.subject).toBe("Seu código do Espaço Byla Eventos");
+    expect(signup.subject).toBe("Seu código do ACDH Eventos");
     expect(signup.subject).not.toContain("042917");
     for (const body of [signup.html, signup.text]) {
       expect(body).toContain("042917");
@@ -85,7 +85,7 @@ describe("sendLoginCodeEmail", () => {
 
   beforeEach(() => {
     vi.stubEnv("RESEND_API_KEY", "re_teste");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Espaço Byla <ingressos@exemplo.online>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <ingressos@exemplo.online>");
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
   });
@@ -117,7 +117,7 @@ describe("sendLoginCodeEmail", () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
     await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "cadastro" });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.subject).toBe("Seu código do Espaço Byla Eventos");
+    expect(body.subject).toBe("Seu código do ACDH Eventos");
     expect(body.text).toContain("15 minutos");
   });
 

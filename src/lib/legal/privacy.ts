@@ -1,7 +1,7 @@
 import { legalVersionLabel } from "./version-label";
 
 export const COMPANY = {
-  brand: "Espaço Byla",
+  brand: "ACDH Eventos",
   legalName: "Academia Cultural de Desenvolvimento Humano LTDA",
   cnpj: "04.685.299/0001-16",
   address: "Rua Manuel Suarez, 25 – Stella Maris, Salvador – BA, CEP 41600-620",

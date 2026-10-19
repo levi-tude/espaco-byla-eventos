@@ -30,7 +30,7 @@ function migrationTextMessages(prefix: string): string[] {
 
 const STATE_TRIGGER_MESSAGES: Record<string, string> = {
   "ORG_ESTADO: Evento de organizador só abre vendas depois de aprovado.":
-    "As vendas abrem depois que o Espaço Byla aprovar o evento.",
+    "As vendas abrem depois que o ACDH Eventos aprovar o evento.",
   "ORG_ESTADO: Evento de organizador só pelo fluxo próprio.":
     "Esta ação não está disponível agora. Recarregue a página.",
   "ORG_ESTADO: Aprovação e exclusão só pelo fluxo próprio.":
@@ -48,20 +48,20 @@ describe("mensagens dos erros do banco", () => {
   it("traduz cada prefixo", () => {
     expect(organizerErrorMessage("ORG_LOTACAO:100")).toBe("Cada sessão pode ter no máximo 100 lugares.");
     expect(organizerErrorMessage("ORG_ESTADO:mudanca:nome,horario")).toBe(
-      "Depois da aprovação, mudar nome do evento e horário precisa ser pedido ao Espaço Byla (botão “Pedir mudança”).",
+      "Depois da aprovação, mudar nome do evento e horário precisa ser pedido ao ACDH Eventos (botão “Pedir mudança”).",
     );
     expect(organizerErrorMessage("ORG_ESTADO:capa")).toBe("Adicione uma capa antes de enviar para aprovação.");
-    expect(organizerErrorMessage("ORG_CONVITE: x")).toBe("Este convite não vale mais. Peça um novo ao Espaço Byla.");
+    expect(organizerErrorMessage("ORG_CONVITE: x")).toBe("Este convite não vale mais. Peça um novo ao ACDH Eventos.");
     expect(organizerErrorMessage("ORG_DONO: x")).toBe("Evento não encontrado.");
     expect(organizerErrorMessage("outra coisa")).toBeNull();
   });
 
   it("mudança: lista na ordem da tela, sem repetir, como o banco manda (ordem alfabética)", () => {
     expect(organizerErrorMessage("ORG_ESTADO:mudanca:horario,local,lotacao,nome,preco")).toBe(
-      "Depois da aprovação, mudar nome do evento, local, horário, preço e lugares precisa ser pedido ao Espaço Byla (botão “Pedir mudança”).",
+      "Depois da aprovação, mudar nome do evento, local, horário, preço e lugares precisa ser pedido ao ACDH Eventos (botão “Pedir mudança”).",
     );
     expect(organizerErrorMessage("ORG_ESTADO:mudanca:preco")).toBe(
-      "Depois da aprovação, mudar preço precisa ser pedido ao Espaço Byla (botão “Pedir mudança”).",
+      "Depois da aprovação, mudar preço precisa ser pedido ao ACDH Eventos (botão “Pedir mudança”).",
     );
   });
 
@@ -122,7 +122,7 @@ describe("mensagens dos erros do banco", () => {
       "Não foi possível gerar o convite. Confira os dados e tente de novo.",
     );
     expect(organizerErrorMessage("ORG_CONVITE: Convite inválido.", { area: "organizer" })).toBe(
-      "Este convite não vale mais. Peça um novo ao Espaço Byla.",
+      "Este convite não vale mais. Peça um novo ao ACDH Eventos.",
     );
     expect(organizerErrorMessage("ORG_DONO: x", { area: "admin" })).toBe("Evento não encontrado.");
   });

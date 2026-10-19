@@ -380,7 +380,7 @@ describe("Meus eventos", () => {
 
     expect(page).toContain("+ Criar evento");
     expect(html).toContain('href="/organizador/eventos/novo"');
-    expect(page).toContain("Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp.");
+    expect(page).toContain("Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp.");
 
     const ticketsQuery = mocks.adminQueries.find((q) => q.table === "tickets");
     expect(ticketsQuery?.calls).toContainEqual(["in", ["event_id", [APPROVED_EVENT]]]);
