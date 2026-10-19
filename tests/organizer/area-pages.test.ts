@@ -42,6 +42,10 @@ vi.mock("@/components/brand/ThemeToggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/lib/auth/login-verification", () => ({ readLoginState: mocks.readLoginState }));
 vi.mock("@/lib/auth/actor", () => ({ getActor: mocks.getActor }));
 vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: mocks.areaEnabled }));
+vi.mock("@/lib/organizer/terms-gate", () => ({
+  assertOrganizerTermsAccepted: vi.fn(async () => undefined),
+  organizerNeedsTermsAcceptance: vi.fn(async () => false),
+}));
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({

@@ -17,6 +17,10 @@ import { maskEmail } from "@/lib/domain/mask";
 import { resumeCheckoutPath } from "@/lib/domain/public-token";
 import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
+import {
+  orderFeeBreakdown,
+  serviceFeeForPriceAtRate,
+} from "@/lib/domain/service-fee";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
 import { extendHoldForPix } from "@/lib/payments/pix-hold";
 import { getPaymentProvider } from "@/lib/payments/provider";
@@ -140,7 +144,7 @@ export default async function PedidoPage({
   const { data: order, error: orderError } = await admin
     .from("orders")
     .select(
-      "id, event_id, session_id, status, buyer_name, buyer_email, total_cents, tickets_subtotal_cents, service_fee_cents, expires_at, created_at, payment_provider, cancel_reason",
+      "id, event_id, session_id, status, buyer_name, buyer_email, total_cents, tickets_subtotal_cents, service_fee_cents, service_fee_rate_bps, service_fee_min_cents, card_rate_bps_snapshot, pix_rate_bps_snapshot, payment_method, expires_at, created_at, payment_provider, cancel_reason",
     )
     .eq("public_token", publicToken)
     .maybeSingle();
@@ -222,6 +226,34 @@ export default async function PedidoPage({
       order.status === "expirado" ||
       (!initialPix && isReservationExpired(order.expires_at));
 
+    const { data: feeItems } = await admin
+      .from("order_items")
+      .select("unit_price_cents, quantity")
+      .eq("order_id", order.id);
+    const lines = (feeItems ?? []).map((item) => ({
+      unitPriceCents: item.unit_price_cents,
+      quantity: item.quantity,
+    }));
+    const cardRate = order.card_rate_bps_snapshot ?? order.service_fee_rate_bps ?? 0;
+    const pixRate = order.pix_rate_bps_snapshot ?? order.service_fee_rate_bps ?? 0;
+    const minCents = order.service_fee_min_cents ?? 0;
+    const cardBreakdown = orderFeeBreakdown(lines, {
+      enabled: true,
+      rateBps: cardRate,
+      minCents,
+      cardRateBps: cardRate,
+      pixRateBps: pixRate,
+      perMethodEnabled: cardRate !== pixRate,
+    });
+    const pixFee = lines.reduce(
+      (sum, line) =>
+        sum +
+        serviceFeeForPriceAtRate(line.unitPriceCents, pixRate, minCents) * line.quantity,
+      0,
+    );
+    const pixTotalCents = order.tickets_subtotal_cents + pixFee;
+    const cardTotalCents = cardBreakdown.totalCents;
+
     return (
       <OrderShell>
         <div className="grid gap-5">
@@ -266,7 +298,9 @@ export default async function PedidoPage({
             <OrderPayment
               amountCents={order.total_cents}
               buyerEmail={order.buyer_email}
+              cardTotalCents={cardTotalCents}
               initialPix={initialPix}
+              pixTotalCents={pixTotalCents}
               publicKey={publicKey}
               publicToken={publicToken}
               reservationExpiresAt={order.expires_at}

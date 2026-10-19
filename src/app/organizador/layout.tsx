@@ -7,9 +7,13 @@ import { redirect } from "next/navigation";
 import { signOutOrganizerAction } from "@/app/organizador/verificar/actions";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
+import { OrganizerTermsBanner } from "@/components/organizer/OrganizerTermsBanner";
 import { buttonClasses } from "@/components/ui/Button";
 import { AREAS } from "@/lib/auth/area";
+import { getActor } from "@/lib/auth/actor";
 import { readLoginState } from "@/lib/auth/login-verification";
+import { organizerNeedsTermsAcceptance } from "@/lib/organizer/terms-gate";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -32,6 +36,12 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
   const state = await readLoginState(await createServerClient(), "organizador");
   if (state.status === "pendente") redirect(verify);
   if (state.status !== "verificado") redirect(login);
+
+  const actor = await getActor();
+  const needsTerms =
+    actor?.kind === "organizador"
+      ? await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId)
+      : false;
 
   return (
     <div className="min-h-screen bg-byla-bg text-foreground">
@@ -72,6 +82,7 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
         </div>
       </header>
 
+      {needsTerms ? <OrganizerTermsBanner /> : null}
       {children}
     </div>
   );

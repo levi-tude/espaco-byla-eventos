@@ -108,11 +108,11 @@ describe("página Termos do organizador", () => {
 
   it("taxa de serviço vem da mesma constante dos Termos de compra e não sai da parte do organizador", async () => {
     const page = text(await renderPage());
-    const percent = TERMS_SERVICE_FEE.rateBps / 100;
     const min = formatMoney(TERMS_SERVICE_FEE.minCents).replace(/\s/g, " ");
-    expect(TERMS_SERVICE_FEE).toEqual({ rateBps: 700, minCents: 100 });
-    expect(page).toContain(`taxa de serviço (${percent}% por item, mínimo ${min})`);
-    expect(page).toContain("num pagamento de R$ 53,50, sendo R$ 50,00 de ingresso e R$ 3,50 de taxa de serviço");
+    expect(TERMS_SERVICE_FEE).toEqual({ cardRateBps: 1000, pixRateBps: 556, minCents: 100 });
+    expect(page).toContain(`taxa de serviço (10% no cartão ou 5,56% no Pix por item, mínimo ${min})`);
+    expect(page).toContain("pagamento no cartão de R$ 55,00");
+    expect(page).toContain("R$ 52,78 no Pix");
     expect(page).toContain("você recebe os R$ 50,00");
     expect(page).toContain("não sai da sua parte");
     expect(page).toContain("Essa tarifa sai da taxa de serviço e não da sua parte");
@@ -136,11 +136,11 @@ describe("página Termos do organizador", () => {
     expect(page.toLowerCase()).not.toContain("autenticador");
   });
 
-  it("item 2: troca da chave PIX pode levar até 1 dia; versão de 2026-10-17", async () => {
+  it("item 2: troca da chave PIX pode levar até 1 dia; versão de 2026-10-19", async () => {
     const page = text(await renderPage());
     expect(page).toContain("A troca da chave PIX pode levar até 1 dia para ser confirmada.");
-    expect(ORGANIZER_TERMS_VERSION).toBe("2026-10-17");
-    expect(page).toContain("Atualizados em 17 de outubro de 2026");
+    expect(ORGANIZER_TERMS_VERSION).toBe("2026-10-19");
+    expect(page).toContain("Atualizados em 19 de outubro de 2026");
   });
 
   it("item 3: nome e local (decisão 2A) dependem de nova confirmação depois de aprovado", async () => {

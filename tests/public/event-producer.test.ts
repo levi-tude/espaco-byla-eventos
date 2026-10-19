@@ -27,7 +27,14 @@ vi.mock("@/components/public/EventGallery", () => ({ EventGallery: () => null })
 vi.mock("@/components/public/SessionPicker", () => ({ SessionPicker: () => null }));
 vi.mock("@/lib/media/gallery", () => ({ loadEventGallery: async () => [] }));
 vi.mock("@/lib/payments/service-fee-policy", () => ({
-  loadServiceFeePolicy: async () => ({ enabled: false, rateBps: 0, minCents: 0 }),
+  loadServiceFeePolicy: async () => ({
+    enabled: false,
+    rateBps: 0,
+    minCents: 0,
+    cardRateBps: 0,
+    pixRateBps: 0,
+    perMethodEnabled: false,
+  }),
 }));
 vi.mock("@/lib/domain/event-availability", () => ({
   loadEventAvailability: async () => null,

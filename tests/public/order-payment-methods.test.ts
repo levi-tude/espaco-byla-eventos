@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { INSTALLMENT_INTEREST_NOTE } from "@/lib/legal/terms";
+import { PIX_OFF_LABEL } from "@/lib/domain/service-fee";
 
 const mp = vi.hoisted(() => ({
   init: vi.fn(),
@@ -17,8 +18,9 @@ vi.mock("@mercadopago/sdk-react", () => ({
     return createElement("div", { "data-testid": "payment-brick" });
   },
 }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => router,
 }));
 vi.mock("@/components/public/HumanCheck", () => ({
   useHumanCheck: () => ({ slot: null, takeToken: async () => null }),
@@ -43,33 +45,59 @@ async function render(element: ReturnType<typeof createElement>) {
   await act(async () => root.render(element));
 }
 
-function payment(extra: { initialPix?: { qrCode: string; qrCodeBase64: string } | null } = {}) {
+function payment(
+  extra: {
+    initialPix?: { qrCode: string; qrCodeBase64: string } | null;
+    pixTotalCents?: number;
+    cardTotalCents?: number;
+  } = {},
+) {
   return createElement(OrderPayment, {
     publicKey: "TEST-PUBLIC",
     publicToken: "pedido-1",
-    amountCents: 5250,
+    amountCents: extra.cardTotalCents ?? 5500,
+    pixTotalCents: extra.pixTotalCents ?? 5278,
+    cardTotalCents: extra.cardTotalCents ?? 5500,
     buyerEmail: "comprador@exemplo.com",
     initialPix: extra.initialPix ?? null,
     reservationExpiresAt: null,
   });
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        paymentMethod: "pix",
+        serviceFeeCents: 278,
+        totalCents: 5278,
+        serviceFeeRateBps: 556,
+      }),
+    ),
+  );
+});
+
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   mp.methods = null;
+  vi.unstubAllGlobals();
 });
 
 describe("pagamento do comprador", () => {
-  it("abre no PIX, com o selo de mais rápido, e o cartão logo abaixo", async () => {
+  it("abre no PIX com os dois totais e o selo de economia", async () => {
     await render(payment());
+    await act(async () => {
+      await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    });
     const radios = [...container.querySelectorAll<HTMLInputElement>('input[name="forma-pagamento"]')];
     expect(radios.map((radio) => radio.value)).toEqual(["pix", "cartao"]);
     expect(radios[0]?.checked).toBe(true);
-    expect(radios[1]?.checked).toBe(false);
     expect(container.querySelector("legend")?.textContent).toBe("Como você quer pagar");
-    expect(container.textContent).toContain("Mais rápido");
-    expect(container.textContent?.toLowerCase()).not.toContain("desconto");
+    expect(container.textContent).toContain(PIX_OFF_LABEL);
+    expect(container.textContent).toMatch(/R\$\s*52,78/);
+    expect(container.textContent).toMatch(/R\$\s*55,00/);
     expect(mp.methods).toEqual({ bankTransfer: "all" });
     expect(container.textContent).not.toContain(INSTALLMENT_INTEREST_NOTE);
     expect(mp.init).toHaveBeenCalledWith("TEST-PUBLIC", { locale: "pt-BR" });
@@ -77,14 +105,14 @@ describe("pagamento do comprador", () => {
 
   it("no cartão mostra só o cartão e o aviso de juros das parcelas", async () => {
     await render(payment());
+    await act(async () => {
+      await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    });
     const card = container.querySelector<HTMLInputElement>('input[value="cartao"]');
     await act(async () => card?.click());
     expect(card?.checked).toBe(true);
     expect(mp.methods).toEqual({ creditCard: "all" });
     expect(container.textContent).toContain(INSTALLMENT_INTEREST_NOTE);
-    expect(
-      [...container.querySelectorAll<HTMLInputElement>('input[name="forma-pagamento"]')].map((radio) => radio.value),
-    ).toEqual(["pix", "cartao"]);
     const pix = container.querySelector<HTMLInputElement>('input[value="pix"]');
 
     await act(async () => pix?.click());

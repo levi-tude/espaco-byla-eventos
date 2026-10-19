@@ -8,6 +8,7 @@ import { generateLoginCode, maskEmail, normalizeLoginCode } from "@/lib/auth/log
 import { sendLoginCodeEmail } from "@/lib/email/send-login-code";
 import { financeRefusalMessage } from "@/lib/organizer/finance";
 import { notifyOrganizer, notifyTeam, organizerNoticeLink } from "@/lib/organizer/notify";
+import { ORGANIZER_TERMS_VERSION } from "@/lib/legal/organizer-terms";
 import { parsePixDetails } from "@/lib/organizer/validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
@@ -17,6 +18,26 @@ const GENERIC_ERROR = "Não foi possível esquecer o aparelho. Tente de novo.";
 const ACCOUNT_PATH = "/organizador/conta";
 const CODE_SEND_ERROR = "Não foi possível enviar o código. Tente de novo em instantes.";
 const PIX_CHANGE_ERROR = "Não foi possível pedir a troca. Tente de novo.";
+
+/** Reaceite dos Termos do organizador após mudança de versão (N16). */
+export async function acceptOrganizerTermsAction(): Promise<ActionResult> {
+  return runAction(async () => {
+    const { userId } = await requireOrganizer();
+    const admin = createAdminClient();
+    const { error } = await admin.rpc("accept_organizer_terms", {
+      p_user_id: userId,
+      p_terms_version: ORGANIZER_TERMS_VERSION,
+    });
+    if (error) {
+      if (/^ORG_/.test(error.message)) throw new ActionError(error.message.replace(/^ORG_\w+:\s*/, ""));
+      console.error("[organizador] Falha ao aceitar os termos.", error.code);
+      throw new ActionError("Não foi possível registrar o aceite. Tente de novo.");
+    }
+    revalidatePath("/organizador");
+    revalidatePath("/organizador/conta");
+    return undefined;
+  }, "Não foi possível registrar o aceite. Tente de novo.");
+}
 
 /** Com a sessão do próprio usuário: o banco só esquece aparelho da conta que está logada. */
 export async function forgetMyDeviceAction(deviceId: string): Promise<ActionResult> {

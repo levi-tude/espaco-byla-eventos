@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { LegalContact, LegalSection as Section } from "@/components/legal/LegalSection";
 import { BackLink } from "@/components/ui/BackLink";
 import { MAX_PEOPLE_PER_ORDER, RESERVATION_MINUTES } from "@/lib/domain/availability";
-import { formatMoney } from "@/lib/domain/service-fee";
+import { formatFeePercent, formatMoney, PIX_OFF_LABEL } from "@/lib/domain/service-fee";
 import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
@@ -45,7 +45,8 @@ function TicketTransferSection() {
 
 export default function TermsPage() {
   const contact = <LegalContact />;
-  const feePercent = TERMS_SERVICE_FEE.rateBps / 100;
+  const cardPercent = formatFeePercent(TERMS_SERVICE_FEE.cardRateBps);
+  const pixPercent = formatFeePercent(TERMS_SERVICE_FEE.pixRateBps);
   const feeMin = formatMoney(TERMS_SERVICE_FEE.minCents);
 
   return (
@@ -124,19 +125,26 @@ export default function TermsPage() {
         <Section title="Taxa de serviço">
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              O site pode cobrar uma taxa de serviço de {feePercent}% do preço de
-              cada item escolhido (por exemplo, cada Inteira ou cada Casadinha),
-              com mínimo de {feeMin} por item. Ela cobre os custos da venda pela
+              O site pode cobrar uma taxa de serviço sobre o preço de cada item
+              escolhido (por exemplo, cada Inteira ou cada Casadinha):{" "}
+              <strong className="text-foreground">{cardPercent}% no cartão</strong> ou{" "}
+              <strong className="text-foreground">{pixPercent}% no Pix</strong>, com
+              mínimo de {feeMin} por item. No Pix, o total fica cerca de{" "}
+              {PIX_OFF_LABEL} em relação ao cartão (o valor exato
+              aparece na hora de pagar). Ela cobre os custos da venda pela
               internet: pagamento, emissão e envio dos ingressos e conferência na
               entrada.
             </li>
             <li>
               A taxa aparece ao lado do preço desde a escolha dos ingressos e no
-              resumo, antes de você pagar. Se ela não aparecer, não é cobrada.
+              resumo, antes de você pagar. O total final depende da forma
+              escolhida (Pix ou cartão). Se ela não aparecer, não é cobrada.
             </li>
+            <li>{INSTALLMENT_INTEREST_NOTE}</li>
             <li>
               A taxa é <strong className="text-foreground">devolvida junto</strong>{" "}
-              em todo reembolso previsto nestes termos.
+              em todo reembolso previsto nestes termos (o valor efetivamente pago,
+              incluindo a taxa da forma usada).
             </li>
             <li>Ingressos de cortesia não têm taxa.</li>
           </ul>

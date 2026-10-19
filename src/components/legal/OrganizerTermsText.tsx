@@ -2,7 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { LegalContact, LegalSection as Section } from "@/components/legal/LegalSection";
-import { formatMoney, serviceFeeForPrice } from "@/lib/domain/service-fee";
+import {
+  formatFeePercent,
+  formatMoney,
+  serviceFeeForPriceAtRate,
+} from "@/lib/domain/service-fee";
 import { ORGANIZER_TERMS_UPDATED_LABEL } from "@/lib/legal/organizer-terms";
 import { COMPANY } from "@/lib/legal/privacy";
 import { TERMS_PATH, TERMS_SERVICE_FEE } from "@/lib/legal/terms";
@@ -31,9 +35,19 @@ function TextLink({ href, children }: { href: string; children: ReactNode }) {
  */
 export function OrganizerTermsText() {
   const contact = <LegalContact />;
-  const feePercent = TERMS_SERVICE_FEE.rateBps / 100;
+  const cardPercent = formatFeePercent(TERMS_SERVICE_FEE.cardRateBps);
+  const pixPercent = formatFeePercent(TERMS_SERVICE_FEE.pixRateBps);
   const feeMin = formatMoney(TERMS_SERVICE_FEE.minCents);
-  const exampleFee = serviceFeeForPrice(EXAMPLE_TICKET_CENTS, { enabled: true, ...TERMS_SERVICE_FEE });
+  const exampleCardFee = serviceFeeForPriceAtRate(
+    EXAMPLE_TICKET_CENTS,
+    TERMS_SERVICE_FEE.cardRateBps,
+    TERMS_SERVICE_FEE.minCents,
+  );
+  const examplePixFee = serviceFeeForPriceAtRate(
+    EXAMPLE_TICKET_CENTS,
+    TERMS_SERVICE_FEE.pixRateBps,
+    TERMS_SERVICE_FEE.minCents,
+  );
 
   return (
     <div>
@@ -146,20 +160,21 @@ export function OrganizerTermsText() {
             {COMPANY.brand} <B>não cobra comissão</B> sobre as suas vendas.
           </li>
           <li>
-            O site pode cobrar do comprador uma <B>taxa de serviço</B> ({feePercent}% por item,
-            mínimo {feeMin}), que paga a manutenção do site. Ela é paga pelo comprador e{" "}
-            <B>não sai da sua parte</B>.
+            O site pode cobrar do comprador uma <B>taxa de serviço</B> (
+            {cardPercent}% no cartão ou {pixPercent}% no Pix por item, mínimo {feeMin}), que paga a
+            manutenção do site. Ela é paga pelo comprador e <B>não sai da sua parte</B>.
           </li>
           <li>
             O banco responsável pelo pagamento cobra uma <B>tarifa em cada pagamento</B> (PIX ou
             cartão). Essa tarifa <B>sai da taxa de serviço e não da sua parte</B>. Por exemplo: num
-            pagamento de {formatMoney(EXAMPLE_TICKET_CENTS + exampleFee)}, sendo{" "}
-            {formatMoney(EXAMPLE_TICKET_CENTS)} de ingresso e {formatMoney(exampleFee)} de taxa de
-            serviço, você recebe os {formatMoney(EXAMPLE_TICKET_CENTS)}. Como referência, a tarifa do
-            PIX fica em torno de 0,99% e a do cartão de crédito em torno de 3,98% a 4,98%, conforme
-            o prazo em que o banco libera o dinheiro. No cartão, o parcelamento pode acrescentar
-            juros. Quando esses juros reduzem o valor que o banco repassa, eles entram na tarifa e
-            também saem da taxa de serviço. Esses percentuais são definidos pelo banco e podem mudar.
+            pagamento no cartão de {formatMoney(EXAMPLE_TICKET_CENTS + exampleCardFee)} (ou{" "}
+            {formatMoney(EXAMPLE_TICKET_CENTS + examplePixFee)} no Pix), sendo{" "}
+            {formatMoney(EXAMPLE_TICKET_CENTS)} de ingresso e a taxa de serviço correspondente, você
+            recebe os {formatMoney(EXAMPLE_TICKET_CENTS)}. Como referência, a tarifa do PIX fica em
+            torno de 0,99% e a do cartão de crédito em torno de 3,98% a 4,98%, conforme o prazo em
+            que o banco libera o dinheiro. No cartão, o parcelamento pode acrescentar juros. Quando
+            esses juros reduzem o valor que o banco repassa, eles entram na tarifa e também saem da
+            taxa de serviço. Esses percentuais são definidos pelo banco e podem mudar.
           </li>
           <li>
             <B>Sua parte</B> = valor dos ingressos vendidos − estornos − contestações no cartão.

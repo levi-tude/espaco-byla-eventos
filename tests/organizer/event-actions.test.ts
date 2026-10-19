@@ -65,6 +65,10 @@ vi.mock("@/lib/organizer/notify", () => ({
   notifyTeamEventSubmitted: mocks.notifyTeamEventSubmitted,
   organizerNoticeLink: (path: string) => `https://ingressos.exemplo.com${path}`,
 }));
+vi.mock("@/lib/organizer/terms-gate", () => ({
+  assertOrganizerTermsAccepted: vi.fn(async () => undefined),
+  organizerNeedsTermsAcceptance: vi.fn(async () => false),
+}));
 
 import {
   createOrganizerEvent,

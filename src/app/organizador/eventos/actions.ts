@@ -24,6 +24,7 @@ import { isGalleryPathForEvent } from "@/lib/media/paths";
 import { removeMediaObjects } from "@/lib/media/storage";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
 import { notifyTeam, notifyTeamEventSubmitted, organizerNoticeLink } from "@/lib/organizer/notify";
+import { assertOrganizerTermsAccepted } from "@/lib/organizer/terms-gate";
 import { parseChangeWhat, parseReason } from "@/lib/organizer/validation";
 import { consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -171,6 +172,7 @@ function revalidatePublicSurfaces(slug: string | null | undefined) {
 async function createOrganizerEventOrThrow(input: EventInput): Promise<{ id: string }> {
   const { userId } = await requireOrganizer();
   const admin = createAdminClient();
+  await assertOrganizerTermsAccepted(admin, userId);
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
   assertCoverIsOwnUpload(normalized.coverImageUrl);
@@ -204,6 +206,7 @@ async function updateOrganizerEventOrThrow(id: string, input: EventInput): Promi
   assertEventId(id);
   const { userId } = await requireOwnEvent(id);
   const admin = createAdminClient();
+  await assertOrganizerTermsAccepted(admin, userId);
   await assertSaveLimit(admin, userId);
   const normalized = normalizeEventInput(input);
   assertCoverIsOwnUpload(normalized.coverImageUrl);
@@ -249,6 +252,7 @@ async function submitEventForApprovalOrThrow(id: string): Promise<undefined> {
   assertEventId(id);
   const { userId } = await requireOwnEvent(id);
   const admin = createAdminClient();
+  await assertOrganizerTermsAccepted(admin, userId);
   await assertSubmitLimit(admin, userId);
   const { error } = await admin.rpc("submit_event_for_approval", { p_actor: userId, p_event_id: id });
   if (error) throw dbError(error, "Não foi possível enviar o evento.", "enviar para aprovação");

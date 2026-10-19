@@ -58,14 +58,15 @@ describe("página Termos de compra", () => {
     expect(page).toContain("até 10 pessoas");
     expect(page).toContain("reservados por 15 minutos");
     expect(page).toContain("encerram 5 minutos depois");
-    expect(page).toMatch(/taxa de serviço de 7% do preço/);
+    expect(page).toMatch(/10% no cartão/);
+    expect(page).toMatch(/5,56% no Pix/);
+    expect(page).toContain("4% off no Pix");
     expect(page).toContain("mínimo de R$ 1,00");
     expect(page).toContain("Ingressos de cortesia não têm taxa");
     expect(page).toContain("devolve 100% do valor pago");
     const payment = page.indexOf("Compra e pagamento");
     const note = page.indexOf(INSTALLMENT_INTEREST_NOTE);
     expect(note).toBeGreaterThan(payment);
-    expect(note).toBeLessThan(page.indexOf("Taxa de serviço"));
   });
 
   it("aplica as decisões do dono de 2026-10-07", () => {
