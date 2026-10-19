@@ -10,7 +10,7 @@ function migration(name: string) {
   );
 }
 
-const sql = migration("20261022100000_payment_method_fees.sql");
+const sql = migration("20261019203707_payment_method_fees.sql");
 
 describe("migration payment_method_fees", () => {
   it("adiciona colunas e flag desligada, sem alterar rate_bps vigente", () => {

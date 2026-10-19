@@ -19,7 +19,7 @@ const pg = await load("pg");
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIGRATIONS = process.env.BYLA_MIGRATIONS_DIR ?? join(ROOT, "supabase", "migrations");
-const THIS_MIGRATION = "20261022100000_payment_method_fees.sql";
+const THIS_MIGRATION = "20261019203707_payment_method_fees.sql";
 const PORT = 54897;
 const DATA_DIR = join(TOOLS, "data-taxa-forma");
 const PASSWORD = randomUUID();
