@@ -9,7 +9,7 @@ export const TERMS_PATH = "/termos";
 
 /**
  * Taxa descrita nos termos; o valor cobrado de fato vem do banco e aparece antes do pagamento.
- * Cartão 10% (1000 bps) · Pix 5,56% (556 bps) · anúncio "4% off no Pix".
+ * Cartão 10% (1000 bps) · Pix 5,56% (556 bps) · anúncio ao comprador "4% de desconto".
  */
 export const TERMS_SERVICE_FEE = {
   cardRateBps: 1000,

@@ -15,7 +15,11 @@ import { useHumanCheck } from "@/components/public/HumanCheck";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { eventDateFormatter } from "@/lib/datetime";
-import { formatMoney, pixSavingsLabel } from "@/lib/domain/service-fee";
+import {
+  formatMoney,
+  PIX_DISCOUNT_LINE_LABEL,
+  PIX_OFF_LABEL,
+} from "@/lib/domain/service-fee";
 import { INSTALLMENT_INTEREST_NOTE } from "@/lib/legal/terms";
 import type { PixData } from "@/lib/payments/types";
 
@@ -346,7 +350,7 @@ export function OrderPayment({
               <span className="font-semibold text-foreground">PIX</span>
               {showDual && savingsCents > 0 ? (
                 <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
-                  {pixSavingsLabel(savingsCents)}
+                  {PIX_OFF_LABEL}
                 </span>
               ) : (
                 <span className="rounded-full bg-byla-yellow px-2 py-0.5 text-xs font-bold text-black">
@@ -376,11 +380,18 @@ export function OrderPayment({
             <span className="font-semibold text-foreground">Cartão de crédito</span>
             <span className="mt-0.5 block text-sm text-byla-muted">
               {formatMoney(cardTotalCents)}
-              {showDual ? " (até 12x, juros do banco)" : ""}
             </span>
           </span>
         </label>
       </fieldset>
+      {showDual && method === "pix" && savingsCents > 0 ? (
+        <dl className="grid gap-1 text-base text-foreground">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-byla-muted">{PIX_DISCOUNT_LINE_LABEL}</dt>
+            <dd className="tabular-nums text-byla-muted">−{formatMoney(savingsCents)}</dd>
+          </div>
+        </dl>
+      ) : null}
       <p className="text-base font-semibold text-foreground" aria-live="polite">
         Total: {formatMoney(totalCents)}
         {locking ? "…" : ""}

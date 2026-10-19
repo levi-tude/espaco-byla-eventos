@@ -10,11 +10,21 @@ import type { createAdminClient } from "@/lib/supabase/admin";
  * Com `per_method_enabled`, o checkout/exibição base usa a taxa do cartão (mais alta);
  * Pix e cartão aparecem lado a lado na escolha do pagamento.
  */
+/** PostgREST às vezes devolve a linha única como objeto, às vezes como array de 1. */
+function policyRow(data: unknown): Record<string, unknown> | null {
+  if (Array.isArray(data)) {
+    const first = data[0];
+    return first && typeof first === "object" ? (first as Record<string, unknown>) : null;
+  }
+  if (data && typeof data === "object") return data as Record<string, unknown>;
+  return null;
+}
+
 export async function loadServiceFeePolicy(
   admin: ReturnType<typeof createAdminClient>,
 ): Promise<ServiceFeePolicy> {
   const { data, error } = await admin.rpc("service_fee_policy");
-  const row = Array.isArray(data) ? data[0] : null;
+  const row = policyRow(data);
   if (error || !row) {
     if (error) console.error("[taxa] Falha ao ler a configuração da taxa.", { error: error.message });
     return SERVICE_FEE_OFF;
@@ -26,6 +36,9 @@ export async function loadServiceFeePolicy(
   const perMethod = Boolean(row.per_method_enabled);
   const cardRateBps = Number(row.card_rate_bps);
   const pixRateBps = Number(row.pix_rate_bps);
+  // Com duas taxas, o checkout confere o esperado contra a taxa do CARTÃO no banco.
+  // Se card_rate_bps vier inválido e caíssemos em rate_bps antigo (ex.: 700), o insert
+  // falha com TAXA_MUDOU e nenhum pedido é criado.
 
   if (perMethod) {
     return {

@@ -19,6 +19,7 @@ import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import {
   orderFeeBreakdown,
+  receiptFeeDisplay,
   serviceFeeForPriceAtRate,
 } from "@/lib/domain/service-fee";
 import { confirmOrderPaid } from "@/lib/payments/confirm-order";
@@ -271,9 +272,9 @@ export default async function PedidoPage({
             </h1>
             <p className="mt-2 text-base text-byla-muted">{sessionHeading}</p>
             <OrderTotal
-              feeCents={order.service_fee_cents}
+              feeCents={cardBreakdown.feeCents}
               ticketsCents={order.tickets_subtotal_cents}
-              totalCents={order.total_cents}
+              totalCents={cardTotalCents}
             />
           </header>
           {expired ? (
@@ -465,7 +466,7 @@ export default async function PedidoPage({
       ? Promise.resolve({ data: null })
       : admin
           .from("order_items")
-          .select("name, quantity, line_total_cents")
+          .select("name, quantity, line_total_cents, unit_price_cents")
           .eq("order_id", order.id)
           .order("created_at"),
   ]);
@@ -531,7 +532,19 @@ export default async function PedidoPage({
 
         {items?.length ? (
           <PaidOrderSummary
-            feeCents={order.service_fee_cents}
+            {...receiptFeeDisplay({
+              paymentMethod: order.payment_method,
+              ticketsSubtotalCents: order.tickets_subtotal_cents,
+              totalCents: order.total_cents,
+              serviceFeeCents: order.service_fee_cents,
+              serviceFeeRateBps: order.service_fee_rate_bps,
+              serviceFeeMinCents: order.service_fee_min_cents,
+              cardRateBpsSnapshot: order.card_rate_bps_snapshot,
+              items: items.map((item) => ({
+                unitPriceCents: item.unit_price_cents,
+                quantity: item.quantity,
+              })),
+            })}
             items={items.map((item) => ({
               name: item.name,
               quantity: item.quantity,

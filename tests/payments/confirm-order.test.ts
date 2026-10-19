@@ -54,6 +54,12 @@ const paidOrderRows = {
   orders: {
     status: "pendente",
     total_cents: 5000,
+    tickets_subtotal_cents: 5000,
+    service_fee_cents: 0,
+    service_fee_rate_bps: 0,
+    service_fee_min_cents: 0,
+    card_rate_bps_snapshot: null,
+    payment_method: null,
     buyer_email: "comprador@example.com",
     buyer_name: "Comprador Teste",
     public_token: "token-publico",
@@ -315,8 +321,19 @@ describe("sendOrderTicketsEmail", () => {
     await sendOrderTicketsEmail(
       fakeAdmin({
         ...paidOrderRows,
-        orders: { ...paidOrderRows.orders, total_cents: 5250, service_fee_cents: 250 },
-        order_items: [{ name: "Inteira", quantity: 1, line_total_cents: 5000 }],
+        orders: {
+          ...paidOrderRows.orders,
+          total_cents: 5250,
+          tickets_subtotal_cents: 5000,
+          service_fee_cents: 250,
+          service_fee_rate_bps: 500,
+          service_fee_min_cents: 100,
+          card_rate_bps_snapshot: 500,
+          payment_method: "card",
+        },
+        order_items: [
+          { name: "Inteira", quantity: 1, line_total_cents: 5000, unit_price_cents: 5000 },
+        ],
       }),
       orderId,
     );
@@ -325,7 +342,41 @@ describe("sendOrderTicketsEmail", () => {
         summary: {
           items: [{ name: "Inteira", quantity: 1, lineTotalCents: 5000 }],
           feeCents: 250,
+          pixDiscountCents: 0,
           totalCents: 5250,
+        },
+      }),
+    );
+  });
+
+  it("no Pix o e-mail mostra taxa de cartão e Desconto Pix", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await sendOrderTicketsEmail(
+      fakeAdmin({
+        ...paidOrderRows,
+        orders: {
+          ...paidOrderRows.orders,
+          total_cents: 5278,
+          tickets_subtotal_cents: 5000,
+          service_fee_cents: 278,
+          service_fee_rate_bps: 556,
+          service_fee_min_cents: 100,
+          card_rate_bps_snapshot: 1000,
+          payment_method: "pix",
+        },
+        order_items: [
+          { name: "Inteira", quantity: 1, line_total_cents: 5000, unit_price_cents: 5000 },
+        ],
+      }),
+      orderId,
+    );
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: {
+          items: [{ name: "Inteira", quantity: 1, lineTotalCents: 5000 }],
+          feeCents: 500,
+          pixDiscountCents: 222,
+          totalCents: 5278,
         },
       }),
     );

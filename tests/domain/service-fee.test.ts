@@ -9,6 +9,7 @@ import {
   PIX_OFF_LABEL,
   pixSavingsLabel,
   priceWithFeeLabel,
+  receiptFeeDisplay,
   SERVICE_FEE_OFF,
   serviceFeeForPrice,
   serviceFeeForPriceAtRate,
@@ -127,7 +128,7 @@ describe("textos", () => {
     expect(plain(priceWithFeeLabel(1000, ON))).toBe("R$ 10,00 + R$ 1,00 de taxa");
   });
 
-  it("com duas taxas mostra Pix e cartão", () => {
+  it("com duas taxas a linha do preço usa só a taxa do cartão", () => {
     const dual = {
       enabled: true,
       rateBps: 1000,
@@ -136,9 +137,7 @@ describe("textos", () => {
       pixRateBps: 556,
       perMethodEnabled: true,
     };
-    expect(plain(priceWithFeeLabel(5000, dual))).toBe(
-      "R$ 50,00 + R$ 2,78 de taxa no Pix (R$ 5,00 no cartão)",
-    );
+    expect(plain(priceWithFeeLabel(5000, dual))).toBe("R$ 50,00 + R$ 5,00 de taxa");
   });
 
   it("sem taxa mostra só o preço", () => {
@@ -151,11 +150,38 @@ describe("textos", () => {
     expect(effectiveFeeTerms({ ...ON, enabled: false })).toEqual({ rateBps: 0, minCents: 0 });
   });
 
-  it("rótulo de economia no Pix", () => {
-    expect(pixSavingsLabel(222)).toMatch(/economize/);
-    expect(pixSavingsLabel(222)).toContain(PIX_OFF_LABEL);
+  it("rótulo de economia no Pix é só o selo (sem 5,56%)", () => {
+    expect(pixSavingsLabel(222)).toBe(PIX_OFF_LABEL);
+    expect(PIX_OFF_LABEL).toBe("4% de desconto");
     expect(formatFeePercent(556)).toBe("5,56");
     expect(formatFeePercent(1000)).toBe("10");
+  });
+
+  it("recibo: cartão mostra taxa cheia; Pix acrescenta Desconto Pix", () => {
+    const items = [{ unitPriceCents: 5000, quantity: 1 }];
+    const base = {
+      ticketsSubtotalCents: 5000,
+      serviceFeeRateBps: 1000,
+      serviceFeeMinCents: 100,
+      cardRateBpsSnapshot: 1000,
+      items,
+    };
+    expect(
+      receiptFeeDisplay({
+        ...base,
+        paymentMethod: "card",
+        totalCents: 5500,
+        serviceFeeCents: 500,
+      }),
+    ).toEqual({ feeCents: 500, pixDiscountCents: 0 });
+    expect(
+      receiptFeeDisplay({
+        ...base,
+        paymentMethod: "pix",
+        totalCents: 5278,
+        serviceFeeCents: 278,
+      }),
+    ).toEqual({ feeCents: 500, pixDiscountCents: 222 });
   });
 });
 

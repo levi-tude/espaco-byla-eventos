@@ -107,6 +107,23 @@ describe("buildTicketsEmail", () => {
     for (const content of [email.html, email.text]) expect(content).not.toMatch(/taxa/i);
   });
 
+  it("Pix: taxa cheia e linha Desconto Pix (sem 5,56%)", () => {
+    const email = buildTicketsEmail({
+      ...base,
+      summary: {
+        items: [{ name: "Inteira", quantity: 1, lineTotalCents: 5000 }],
+        feeCents: 500,
+        pixDiscountCents: 222,
+        totalCents: 5278,
+      },
+    });
+    expect(email.text).toMatch(/- Taxa de serviço: R\$\s5,00/);
+    expect(email.text).toMatch(/- Desconto Pix: −R\$\s2,22/);
+    expect(email.text).toMatch(/Total pago: R\$\s52,78/);
+    expect(email.html).toContain("Desconto Pix");
+    expect(email.html + email.text).not.toMatch(/5,56/);
+  });
+
   it.each([
     ["cortesia (total 0)", { items: [{ name: "Cortesia", quantity: 1, lineTotalCents: 0 }], feeCents: 0, totalCents: 0 }],
     ["sem dados", null],
