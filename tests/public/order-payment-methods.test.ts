@@ -96,8 +96,12 @@ describe("pagamento do comprador", () => {
     expect(radios[0]?.checked).toBe(true);
     expect(container.querySelector("legend")?.textContent).toBe("Como você quer pagar");
     expect(container.textContent).toContain(PIX_OFF_LABEL);
+    expect(PIX_OFF_LABEL).toBe("4% de desconto");
+    expect(container.textContent).toContain("Desconto Pix");
+    expect(container.textContent).toMatch(/−R\$\s*2,22/);
     expect(container.textContent).toMatch(/R\$\s*52,78/);
     expect(container.textContent).toMatch(/R\$\s*55,00/);
+    expect(container.textContent).not.toMatch(/5,56/);
     expect(mp.methods).toEqual({ bankTransfer: "all" });
     expect(container.textContent).not.toContain(INSTALLMENT_INTEREST_NOTE);
     expect(mp.init).toHaveBeenCalledWith("TEST-PUBLIC", { locale: "pt-BR" });

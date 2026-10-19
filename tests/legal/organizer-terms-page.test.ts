@@ -19,7 +19,6 @@ vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: mocks.areaEna
 
 import OrganizerTermsPage from "@/app/termos-organizador/page";
 import { OrganizerTermsText } from "@/components/legal/OrganizerTermsText";
-import { formatMoney } from "@/lib/domain/service-fee";
 import {
   ORGANIZER_TERMS_PATH,
   ORGANIZER_TERMS_UPDATED_LABEL,
@@ -108,9 +107,11 @@ describe("página Termos do organizador", () => {
 
   it("taxa de serviço vem da mesma constante dos Termos de compra e não sai da parte do organizador", async () => {
     const page = text(await renderPage());
-    const min = formatMoney(TERMS_SERVICE_FEE.minCents).replace(/\s/g, " ");
     expect(TERMS_SERVICE_FEE).toEqual({ cardRateBps: 1000, pixRateBps: 556, minCents: 100 });
-    expect(page).toContain(`taxa de serviço (10% no cartão ou 5,56% no Pix por item, mínimo ${min})`);
+    expect(page).toContain(
+      "taxa de serviço de 10%, com 4% de desconto no total para pagamento via Pix",
+    );
+    expect(page).not.toMatch(/5,56%/);
     expect(page).toContain("pagamento no cartão de R$ 55,00");
     expect(page).toContain("R$ 52,78 no Pix");
     expect(page).toContain("você recebe os R$ 50,00");

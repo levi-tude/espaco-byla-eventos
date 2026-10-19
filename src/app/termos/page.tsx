@@ -5,14 +5,12 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { LegalContact, LegalSection as Section } from "@/components/legal/LegalSection";
 import { BackLink } from "@/components/ui/BackLink";
 import { MAX_PEOPLE_PER_ORDER, RESERVATION_MINUTES } from "@/lib/domain/availability";
-import { formatFeePercent, formatMoney, PIX_OFF_LABEL } from "@/lib/domain/service-fee";
 import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
   INSTALLMENT_INTEREST_NOTE,
   REFUND_PROCESSING_DAYS,
   SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE,
-  TERMS_SERVICE_FEE,
   TERMS_UPDATED_LABEL,
   WITHDRAWAL_DAYS,
   WITHDRAWAL_MIN_HOURS_BEFORE,
@@ -45,9 +43,6 @@ function TicketTransferSection() {
 
 export default function TermsPage() {
   const contact = <LegalContact />;
-  const cardPercent = formatFeePercent(TERMS_SERVICE_FEE.cardRateBps);
-  const pixPercent = formatFeePercent(TERMS_SERVICE_FEE.pixRateBps);
-  const feeMin = formatMoney(TERMS_SERVICE_FEE.minCents);
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
@@ -125,20 +120,18 @@ export default function TermsPage() {
         <Section title="Taxa de serviço">
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              O site pode cobrar uma taxa de serviço sobre o preço de cada item
-              escolhido (por exemplo, cada Inteira ou cada Casadinha):{" "}
-              <strong className="text-foreground">{cardPercent}% no cartão</strong> ou{" "}
-              <strong className="text-foreground">{pixPercent}% no Pix</strong>, com
-              mínimo de {feeMin} por item. No Pix, o total fica cerca de{" "}
-              {PIX_OFF_LABEL} em relação ao cartão (o valor exato
-              aparece na hora de pagar). Ela cobre os custos da venda pela
-              internet: pagamento, emissão e envio dos ingressos e conferência na
-              entrada.
+              O site pode cobrar uma{" "}
+              <strong className="text-foreground">
+                taxa de serviço de 10%, com 4% de desconto no total para pagamento via Pix
+              </strong>
+              . Ela cobre os custos da venda pela internet: pagamento, emissão e
+              envio dos ingressos e conferência na entrada. O valor exato aparece
+              antes de você pagar.
             </li>
             <li>
               A taxa aparece ao lado do preço desde a escolha dos ingressos e no
-              resumo, antes de você pagar. O total final depende da forma
-              escolhida (Pix ou cartão). Se ela não aparecer, não é cobrada.
+              resumo. No Pix, o desconto no total também aparece na hora de pagar.
+              Se a taxa não aparecer, não é cobrada.
             </li>
             <li>{INSTALLMENT_INTEREST_NOTE}</li>
             <li>

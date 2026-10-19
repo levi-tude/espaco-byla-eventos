@@ -1,16 +1,22 @@
-import { formatMoney, SERVICE_FEE_LABEL } from "@/lib/domain/service-fee";
+import {
+  formatMoney,
+  PIX_DISCOUNT_LINE_LABEL,
+  SERVICE_FEE_LABEL,
+} from "@/lib/domain/service-fee";
 
 type Totals = {
   ticketsCents: number;
   feeCents: number;
   totalCents: number;
+  /** Economia do Pix em relação ao total no cartão (só no recibo / e-mail). */
+  pixDiscountCents?: number;
 };
 
 const rowClass = "flex items-baseline justify-between gap-3";
 
-/** Total do pedido antes de pagar; com taxa, separa ingressos e taxa (valores do banco). */
-export function OrderTotal({ ticketsCents, feeCents, totalCents }: Totals) {
-  if (feeCents <= 0) {
+/** Total do pedido; com taxa, separa ingressos e taxa. Desconto Pix é opcional. */
+export function OrderTotal({ ticketsCents, feeCents, totalCents, pixDiscountCents = 0 }: Totals) {
+  if (feeCents <= 0 && pixDiscountCents <= 0) {
     return (
       <p className="mt-3 flex items-baseline justify-between gap-3 rounded-xl border border-byla-border bg-byla-surface px-4 py-3 text-base text-foreground">
         Total
@@ -24,10 +30,18 @@ export function OrderTotal({ ticketsCents, feeCents, totalCents }: Totals) {
         <dt>Ingressos</dt>
         <dd className="tabular-nums">{formatMoney(ticketsCents)}</dd>
       </div>
-      <div className={rowClass}>
-        <dt>{SERVICE_FEE_LABEL}</dt>
-        <dd className="tabular-nums">{formatMoney(feeCents)}</dd>
-      </div>
+      {feeCents > 0 ? (
+        <div className={rowClass}>
+          <dt>{SERVICE_FEE_LABEL}</dt>
+          <dd className="tabular-nums">{formatMoney(feeCents)}</dd>
+        </div>
+      ) : null}
+      {pixDiscountCents > 0 ? (
+        <div className={rowClass}>
+          <dt>{PIX_DISCOUNT_LINE_LABEL}</dt>
+          <dd className="tabular-nums">−{formatMoney(pixDiscountCents)}</dd>
+        </div>
+      ) : null}
       <div className={`${rowClass} border-t border-byla-border pt-2`}>
         <dt className="font-medium">Total</dt>
         <dd>
@@ -44,15 +58,17 @@ export type PaidOrderItem = {
   lineTotalCents: number;
 };
 
-/** Resumo discreto do pedido pago: itens, taxa (se houver) e total pago. */
+/** Resumo discreto do pedido pago: itens, taxa (cartão), desconto Pix (se houver) e total. */
 export function PaidOrderSummary({
   items,
   feeCents,
   totalCents,
+  pixDiscountCents = 0,
 }: {
   items: readonly PaidOrderItem[];
   feeCents: number;
   totalCents: number;
+  pixDiscountCents?: number;
 }) {
   return (
     <section
@@ -77,6 +93,12 @@ export function PaidOrderSummary({
           <div className={rowClass}>
             <dt className="text-foreground">{SERVICE_FEE_LABEL}</dt>
             <dd className="shrink-0 tabular-nums text-byla-muted">{formatMoney(feeCents)}</dd>
+          </div>
+        ) : null}
+        {pixDiscountCents > 0 ? (
+          <div className={rowClass}>
+            <dt className="text-foreground">{PIX_DISCOUNT_LINE_LABEL}</dt>
+            <dd className="shrink-0 tabular-nums text-byla-muted">−{formatMoney(pixDiscountCents)}</dd>
           </div>
         ) : null}
         <div className={`${rowClass} border-t border-byla-border pt-3`}>

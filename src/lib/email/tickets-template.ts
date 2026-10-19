@@ -1,10 +1,16 @@
 import { formatSessionSubject, formatSessionWhen } from "@/lib/datetime";
-import { formatMoney, SERVICE_FEE_LABEL } from "@/lib/domain/service-fee";
+import {
+  formatMoney,
+  PIX_DISCOUNT_LINE_LABEL,
+  SERVICE_FEE_LABEL,
+} from "@/lib/domain/service-fee";
 
 export type TicketsEmailOrderSummary = {
   items: { name: string; quantity: number; lineTotalCents: number }[];
   feeCents: number;
   totalCents: number;
+  /** Economia do Pix vs total no cartão; omitido ou 0 se não for Pix. */
+  pixDiscountCents?: number;
 };
 
 export type TicketsEmailTicket = {
@@ -93,6 +99,7 @@ function ticketBlock(
 }
 
 function summaryLines(summary: TicketsEmailOrderSummary) {
+  const discount = summary.pixDiscountCents ?? 0;
   return [
     ...summary.items.map((item) => ({
       label: `${item.quantity}× ${item.name}`,
@@ -100,6 +107,9 @@ function summaryLines(summary: TicketsEmailOrderSummary) {
     })),
     ...(summary.feeCents > 0
       ? [{ label: SERVICE_FEE_LABEL, value: formatMoney(summary.feeCents) }]
+      : []),
+    ...(discount > 0
+      ? [{ label: PIX_DISCOUNT_LINE_LABEL, value: `−${formatMoney(discount)}` }]
       : []),
   ];
 }

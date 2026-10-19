@@ -9,6 +9,7 @@ import {
 import { orderNumber, sessionName } from "@/lib/domain/sessions";
 import { orderItemName } from "@/lib/domain/ticket-types";
 import { sendTicketsEmail } from "@/lib/email/send-tickets";
+import { receiptFeeDisplay } from "@/lib/domain/service-fee";
 import { loadEventProducerName } from "@/lib/organizer/producer";
 import { captureOrderFee } from "@/lib/payments/capture-fee";
 import type { ProviderIds } from "@/lib/payments/types";
@@ -145,7 +146,9 @@ export async function sendOrderTicketsEmail(
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("buyer_email, buyer_name, public_token, event_id, session_id, total_cents, service_fee_cents")
+    .select(
+      "buyer_email, buyer_name, public_token, event_id, session_id, total_cents, tickets_subtotal_cents, service_fee_cents, service_fee_rate_bps, service_fee_min_cents, card_rate_bps_snapshot, payment_method",
+    )
     .eq("id", orderId)
     .maybeSingle();
 
@@ -175,7 +178,7 @@ export async function sendOrderTicketsEmail(
       .order("created_at"),
     admin
       .from("order_items")
-      .select("name, quantity, line_total_cents")
+      .select("name, quantity, line_total_cents, unit_price_cents")
       .eq("order_id", orderId)
       .order("created_at"),
     // Nunca lança e responde em até 2 s: em falha o e-mail sai sem a linha "Produção".
@@ -208,15 +211,31 @@ export async function sendOrderTicketsEmail(
   const items = itemsResult.error ? null : itemsResult.data;
   const summary =
     items?.length && order.total_cents > 0
-      ? {
-          items: items.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            lineTotalCents: item.line_total_cents,
-          })),
-          feeCents: order.service_fee_cents,
-          totalCents: order.total_cents,
-        }
+      ? (() => {
+          const fees = receiptFeeDisplay({
+            paymentMethod: order.payment_method,
+            ticketsSubtotalCents: order.tickets_subtotal_cents,
+            totalCents: order.total_cents,
+            serviceFeeCents: order.service_fee_cents,
+            serviceFeeRateBps: order.service_fee_rate_bps,
+            serviceFeeMinCents: order.service_fee_min_cents,
+            cardRateBpsSnapshot: order.card_rate_bps_snapshot,
+            items: items.map((item) => ({
+              unitPriceCents: item.unit_price_cents,
+              quantity: item.quantity,
+            })),
+          });
+          return {
+            items: items.map((item) => ({
+              name: item.name,
+              quantity: item.quantity,
+              lineTotalCents: item.line_total_cents,
+            })),
+            feeCents: fees.feeCents,
+            pixDiscountCents: fees.pixDiscountCents,
+            totalCents: order.total_cents,
+          };
+        })()
       : null;
 
   const emailResult = await sendTicketsEmail({

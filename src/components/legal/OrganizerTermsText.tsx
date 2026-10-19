@@ -2,11 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { LegalContact, LegalSection as Section } from "@/components/legal/LegalSection";
-import {
-  formatFeePercent,
-  formatMoney,
-  serviceFeeForPriceAtRate,
-} from "@/lib/domain/service-fee";
+import { formatMoney, serviceFeeForPriceAtRate } from "@/lib/domain/service-fee";
 import { ORGANIZER_TERMS_UPDATED_LABEL } from "@/lib/legal/organizer-terms";
 import { COMPANY } from "@/lib/legal/privacy";
 import { TERMS_PATH, TERMS_SERVICE_FEE } from "@/lib/legal/terms";
@@ -35,9 +31,6 @@ function TextLink({ href, children }: { href: string; children: ReactNode }) {
  */
 export function OrganizerTermsText() {
   const contact = <LegalContact />;
-  const cardPercent = formatFeePercent(TERMS_SERVICE_FEE.cardRateBps);
-  const pixPercent = formatFeePercent(TERMS_SERVICE_FEE.pixRateBps);
-  const feeMin = formatMoney(TERMS_SERVICE_FEE.minCents);
   const exampleCardFee = serviceFeeForPriceAtRate(
     EXAMPLE_TICKET_CENTS,
     TERMS_SERVICE_FEE.cardRateBps,
@@ -160,9 +153,9 @@ export function OrganizerTermsText() {
             {COMPANY.brand} <B>não cobra comissão</B> sobre as suas vendas.
           </li>
           <li>
-            O site pode cobrar do comprador uma <B>taxa de serviço</B> (
-            {cardPercent}% no cartão ou {pixPercent}% no Pix por item, mínimo {feeMin}), que paga a
-            manutenção do site. Ela é paga pelo comprador e <B>não sai da sua parte</B>.
+            O site pode cobrar do comprador uma <B>taxa de serviço de 10%, com 4% de desconto no
+            total para pagamento via Pix</B>, que paga a manutenção do site. Ela é paga pelo
+            comprador e <B>não sai da sua parte</B>.
           </li>
           <li>
             O banco responsável pelo pagamento cobra uma <B>tarifa em cada pagamento</B> (PIX ou

@@ -29,13 +29,16 @@ export const SERVICE_FEE_OFF: ServiceFeePolicy = {
 export const SERVICE_FEE_LABEL = "Taxa de serviço";
 
 export const SERVICE_FEE_HELP =
-  "Valor cobrado por ingresso para manter a venda on-line. É devolvido junto em qualquer estorno.";
+  "Valor cobrado para manter a venda on-line. É devolvido junto em qualquer estorno.";
 
 export const SERVICE_FEE_CHANGED_MESSAGE =
   "Os valores foram atualizados. Confira o total antes de continuar.";
 
-/** Texto de marketing do desconto no Pix (bate com 10% cartão − 5,56% Pix). */
-export const PIX_OFF_LABEL = "4% off no Pix";
+/** Selo curto no checkout (comprador); bate com 10% cartão − taxa Pix. */
+export const PIX_OFF_LABEL = "4% de desconto";
+
+/** Linha do resumo / e-mail quando o pagamento foi Pix. */
+export const PIX_DISCOUNT_LINE_LABEL = "Desconto Pix";
 
 export type PaymentMethodFee = "pix" | "card";
 
@@ -120,19 +123,44 @@ export function formatPricePlusFee(priceCents: number, feeCents: number): string
     : formatMoney(priceCents);
 }
 
-/** Linha curta do preço de um tipo, já com a taxa da política vigente. */
+/** Linha curta do preço de um tipo (sempre a taxa-base / cartão). */
 export function priceWithFeeLabel(priceCents: number, policy: ServiceFeePolicy): string {
-  if (!policy.enabled || !policy.perMethodEnabled) {
-    return formatPricePlusFee(priceCents, serviceFeeForPrice(priceCents, policy));
-  }
-  const pixFee = serviceFeeForPriceAtRate(priceCents, policy.pixRateBps, policy.minCents);
-  const cardFee = serviceFeeForPriceAtRate(priceCents, policy.cardRateBps, policy.minCents);
-  if (pixFee <= 0 && cardFee <= 0) return formatMoney(priceCents);
-  return `${formatMoney(priceCents)} + ${formatMoney(pixFee)} de taxa no Pix (${formatMoney(cardFee)} no cartão)`;
+  return formatPricePlusFee(priceCents, serviceFeeForPrice(priceCents, policy));
 }
 
-/** Texto curto de economia no Pix. */
+/** Selo do Pix no checkout; o valor economizado aparece na linha "Desconto Pix". */
 export function pixSavingsLabel(savingsCents: number): string {
-  if (savingsCents <= 0) return PIX_OFF_LABEL;
-  return `economize ${formatMoney(savingsCents)} · ${PIX_OFF_LABEL}`;
+  void savingsCents;
+  return PIX_OFF_LABEL;
+}
+
+/**
+ * Recibo / e-mail: taxa cheia (cartão) e, se pagou Pix, o desconto em reais.
+ * O comprador nunca vê o percentual 5,56%.
+ */
+export function receiptFeeDisplay(input: {
+  paymentMethod: string | null;
+  ticketsSubtotalCents: number;
+  totalCents: number;
+  serviceFeeCents: number;
+  serviceFeeRateBps: number | null;
+  serviceFeeMinCents: number | null;
+  cardRateBpsSnapshot: number | null;
+  items: readonly { unitPriceCents: number; quantity: number }[];
+}): { feeCents: number; pixDiscountCents: number } {
+  const cardRate = input.cardRateBpsSnapshot ?? input.serviceFeeRateBps ?? 0;
+  const minCents = input.serviceFeeMinCents ?? 0;
+  let feeCents = input.serviceFeeCents;
+  if (cardRate > 0 && input.items.length > 0) {
+    feeCents = input.items.reduce(
+      (sum, item) =>
+        sum + serviceFeeForPriceAtRate(item.unitPriceCents, cardRate, minCents) * item.quantity,
+      0,
+    );
+  }
+  const pixDiscountCents =
+    input.paymentMethod === "pix"
+      ? Math.max(0, input.ticketsSubtotalCents + feeCents - input.totalCents)
+      : 0;
+  return { feeCents, pixDiscountCents };
 }
