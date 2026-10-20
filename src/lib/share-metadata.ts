@@ -4,7 +4,7 @@ export const SITE_NAME = "ACDH Eventos";
 export const SITE_DESCRIPTION = "Ingressos para os eventos do ACDH Eventos";
 
 export const SHARE_IMAGE = {
-  url: "/brand/og-espaco-byla.png",
+  url: "/brand/og-acdh.png",
   width: 1200,
   height: 630,
   alt: "Logo do ACDH Eventos",

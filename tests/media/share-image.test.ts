@@ -81,7 +81,7 @@ describe("prévia do link do evento", () => {
     mocks.cover = null;
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://ingressos.exemplo");
     expect((await call("sem-capa")).headers.get("location")).toBe(
-      "https://ingressos.exemplo/brand/og-espaco-byla.png",
+      "https://ingressos.exemplo/brand/og-acdh.png",
     );
     expect((await call("../segredo")).status).toBe(302);
     mocks.cover = "https://outro-site.exemplo/imagem.jpg";
