@@ -92,7 +92,7 @@ describe("payoutSituation + situationLabel", () => {
     const flag = { negativeSince: "2026-10-30", returnDueDate: "2026-12-09" };
     const s = payoutSituation({ ...base, today: "2026-12-01", balanceCents: -4739, flag });
     expect(s).toEqual({ kind: "devolucao", owedCents: 4739, returnDueDate: "2026-12-09", overdue: false });
-    expect(org(s)).toBe("Devolva R$ 47,39 por PIX ao ACDH Eventos até 09/12");
+    expect(org(s)).toBe("Devolva R$ 47,39 por PIX à ACDH Eventos até 09/12");
     const late = payoutSituation({ ...base, today: "2026-12-10", balanceCents: -4739, flag });
     expect(late.kind === "devolucao" && late.overdue).toBe(true);
     expect(team(late)).toBe("Devolução atrasada · R$ 47,39");
@@ -111,7 +111,7 @@ describe("financeRefusalMessage", () => {
     ["ORG_NADA: Nada a repassar neste evento.", "Não há valor a repassar neste evento."],
     ["ORG_CODIGO", "Código inválido ou vencido. Peça um novo código."],
     ["ORG_PIX_IGUAL: A chave informada é a atual.", "Essa já é a chave PIX cadastrada."],
-    ["ORG_DEVOLUCAO: x", "Há uma devolução atrasada ao ACDH Eventos. Faça a devolução antes de enviar novos eventos."],
+    ["ORG_DEVOLUCAO: x", "Há uma devolução atrasada à ACDH Eventos. Faça a devolução antes de enviar novos eventos."],
     ["TARIFA_NOTA: x", "Informe de onde veio o valor (até 140 caracteres)."],
     ["TARIFA_VALOR: x", "O valor da tarifa não confere. Confira o extrato."],
     ["TARIFA_MUDOU:3", "A lista de pedidos sem tarifa mudou. Confira e tente de novo."],

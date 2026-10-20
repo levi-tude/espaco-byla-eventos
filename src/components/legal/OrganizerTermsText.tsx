@@ -49,10 +49,10 @@ export function OrganizerTermsText() {
       </p>
       <p className="mt-4 text-base leading-relaxed text-byla-muted">
         Estes termos valem para quem cria e vende ingressos de eventos próprios pelo site de
-        ingressos do {COMPANY.brand} (&ldquo;organizador&rdquo;). Ao marcar &ldquo;Li e
+        ingressos da {COMPANY.brand} (&ldquo;organizador&rdquo;). Ao marcar &ldquo;Li e
         aceito&rdquo; no cadastro, você concorda com eles e com a{" "}
         <TextLink href="/privacidade">Política de Privacidade</TextLink>. O uso do espaço físico
-        (aluguel, datas, horários, equipamentos, limpeza, segurança) segue acordo próprio com o{" "}
+        (aluguel, datas, horários, equipamentos, limpeza, segurança) segue acordo próprio com a{" "}
         {COMPANY.brand}; estes termos tratam só da venda de ingressos pelo site.
       </p>
 
@@ -66,13 +66,13 @@ export function OrganizerTermsText() {
       <Section title="2. Sua conta">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            A conta é criada só por convite do {COMPANY.brand}. Ela é pessoal: não compartilhe a
+            A conta é criada só por convite da {COMPANY.brand}. Ela é pessoal: não compartilhe a
             senha nem o acesso ao seu e-mail.
           </li>
           <li>
             A verificação em duas etapas é obrigatória: ao entrar num aparelho novo, enviamos um
             código ao seu e-mail. Só marque &ldquo;Lembrar este aparelho&rdquo; em aparelho seu. Se
-            perder o acesso ao e-mail, fale com o {COMPANY.brand}.
+            perder o acesso ao e-mail, fale com a {COMPANY.brand}.
           </li>
           <li>
             No cadastro, confirmamos o seu e-mail com um código. Use um e-mail que você acessa: é por
@@ -80,7 +80,7 @@ export function OrganizerTermsText() {
           </li>
           <li>
             Mantenha seus dados e sua chave PIX corretos. Trocar a chave PIX precisa da confirmação
-            do {COMPANY.brand} antes do próximo repasse. A troca da chave PIX pode levar até 1 dia
+            da {COMPANY.brand} antes do próximo repasse. A troca da chave PIX pode levar até 1 dia
             para ser confirmada.
           </li>
           <li>
@@ -98,15 +98,15 @@ export function OrganizerTermsText() {
         <ul className="list-disc space-y-2 pl-5">
           <li>
             Você cria o evento como rascunho e envia para aprovação. O evento só aparece no site e
-            vende depois que o {COMPANY.brand} aprova.
+            vende depois que a {COMPANY.brand} aprova.
           </li>
           <li>
-            O {COMPANY.brand} pode recusar um evento, informando o motivo, e pode tirar do ar um
+            A {COMPANY.brand} pode recusar um evento, informando o motivo, e pode tirar do ar um
             evento que descumpra estes termos ou a lei.
           </li>
           <li>
             Depois de aprovado, algumas mudanças (nome, local, preço de sessão já vendida, redução
-            de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação do{" "}
+            de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação da{" "}
             {COMPANY.brand}, porque afetam quem já comprou.
           </li>
         </ul>
@@ -132,14 +132,14 @@ export function OrganizerTermsText() {
           </li>
           <li>A meia-entrada segue a lei e custa metade da inteira da mesma sessão.</li>
           <li>
-            A lotação de cada sessão não pode passar do limite combinado com o {COMPANY.brand}.
+            A lotação de cada sessão não pode passar do limite combinado com a {COMPANY.brand}.
           </li>
           <li>
-            A venda, o pagamento e os reembolsos são feitos pelo {COMPANY.brand}, em nome de quem o
+            A venda, o pagamento e os reembolsos são feitos pela {COMPANY.brand}, em nome de quem o
             comprador paga.
           </li>
           <li>
-            <B>Cortesias</B> (ingressos gratuitos) são emitidas só pela equipe do {COMPANY.brand}.
+            <B>Cortesias</B> (ingressos gratuitos) são emitidas só pela equipe da {COMPANY.brand}.
             Se precisar, peça pelo WhatsApp informando a sessão, a quantidade e o nome e e-mail de
             cada convidado. Cortesias não entram na conta da sua parte.
           </li>
@@ -149,7 +149,7 @@ export function OrganizerTermsText() {
       <Section title="6. Dinheiro: o que você recebe">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            Todo pagamento cai na conta do {COMPANY.brand} no banco responsável pelo pagamento. O{" "}
+            Todo pagamento cai na conta da {COMPANY.brand} no banco responsável pelo pagamento. A{" "}
             {COMPANY.brand} <B>não cobra comissão</B> sobre as suas vendas.
           </li>
           <li>
@@ -182,14 +182,14 @@ export function OrganizerTermsText() {
       <Section title="7. Repasse">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            O {COMPANY.brand} paga sua parte por PIX, na chave cadastrada,{" "}
+            A {COMPANY.brand} paga sua parte por PIX, na chave cadastrada,{" "}
             <B>em até 5 dias úteis</B> contados do dia seguinte à última sessão do evento. Dias
             úteis: segunda a sexta, exceto feriados nacionais, o Dois de Julho, os feriados
             municipais de Salvador e a segunda e a terça de Carnaval (dias sem expediente
             bancário). O painel do evento mostra a data-limite já calculada.
           </li>
           <li>
-            Ao registrar o pagamento, o {COMPANY.brand} envia um e-mail com valor e data. O
+            Ao registrar o pagamento, a {COMPANY.brand} envia um e-mail com valor e data. O
             registro não pode ser apagado.
           </li>
           <li>
@@ -206,24 +206,24 @@ export function OrganizerTermsText() {
       <Section title="8. Estornos, contestações e cancelamentos">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            Pedidos de reembolso dos compradores são analisados e feitos pelo {COMPANY.brand},
+            Pedidos de reembolso dos compradores são analisados e feitos pela {COMPANY.brand},
             conforme os <TextLink href={TERMS_PATH}>Termos de compra</TextLink> (por exemplo:
             desistência em até 7 dias da compra e pelo menos 48 horas antes da sessão; troca de
             horário; sessão cancelada; pagamento sem lugar).
           </li>
           <li>
-            Você pode pedir o estorno de um pedido do seu evento pelo painel. O {COMPANY.brand}{" "}
+            Você pode pedir o estorno de um pedido do seu evento pelo painel. A {COMPANY.brand}{" "}
             decide e faz o estorno, que devolve 100% ao comprador, incluindo a taxa de serviço.
           </li>
           <li>
             Todo estorno e toda contestação no cartão diminuem a sua parte no valor dos ingressos.
             A tarifa daquele pagamento não é descontada da sua parte: se o banco não devolver a
-            tarifa, o ACDH Eventos arca com ela.
+            tarifa, a ACDH Eventos arca com ela.
           </li>
           <li>
             <B>Estorno ou contestação depois do repasse:</B> o valor é descontado do seu próximo
             repasse. Se em 30 dias não houver repasse que cubra esse valor, você devolve o valor
-            por PIX ao {COMPANY.brand} em até 10 dias depois do aviso. Enquanto houver devolução
+            por PIX à {COMPANY.brand} em até 10 dias depois do aviso. Enquanto houver devolução
             atrasada, você não consegue enviar evento novo para aprovação.
           </li>
           <li>
@@ -247,11 +247,11 @@ export function OrganizerTermsText() {
           </li>
           <li>Guarde com segurança qualquer cópia e apague em até 90 dias depois do evento.</li>
           <li>
-            Se houver vazamento ou acesso indevido, avise o {COMPANY.brand} em até 24 horas.
+            Se houver vazamento ou acesso indevido, avise a {COMPANY.brand} em até 24 horas.
           </li>
           <li>
-            O {COMPANY.brand} é o responsável pelos dados perante os compradores; você atua
-            seguindo estas instruções. O {COMPANY.brand} pode suspender o acesso se houver uso
+            A {COMPANY.brand} é a responsável pelos dados perante os compradores; você atua
+            seguindo estas instruções. A {COMPANY.brand} pode suspender o acesso se houver uso
             indevido.
           </li>
         </ul>
@@ -262,13 +262,13 @@ export function OrganizerTermsText() {
           <li>
             Você pode conferir os ingressos dos seus eventos pelo leitor de QR Code do site, com a
             sua conta (ela é pessoal; não há contas extras de portaria). Se precisar de ajuda na
-            entrada, combine com o {COMPANY.brand}. Cada QR Code vale uma entrada; o site recusa
+            entrada, combine com a {COMPANY.brand}. Cada QR Code vale uma entrada; o site recusa
             ingressos de outro evento, de outra sessão ou de sessão cancelada.
           </li>
           <li>
             Na entrada, confira o documento de quem usa meia-entrada, conforme os Termos de compra.
           </li>
-          <li>Respeite a lotação e as regras de segurança do {COMPANY.brand}.</li>
+          <li>Respeite a lotação e as regras de segurança da {COMPANY.brand}.</li>
         </ul>
       </Section>
 
@@ -281,7 +281,7 @@ export function OrganizerTermsText() {
         </p>
       </Section>
 
-      <Section title={`12. Responsabilidades do ${COMPANY.brand}`}>
+      <Section title={`12. Responsabilidades da ${COMPANY.brand}`}>
         <p>
           Manter o site de venda funcionando; receber os pagamentos; enviar os ingressos aos
           compradores; fazer os reembolsos devidos; pagar a sua parte no prazo; dar suporte pelo
@@ -291,7 +291,7 @@ export function OrganizerTermsText() {
 
       <Section title="13. Excluir um evento">
         <p>
-          Sem vendas, você exclui pelo painel. Com vendas, peça a exclusão: as vendas pausam e o{" "}
+          Sem vendas, você exclui pelo painel. Com vendas, peça a exclusão: as vendas pausam e a{" "}
           {COMPANY.brand} decide; se aceitar, todos os compradores são reembolsados.
         </p>
       </Section>
@@ -299,11 +299,11 @@ export function OrganizerTermsText() {
       <Section title="14. Suspensão e encerramento">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            Você pode encerrar sua conta a qualquer momento, pedindo ao {COMPANY.brand}. Eventos
+            Você pode encerrar sua conta a qualquer momento, pedindo à {COMPANY.brand}. Eventos
             com vendas precisam acontecer ou ser cancelados com reembolso antes do encerramento.
           </li>
           <li>
-            O {COMPANY.brand} pode suspender ou encerrar a conta se você descumprir estes termos ou
+            A {COMPANY.brand} pode suspender ou encerrar a conta se você descumprir estes termos ou
             a lei, ou em caso de suspeita de fraude, com aviso e motivo.
           </li>
           <li>

@@ -18,14 +18,14 @@ type PurposeCopy = {
 };
 
 const LOGIN_WARNING =
-  "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe do ACDH Eventos.";
+  "Se não foi você que tentou entrar, não passe este código para ninguém: troque sua senha e avise a equipe da ACDH Eventos.";
 
 const COPY: Record<LoginCodePurpose, PurposeCopy> = {
   equipe: {
     subject: "Seu código de acesso - ACDH Eventos",
     title: "Seu código de acesso",
     usage: "Use este código para entrar no painel da equipe:",
-    textIntro: "Seu código de acesso ao painel da equipe do ACDH Eventos:",
+    textIntro: "Seu código de acesso ao painel da equipe da ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning: LOGIN_WARNING,
   },
@@ -33,15 +33,15 @@ const COPY: Record<LoginCodePurpose, PurposeCopy> = {
     subject: "Seu código de acesso - ACDH Eventos",
     title: "Seu código de acesso",
     usage: "Use este código para entrar na área do organizador:",
-    textIntro: "Seu código de acesso à área do organizador do ACDH Eventos:",
+    textIntro: "Seu código de acesso à área do organizador da ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning: LOGIN_WARNING,
   },
   cadastro: {
-    subject: "Seu código do ACDH Eventos",
+    subject: "Seu código da ACDH Eventos",
     title: "Confirme seu e-mail",
     usage: "Use este código para confirmar o seu e-mail no cadastro de organizador:",
-    textIntro: "Confirme seu e-mail no cadastro de organizador do ACDH Eventos. Seu código:",
+    textIntro: "Confirme seu e-mail no cadastro de organizador da ACDH Eventos. Seu código:",
     minutes: SIGNUP_CODE_TTL_MINUTES,
     warning:
       "Se não foi você que pediu este código, não passe ele para ninguém e ignore este e-mail: nenhuma conta será criada sem ele.",
@@ -50,10 +50,10 @@ const COPY: Record<LoginCodePurpose, PurposeCopy> = {
     subject: "Código para trocar a chave PIX - ACDH Eventos",
     title: "Troca da chave PIX",
     usage: "Use este código para pedir a troca da chave PIX dos seus repasses:",
-    textIntro: "Código para pedir a troca da chave PIX dos seus repasses no ACDH Eventos:",
+    textIntro: "Código para pedir a troca da chave PIX dos seus repasses na ACDH Eventos:",
     minutes: LOGIN_CODE_TTL_MINUTES,
     warning:
-      "Se não foi você que pediu, não passe este código para ninguém: troque sua senha e avise a equipe do ACDH Eventos. A chave atual continua valendo.",
+      "Se não foi você que pediu, não passe este código para ninguém: troque sua senha e avise a equipe da ACDH Eventos. A chave atual continua valendo.",
   },
 };
 

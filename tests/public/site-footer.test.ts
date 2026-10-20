@@ -125,7 +125,7 @@ describe("rodapé", () => {
 describe("bloco da página inicial", () => {
   it("convida discretamente e leva ao pedido", () => {
     const html = renderToStaticMarkup(createElement(OrganizerCallout));
-    expect(text(html)).toContain("Realize seu evento no ACDH Eventos");
+    expect(text(html)).toContain("Realize seu evento na ACDH Eventos");
     expect(text(html)).toContain("Fale com a gente");
     expect(html).toContain(`href="${REQUEST_PATH}"`);
   });

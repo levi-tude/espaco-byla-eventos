@@ -6,7 +6,7 @@ export function OrganizerNoAccess({ areaEnabled }: { areaEnabled: boolean }) {
     <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
       <Notice live={false} tone="warning">
         {areaEnabled
-          ? "Sua conta não tem acesso à área do organizador agora. Fale com o ACDH Eventos."
+          ? "Sua conta não tem acesso à área do organizador agora. Fale com a ACDH Eventos."
           : "A área do organizador ainda não está disponível."}
       </Notice>
     </main>

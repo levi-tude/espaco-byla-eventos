@@ -119,7 +119,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             ACDH Eventos
           </h1>
           <p className="mt-2 text-base text-byla-muted sm:text-lg">
-            Escolha seu evento e garanta o ingresso — direto com o ACDH Eventos.
+            Escolha seu evento e garanta o ingresso — direto com a ACDH Eventos.
           </p>
         </div>
 

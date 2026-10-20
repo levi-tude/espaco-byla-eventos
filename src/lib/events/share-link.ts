@@ -1,7 +1,7 @@
 import { isPastEventDay } from "@/lib/domain/past-events";
 
 export const SHARE_PENDING_MESSAGE =
-  "O link fica disponível quando o ACDH Eventos aprovar o evento.";
+  "O link fica disponível quando a ACDH Eventos aprovar o evento.";
 
 export const SHARE_REJECTED_MESSAGE =
   "Este evento foi recusado. Ajuste o que foi pedido e envie de novo para o link ficar disponível.";

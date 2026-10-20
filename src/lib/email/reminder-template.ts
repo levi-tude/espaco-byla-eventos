@@ -93,7 +93,7 @@ export function buildReminderEmail(data: ReminderEmailData): ReminderEmailConten
             <tr>
               <td style="padding:16px 24px 28px;">
                 <p style="margin:0 0 12px;font-size:13px;line-height:18px;color:#888888;">Se o botão não funcionar, copie este endereço no navegador:<br><a href="${escapeHtml(data.resumeUrl)}" style="color:${BRAND_BLUE};word-break:break-all;">${escapeHtml(data.resumeUrl)}</a></p>
-                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Você recebeu este aviso porque iniciou uma compra no site do ACDH Eventos. Enviamos só um lembrete por compra. <a href="${escapeHtml(data.unsubscribeUrl)}" style="color:#888888;text-decoration:underline;">Não quero receber lembretes</a></p>
+                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Você recebeu este aviso porque iniciou uma compra no site da ACDH Eventos. Enviamos só um lembrete por compra. <a href="${escapeHtml(data.unsubscribeUrl)}" style="color:#888888;text-decoration:underline;">Não quero receber lembretes</a></p>
               </td>
             </tr>
           </table>
@@ -116,7 +116,7 @@ export function buildReminderEmail(data: ReminderEmailData): ReminderEmailConten
     "",
     `Continuar compra: ${data.resumeUrl}`,
     "",
-    "Você recebeu este aviso porque iniciou uma compra no site do ACDH Eventos. Enviamos só um lembrete por compra.",
+    "Você recebeu este aviso porque iniciou uma compra no site da ACDH Eventos. Enviamos só um lembrete por compra.",
     `Não quero receber lembretes: ${data.unsubscribeUrl}`,
     "",
     "ACDH Eventos",

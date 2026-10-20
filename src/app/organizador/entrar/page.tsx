@@ -35,7 +35,7 @@ export default async function OrganizerEnterPage() {
             <>
               <OrganizerLoginForm />
               <p className="mt-6 text-sm text-byla-muted">
-                Esqueceu a senha? Peça um link novo à equipe do ACDH Eventos.
+                Esqueceu a senha? Peça um link novo à equipe da ACDH Eventos.
               </p>
             </>
           ) : (

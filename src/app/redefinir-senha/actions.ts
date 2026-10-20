@@ -7,8 +7,8 @@ import { parsePassword } from "@/lib/organizer/validation";
 import { clientIp, consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo ao ACDH Eventos.";
-const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com o ACDH Eventos.";
+const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo à ACDH Eventos.";
+const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**

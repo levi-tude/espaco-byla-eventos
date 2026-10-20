@@ -106,13 +106,13 @@ export function OrganizerFinancePanel({ finance: f, refundPixKey }: Props) {
       ) : null}
 
       {situation.kind === "devolucao" ? (
-        <Notice title="Devolução ao ACDH Eventos" tone={situation.overdue ? "danger" : "warning"}>
+        <Notice title="Devolução à ACDH Eventos" tone={situation.overdue ? "danger" : "warning"}>
           {refundPixKey ? (
             <>
-              Chave PIX do ACDH Eventos para a devolução: <span className="break-all font-medium">{refundPixKey}</span>
+              Chave PIX da ACDH Eventos para a devolução: <span className="break-all font-medium">{refundPixKey}</span>
             </>
           ) : (
-            "Fale com o ACDH Eventos para receber a chave PIX."
+            "Fale com a ACDH Eventos para receber a chave PIX."
           )}
         </Notice>
       ) : null}
