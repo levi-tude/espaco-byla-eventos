@@ -3,13 +3,13 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "https://ingressos.espacobyla.online/",
-      "permanent": false
+      "destination": "https://acdheventos.com.br/",
+      "permanent": true
     },
     {
       "source": "/:path*",
-      "destination": "https://ingressos.espacobyla.online/:path*",
-      "permanent": false
+      "destination": "https://acdheventos.com.br/:path*",
+      "permanent": true
     }
   ]
 }

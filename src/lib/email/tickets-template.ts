@@ -177,7 +177,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla Eventos</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">ACDH Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
@@ -235,7 +235,7 @@ export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
     "",
     "Na entrada, mostre o QR Code de cada ingresso. Cada um vale para uma pessoa e só pode ser usado uma vez.",
     "",
-    "Espaço Byla Eventos",
+    "ACDH Eventos",
   ]
     .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
     .join("\n");

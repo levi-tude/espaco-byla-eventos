@@ -44,7 +44,7 @@ function appUrl(): string {
 
 function whatsappResetUrl(link: string): string {
   const text =
-    "Olá! Este é o seu link para criar uma nova senha no site do Espaço Byla. " +
+    "Olá! Este é o seu link para criar uma nova senha no site do ACDH Eventos. " +
     `O link vale por ${RESET_HOURS} horas e só pode ser usado uma vez: ${link}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }

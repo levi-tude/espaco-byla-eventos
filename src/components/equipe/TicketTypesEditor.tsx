@@ -268,7 +268,7 @@ export function TicketTypesEditor({
 }) {
   const courtesyHint =
     area === "organizador"
-      ? "Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp."
+      ? "Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp."
       : "Cortesias são emitidas pela equipe na lista de ingressos.";
 
   function setPreset(preset: TicketPreset, patch: Partial<PresetRow>) {

@@ -269,7 +269,7 @@ describe("página Quero fazer meu evento", () => {
     const page = text(html);
 
     expect(page).toContain(
-      "Você produz eventos e quer vender ingressos pelo site do Espaço Byla? Conte sua ideia que a gente responde pelo WhatsApp.",
+      "Você produz eventos e quer vender ingressos pelo site do ACDH Eventos? Conte sua ideia que a gente responde pelo WhatsApp.",
     );
     for (const max of [120, 160, 1000, 60]) expect(html).toMatch(new RegExp(`maxlength="${max}"`, "i"));
     expect(page).toContain("Nome");
@@ -294,6 +294,6 @@ describe("página Quero fazer meu evento", () => {
 
   it("tela de sucesso confirma o recebimento", () => {
     const page = text(renderToStaticMarkup(createElement(OrganizerRequestSent)));
-    expect(page).toContain("Recebemos! A equipe do Espaço Byla vai falar com você pelo contato informado.");
+    expect(page).toContain("Recebemos! A equipe do ACDH Eventos vai falar com você pelo contato informado.");
   });
 });

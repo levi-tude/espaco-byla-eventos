@@ -92,7 +92,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">ACDH Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
@@ -113,7 +113,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
             </tr>
             <tr>
               <td style="padding:16px 24px 28px;">
-                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Se tiver dúvidas, fale com a equipe do Espaço Byla.</p>
+                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Se tiver dúvidas, fale com a equipe do ACDH Eventos.</p>
               </td>
             </tr>
           </table>
@@ -138,7 +138,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
     "Os QR Codes deste pedido não valem mais para entrar no evento.",
     `Ver pedido: ${data.orderUrl}`,
     "",
-    "Espaço Byla",
+    "ACDH Eventos",
   ].join("\n");
 
   return { subject, html, text };

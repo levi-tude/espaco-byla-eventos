@@ -12,7 +12,7 @@ type CoverImageProps = {
   markSize?: number;
 };
 
-/** Capa sempre 16:9; sem capa, mostra a marca do Byla em vez de um bloco vazio. */
+/** Capa sempre 16:9; sem capa, mostra a marca da ACDH Eventos em vez de um bloco vazio. */
 export function CoverImage({
   src,
   alt = "",

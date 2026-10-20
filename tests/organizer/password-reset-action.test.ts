@@ -41,7 +41,7 @@ import ResetPasswordPage, { metadata as resetMetadata } from "@/app/redefinir-se
 import { hashInviteToken, newInviteToken } from "@/lib/organizer/invite-token";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
-const LINK_INVALID = "Este link não vale mais. Peça um novo ao Espaço Byla.";
+const LINK_INVALID = "Este link não vale mais. Peça um novo ao ACDH Eventos.";
 const TOKEN = newInviteToken();
 const USER_ID = "00000000-0000-4000-8000-0000000000bb";
 const PASSWORD = "Outra frase comprida 47";
@@ -133,7 +133,7 @@ describe("resetPasswordWithLink", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({
       ok: false,
-      error: "Não foi possível trocar a senha. Fale com o Espaço Byla.",
+      error: "Não foi possível trocar a senha. Fale com o ACDH Eventos.",
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain(PASSWORD);
     expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);

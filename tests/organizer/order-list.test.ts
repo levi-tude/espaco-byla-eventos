@@ -58,7 +58,7 @@ describe("OrganizerOrderList", () => {
     expect(html).toContain("Pago");
     expect(html).toContain("2 de 3 já entraram");
     expect(html).toContain("Use estes dados só para a operação deste evento (Termos do organizador, item 9).");
-    expect(html).toContain("Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp.");
+    expect(html).toContain("Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp.");
   });
 
   it.each([
@@ -158,7 +158,7 @@ describe("DeleteEventSection", () => {
       createElement(DeleteEventSection, { eventId: EVENT_ID, eventName: "Peça Y", hasSales: true, deletionPending: false }),
     );
     expect(html).toContain("Pedir exclusão");
-    expect(html).toContain("As vendas pausam na hora e o Espaço Byla decide.");
+    expect(html).toContain("As vendas pausam na hora e o ACDH Eventos decide.");
   });
 
   it("com pedido de exclusão em análise não oferece outro", () => {

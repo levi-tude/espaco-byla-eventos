@@ -10,7 +10,7 @@ import { Notice } from "@/components/ui/Notice";
 import { AREAS } from "@/lib/auth/area";
 import { parsePassword } from "@/lib/organizer/validation";
 
-const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo ao Espaço Byla.";
+const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo ao ACDH Eventos.";
 
 type Phase = "sem_link" | "formulario" | "pronto";
 
@@ -45,7 +45,7 @@ export function ResetPasswordForm() {
     startTransition(async () => {
       const result = await resetPasswordWithLink(token.current ?? "", password).catch(() => null);
       if (!result?.ok) {
-        setError(result?.error ?? "Não foi possível trocar a senha. Fale com o Espaço Byla.");
+        setError(result?.error ?? "Não foi possível trocar a senha. Fale com o ACDH Eventos.");
         return;
       }
       setPassword("");

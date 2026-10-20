@@ -14,16 +14,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
-const INVITE_INVALID_MESSAGE = "Este convite não vale mais. Peça um novo ao Espaço Byla.";
+const INVITE_INVALID_MESSAGE = "Este convite não vale mais. Peça um novo ao ACDH Eventos.";
 const FALLBACK_MESSAGE = "Não foi possível continuar agora. Tente de novo em alguns minutos.";
 const SEND_FAILED_MESSAGE = "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.";
-const ACCOUNT_FAILED_MESSAGE = "Não foi possível criar a conta. Fale com o Espaço Byla.";
+const ACCOUNT_FAILED_MESSAGE = "Não foi possível criar a conta. Fale com o ACDH Eventos.";
 const EMAIL_NOT_CONFIRMED_MESSAGE = "Confirme o e-mail com o código antes de continuar.";
 const TERMS_REQUIRED_MESSAGE = "Marque que leu e aceita os Termos do organizador e a Política de Privacidade.";
 
 const SEND_STATUS_MESSAGES: Record<string, string> = {
-  limite: "Você já pediu 3 códigos para este convite. Peça um novo convite ao Espaço Byla.",
-  email_indisponivel: "Este e-mail não pode ser usado. Use outro e-mail ou fale com o Espaço Byla.",
+  limite: "Você já pediu 3 códigos para este convite. Peça um novo convite ao ACDH Eventos.",
+  email_indisponivel: "Este e-mail não pode ser usado. Use outro e-mail ou fale com o ACDH Eventos.",
   invalido: INVITE_INVALID_MESSAGE,
 };
 

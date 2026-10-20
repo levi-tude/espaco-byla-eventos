@@ -116,10 +116,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             Programação
           </p>
           <h1 className="mt-2 font-display text-4xl tracking-wide text-foreground sm:text-6xl">
-            Espaço Byla Eventos
+            ACDH Eventos
           </h1>
           <p className="mt-2 text-base text-byla-muted sm:text-lg">
-            Escolha seu evento e garanta o ingresso — direto com o Espaço Byla.
+            Escolha seu evento e garanta o ingresso — direto com o ACDH Eventos.
           </p>
         </div>
 

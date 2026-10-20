@@ -39,7 +39,7 @@ const COMMON_WORDS = [
   "teamo", "amor", "meuamor", "deus", "deusefiel", "jesus", "jesuscristo", "brasil", "flamengo", "corinthians",
   "palmeiras", "vasco", "bahia", "vitoria", "gremio", "santos", "saopaulo", "cruzeiro", "salvador", "dragon", "monkey",
   "letmein", "football", "sunshine", "princess", "master", "shadow", "superman", "batman", "pokemon", "secret",
-  "segredo", "mudar", "trocar", "acesso", "espaco", "espacobyla", "byla", "bylaeventos", "eventos", "evento",
+  "segredo", "mudar", "trocar", "acesso", "espaco", "espacobyla", "byla", "bylaeventos", "acdh", "acdheventos", "eventos", "evento",
   "ingresso", "ingressos", "organizador", "festa",
 ];
 const COMMON_SET = new Set(COMMON_WORDS);

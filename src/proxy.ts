@@ -11,7 +11,33 @@ import type { StaffLoginStatus } from "@/lib/auth/staff-gate";
 import { buildContentSecurityPolicy, createNonce } from "@/lib/security/csp";
 import type { Database } from "@/types/database";
 
+const CANONICAL_ORIGIN = "https://acdheventos.com.br";
+
+/** Só estes hosts saem do ar. O destino é fixo: não dá para redirecionar para outro site. */
+const REDIRECT_HOSTS = new Set(["ingressos.espacobyla.online", "www.acdheventos.com.br"]);
+
+function requestHostname(request: NextRequest): string {
+  const header = request.headers.get("host")?.trim();
+  const raw = header ? header : request.nextUrl.host;
+  return raw.replace(/:\d+$/, "").toLowerCase();
+}
+
+/** Webhook e cron recebem POST e não seguem redirect. */
+function skipsHostRedirect(pathname: string): boolean {
+  return pathname === "/api/payments/webhook" || pathname.startsWith("/api/cron/");
+}
+
+function legacyHostRedirect(request: NextRequest): NextResponse | null {
+  if (!REDIRECT_HOSTS.has(requestHostname(request))) return null;
+  if (skipsHostRedirect(request.nextUrl.pathname)) return null;
+  const destination = `${CANONICAL_ORIGIN}${request.nextUrl.pathname}${request.nextUrl.search}`;
+  return NextResponse.redirect(destination, 301);
+}
+
 export async function proxy(request: NextRequest) {
+  const moved = legacyHostRedirect(request);
+  if (moved) return moved;
+
   const nonce = createNonce();
   const csp = buildContentSecurityPolicy({
     nonce,

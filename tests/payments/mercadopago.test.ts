@@ -81,7 +81,7 @@ describe("MercadoPagoPaymentProvider.createPayment", () => {
               type: "debit_card",
               token: "card-token-1",
               installments: 1,
-              statement_descriptor: "ESPACO BYLA",
+              statement_descriptor: "ACDH",
             },
           },
         ],

@@ -15,7 +15,7 @@ const PRIVACY_REQUIRED_MESSAGE = "Marque que leu a Política de Privacidade.";
 export function OrganizerRequestSent() {
   return (
     <Notice title="Recebemos!" tone="success">
-      A equipe do Espaço Byla vai falar com você pelo contato informado.
+      A equipe do ACDH Eventos vai falar com você pelo contato informado.
     </Notice>
   );
 }

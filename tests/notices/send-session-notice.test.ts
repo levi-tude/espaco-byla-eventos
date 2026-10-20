@@ -6,7 +6,7 @@ import { sendSessionNoticeEmail, sessionNoticeEmailConfig } from "@/lib/email/se
 
 const config = {
   apiKey: "chave-teste",
-  from: "Espaço Byla <teste@exemplo.test>",
+  from: "ACDH Eventos <teste@exemplo.test>",
   appUrl: "https://eventos.exemplo",
   replyTo: "contato@exemplo.test",
 };
@@ -73,7 +73,7 @@ describe("sendSessionNoticeEmail", () => {
 
   it("configuração: e-mail de contato inválido é ignorado", () => {
     vi.stubEnv("RESEND_API_KEY", "chave-teste");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Espaço Byla <teste@exemplo.test>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <teste@exemplo.test>");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://eventos.exemplo/");
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "contato@exemplo.test");
     expect(sessionNoticeEmailConfig()).toEqual(config);

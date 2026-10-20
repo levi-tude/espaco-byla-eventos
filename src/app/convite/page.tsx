@@ -7,7 +7,7 @@ import { SignupWizard } from "@/components/organizer/SignupWizard";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
-  title: "Convite para organizadores · Espaço Byla Eventos",
+  title: "Convite para organizadores · ACDH Eventos",
   robots: { index: false },
 };
 
@@ -22,7 +22,7 @@ export default async function InvitePage() {
           Criar conta de organizador
         </h1>
         <p className="mt-3 text-base leading-relaxed text-byla-muted">
-          Com a conta você cria seus eventos no site do Espaço Byla e acompanha as vendas.
+          Com a conta você cria seus eventos no site do ACDH Eventos e acompanha as vendas.
         </p>
         <div className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6">
           <SignupWizard terms={<OrganizerTermsText />} />

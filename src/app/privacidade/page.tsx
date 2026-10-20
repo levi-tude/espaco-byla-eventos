@@ -10,9 +10,9 @@ import {
 } from "@/lib/legal/privacy";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade · Espaço Byla Eventos",
+  title: "Política de Privacidade · ACDH Eventos",
   description:
-    "Como o Espaço Byla trata os dados de quem compra ingressos e de quem organiza eventos pelo site.",
+    "Como o ACDH Eventos trata os dados de quem compra ingressos e de quem organiza eventos pelo site.",
 };
 
 export default function PrivacyPage() {

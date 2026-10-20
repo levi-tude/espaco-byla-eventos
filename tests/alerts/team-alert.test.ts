@@ -43,7 +43,7 @@ describe("alertTeam", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("ALERT_EMAIL", "equipe@example.com");
     vi.stubEnv("RESEND_API_KEY", "chave-de-teste");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Espaço Byla <ingressos@example.com>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <ingressos@example.com>");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://site.example");
     mocks.tryConsumeRateLimit.mockResolvedValue("allowed");
     mocks.releaseRateLimit.mockResolvedValue(true);

@@ -36,7 +36,7 @@ env:
   # Secret Manager (next-actions-key) e nas variáveis do serviço Cloud Run.
   NEXT_PUBLIC_SUPABASE_URL: https://rlzyjlrcasqbjztgbgit.supabase.co
   NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsenlqbHJjYXNxYmp6dGdiZ2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MzgxNjIsImV4cCI6MjEwNTMxNDE2Mn0.GaR64Qgqyy4SS_TQfk00YNGXe2smLsNV-0ZLmXh5R74
-  NEXT_PUBLIC_APP_URL: https://ingressos.espacobyla.online
+  NEXT_PUBLIC_APP_URL: https://acdheventos.com.br
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAFVqgu6dbyOt8LlH
 
 jobs:

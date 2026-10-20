@@ -5,13 +5,13 @@ export const ORGANIZER_STATE_MESSAGES = {
   capa: "Adicione uma capa antes de enviar para aprovação.",
   sem_sessao_futura: "Cadastre pelo menos uma sessão com data futura.",
   sem_preco: "Cada sessão precisa de pelo menos um tipo de ingresso à venda.",
-  nao_aprovado: "As vendas abrem depois que o Espaço Byla aprovar o evento.",
+  nao_aprovado: "As vendas abrem depois que o ACDH Eventos aprovar o evento.",
   exclusao_pendente: "Há um pedido de exclusão em análise. As vendas ficam pausadas até a resposta.",
   com_vendas: "Este evento já teve vendas. Use “Pedir exclusão”.",
   sem_vendas: "Este evento não tem vendas. Use “Excluir evento”.",
   ja_pedido: "Já existe um pedido igual em análise.",
   nao_pago: "Só pedidos pagos podem ter estorno pedido.",
-  cortesia: "Cortesia não tem estorno. Fale com a equipe do Espaço Byla.",
+  cortesia: "Cortesia não tem estorno. Fale com a equipe do ACDH Eventos.",
   check_in: "Este pedido já tem ingresso usado na entrada.",
   sessoes_ativas: "Cancele todas as sessões ativas antes de concluir a exclusão.",
   organizador_inativo: "A conta deste organizador não está ativa.",
@@ -40,7 +40,7 @@ export function organizerErrorMessage(dbMessage: string, context: OrganizerError
   if (dbMessage.includes("ORG_LOTACAO")) return "A sessão passou do limite de lugares.";
   const mudanca = dbMessage.match(/ORG_ESTADO:mudanca:([a-z,]+)/);
   if (mudanca) {
-    return `Depois da aprovação, mudar ${joinLabels(mudanca[1].split(","))} precisa ser pedido ao Espaço Byla (botão “Pedir mudança”).`;
+    return `Depois da aprovação, mudar ${joinLabels(mudanca[1].split(","))} precisa ser pedido ao ACDH Eventos (botão “Pedir mudança”).`;
   }
   const estado = dbMessage.match(/ORG_ESTADO:([a-z_]+)/);
   if (estado) return STATE_MESSAGES[estado[1]] ?? STATE_MESSAGES.estado;
@@ -50,7 +50,7 @@ export function organizerErrorMessage(dbMessage: string, context: OrganizerError
   if (dbMessage.includes("ORG_CONVITE")) {
     return context.area === "admin"
       ? "Não foi possível gerar o convite. Confira os dados e tente de novo."
-      : "Este convite não vale mais. Peça um novo ao Espaço Byla.";
+      : "Este convite não vale mais. Peça um novo ao ACDH Eventos.";
   }
   if (dbMessage.includes("ORG_DONO")) {
     return dbMessage.includes("Pedido não encontrado") ? "Pedido não encontrado." : "Evento não encontrado.";

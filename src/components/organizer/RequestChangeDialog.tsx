@@ -11,7 +11,7 @@ import { parseChangeWhat } from "@/lib/organizer/validation";
 const MIN_LENGTH = 5;
 const MAX_LENGTH = 500;
 
-export const CHANGE_SENT_MESSAGE = "Pedido enviado. O Espaço Byla vai responder por e-mail.";
+export const CHANGE_SENT_MESSAGE = "Pedido enviado. O ACDH Eventos vai responder por e-mail.";
 
 function validLength(value: string): boolean {
   const length = value.trim().length;
@@ -79,7 +79,7 @@ export function RequestChangeDialog({
             O que você quer mudar?
           </h2>
           <p className="mt-2 text-base text-byla-muted">
-            Depois da aprovação, esta mudança passa pelo Espaço Byla. A resposta chega no seu e-mail.
+            Depois da aprovação, esta mudança passa pelo ACDH Eventos. A resposta chega no seu e-mail.
           </p>
         </div>
         <TextAreaField

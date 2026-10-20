@@ -64,8 +64,8 @@ import { hashInviteToken, newInviteToken } from "@/lib/organizer/invite-token";
 import { BOT_BLOCKED_MESSAGE } from "@/lib/security/bot";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
-const INVITE_INVALID = "Este convite não vale mais. Peça um novo ao Espaço Byla.";
-const ACCOUNT_FAILED = "Não foi possível criar a conta. Fale com o Espaço Byla.";
+const INVITE_INVALID = "Este convite não vale mais. Peça um novo ao ACDH Eventos.";
+const ACCOUNT_FAILED = "Não foi possível criar a conta. Fale com o ACDH Eventos.";
 const TOKEN = newInviteToken();
 const TOKEN_HASH = hashInviteToken(TOKEN);
 const USER_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -215,8 +215,8 @@ describe("sendInviteEmailCode", () => {
   });
 
   it.each([
-    ["limite", "Você já pediu 3 códigos para este convite. Peça um novo convite ao Espaço Byla."],
-    ["email_indisponivel", "Este e-mail não pode ser usado. Use outro e-mail ou fale com o Espaço Byla."],
+    ["limite", "Você já pediu 3 códigos para este convite. Peça um novo convite ao ACDH Eventos."],
+    ["email_indisponivel", "Este e-mail não pode ser usado. Use outro e-mail ou fale com o ACDH Eventos."],
     ["invalido", INVITE_INVALID],
   ])("status %s do banco vira mensagem e não manda e-mail", async (status, message) => {
     database({ start_invite_email_code: { data: status } });

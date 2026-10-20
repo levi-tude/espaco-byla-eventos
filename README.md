@@ -1,6 +1,6 @@
-# Espaço Byla Eventos
+# ACDH Eventos
 
-Plataforma de venda e controle de ingressos para eventos e shows do **Espaço Byla**, com checkout online, admin interno e check-in por QR — reduzindo taxas de marketplaces externos.
+Plataforma de venda e controle de ingressos para eventos e shows da **ACDH Eventos**, com checkout online, admin interno e check-in por QR — reduzindo taxas de marketplaces externos.
 
 ## Stack
 
@@ -78,7 +78,7 @@ variáveis do serviço — nunca no repositório nem no workflow.
 precisam estar aplicadas **antes do merge** sempre que o código depender delas;
 o merge na `main` publica o código em poucos minutos.
 
-O `vercel.json` só redireciona o endereço antigo da Vercel para o site novo.
+O `vercel.json` redireciona o endereço antigo da Vercel para https://acdheventos.com.br.
 Não coloque tokens no repositório.
 
 ## Pagamentos

@@ -11,7 +11,7 @@ import {
   REMINDER_SEND_INTERVAL_MS,
 } from "@/lib/reminders/rules";
 
-const config = { apiKey: "chave-teste", from: "Espaço Byla <teste@exemplo.test>", appUrl: "https://eventos.exemplo" };
+const config = { apiKey: "chave-teste", from: "ACDH Eventos <teste@exemplo.test>", appUrl: "https://eventos.exemplo" };
 
 function row(n: number) {
   return {

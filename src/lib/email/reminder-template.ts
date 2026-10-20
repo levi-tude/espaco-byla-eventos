@@ -74,7 +74,7 @@ export function buildReminderEmail(data: ReminderEmailData): ReminderEmailConten
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
-              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">Espaço Byla</td>
+              <td style="background:#111111;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">ACDH Eventos</td>
             </tr>
             <tr>
               <td style="padding:28px 24px 8px;">
@@ -93,7 +93,7 @@ export function buildReminderEmail(data: ReminderEmailData): ReminderEmailConten
             <tr>
               <td style="padding:16px 24px 28px;">
                 <p style="margin:0 0 12px;font-size:13px;line-height:18px;color:#888888;">Se o botão não funcionar, copie este endereço no navegador:<br><a href="${escapeHtml(data.resumeUrl)}" style="color:${BRAND_BLUE};word-break:break-all;">${escapeHtml(data.resumeUrl)}</a></p>
-                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Você recebeu este aviso porque iniciou uma compra no site do Espaço Byla. Enviamos só um lembrete por compra. <a href="${escapeHtml(data.unsubscribeUrl)}" style="color:#888888;text-decoration:underline;">Não quero receber lembretes</a></p>
+                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Você recebeu este aviso porque iniciou uma compra no site do ACDH Eventos. Enviamos só um lembrete por compra. <a href="${escapeHtml(data.unsubscribeUrl)}" style="color:#888888;text-decoration:underline;">Não quero receber lembretes</a></p>
               </td>
             </tr>
           </table>
@@ -116,10 +116,10 @@ export function buildReminderEmail(data: ReminderEmailData): ReminderEmailConten
     "",
     `Continuar compra: ${data.resumeUrl}`,
     "",
-    "Você recebeu este aviso porque iniciou uma compra no site do Espaço Byla. Enviamos só um lembrete por compra.",
+    "Você recebeu este aviso porque iniciou uma compra no site do ACDH Eventos. Enviamos só um lembrete por compra.",
     `Não quero receber lembretes: ${data.unsubscribeUrl}`,
     "",
-    "Espaço Byla",
+    "ACDH Eventos",
   ]
     .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
     .join("\n");

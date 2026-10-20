@@ -7,9 +7,9 @@ import { BackLink } from "@/components/ui/BackLink";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
-  title: "Termos do organizador · Espaço Byla Eventos",
+  title: "Termos do organizador · ACDH Eventos",
   description:
-    "Regras para quem cria e vende ingressos de eventos próprios pelo site do Espaço Byla.",
+    "Regras para quem cria e vende ingressos de eventos próprios pelo site do ACDH Eventos.",
 };
 
 export default async function OrganizerTermsPage() {

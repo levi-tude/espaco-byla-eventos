@@ -6,7 +6,7 @@ import { Notice } from "@/components/ui/Notice";
 import { isReminderOptoutToken } from "@/lib/reminders/rules";
 
 export const metadata: Metadata = {
-  title: "Lembretes por e-mail · Espaço Byla Eventos",
+  title: "Lembretes por e-mail · ACDH Eventos",
   robots: { index: false, follow: false },
 };
 

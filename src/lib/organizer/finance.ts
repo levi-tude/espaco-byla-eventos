@@ -404,8 +404,8 @@ export function situationLabel(s: PayoutSituation, audience: "organizador" | "eq
           : `Devolução até ${shortDay(s.returnDueDate)} · ${formatMoney(s.owedCents)}`;
       }
       return s.overdue
-        ? `Devolução atrasada: devolva ${formatMoney(s.owedCents)} por PIX ao Espaço Byla`
-        : `Devolva ${formatMoney(s.owedCents)} por PIX ao Espaço Byla até ${shortDay(s.returnDueDate)}`;
+        ? `Devolução atrasada: devolva ${formatMoney(s.owedCents)} por PIX ao ACDH Eventos`
+        : `Devolva ${formatMoney(s.owedCents)} por PIX ao ACDH Eventos até ${shortDay(s.returnDueDate)}`;
   }
 }
 
@@ -441,7 +441,7 @@ const FIXED: Record<string, string> = {
   ORG_MOTIVO: "Informe o motivo (de 5 a 500 caracteres).",
   ORG_CODIGO: "Código inválido ou vencido. Peça um novo código.",
   ORG_PIX_IGUAL: "Essa já é a chave PIX cadastrada.",
-  ORG_DEVOLUCAO: "Há uma devolução atrasada ao Espaço Byla. Faça a devolução antes de enviar novos eventos.",
+  ORG_DEVOLUCAO: "Há uma devolução atrasada ao ACDH Eventos. Faça a devolução antes de enviar novos eventos.",
   ORG_DADOS: "Confira os dados e tente de novo.",
   ORG_ESTADO: "Isso já foi decidido. Atualize a página.",
   ORG_ACESSO: "Você não tem acesso a esta ação.",

@@ -10,7 +10,7 @@ Responderemos assim que possível e avisaremos quando a correção for publicada
 
 ## Escopo
 
-- Site publicado: https://espaco-byla-eventos.vercel.app
+- Site publicado: https://acdheventos.com.br
 - Código deste repositório.
 
 Fora do escopo: ataques de negação de serviço, engenharia social e testes que

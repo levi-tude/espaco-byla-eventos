@@ -24,7 +24,7 @@ export default async function OrganizerEnterPage() {
           <div className="flex items-center gap-3">
             <BrandMark size={40} />
             <p className="font-display text-xl tracking-wide text-foreground">
-              Espaço Byla Eventos
+              ACDH Eventos
             </p>
           </div>
           <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
@@ -35,7 +35,7 @@ export default async function OrganizerEnterPage() {
             <>
               <OrganizerLoginForm />
               <p className="mt-6 text-sm text-byla-muted">
-                Esqueceu a senha? Peça um link novo à equipe do Espaço Byla.
+                Esqueceu a senha? Peça um link novo à equipe do ACDH Eventos.
               </p>
             </>
           ) : (

@@ -91,8 +91,8 @@ describe("OrganizerFinancePanel", () => {
   it("devolução pendente mostra a chave do Espaço ou pede para falar com o Espaço", () => {
     const owing = finance({ balanceCents: -4739, flag: { negativeSince: "2026-10-30", returnDueDate: "2026-12-09" } });
     expect(html(owing, "chave-do-espaco@exemplo.com")).toContain("chave-do-espaco@exemplo.com");
-    expect(html(owing)).toContain("Fale com o Espaço Byla para receber a chave PIX.");
-    expect(html(finance())).not.toContain("Devolução ao Espaço Byla");
+    expect(html(owing)).toContain("Fale com o ACDH Eventos para receber a chave PIX.");
+    expect(html(finance())).not.toContain("Devolução ao ACDH Eventos");
   });
 
   it("mudanças depois do repasse", () => {

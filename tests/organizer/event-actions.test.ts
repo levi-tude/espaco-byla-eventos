@@ -378,7 +378,7 @@ describe("updateOrganizerEvent", () => {
     expect(await updateOrganizerEvent(EVENT_ID, input)).toEqual({
       ok: false,
       error:
-        "Depois da aprovação, mudar nome do evento e local precisa ser pedido ao Espaço Byla (botão “Pedir mudança”).",
+        "Depois da aprovação, mudar nome do evento e local precisa ser pedido ao ACDH Eventos (botão “Pedir mudança”).",
     });
   });
 
@@ -525,7 +525,7 @@ describe("vendas", () => {
     state.rpcResults.set_event_sales_open = { data: null, error: { message: "ORG_ESTADO:nao_aprovado" } };
     expect(await setOrganizerEventSales(EVENT_ID, true)).toEqual({
       ok: false,
-      error: "As vendas abrem depois que o Espaço Byla aprovar o evento.",
+      error: "As vendas abrem depois que o ACDH Eventos aprovar o evento.",
     });
   });
 

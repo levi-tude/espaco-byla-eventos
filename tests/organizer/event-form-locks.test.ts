@@ -230,7 +230,7 @@ describe("EventForm do organizador", () => {
     expect(buttons("Criar evento")).toHaveLength(0);
     expect(buttons("Salvar rascunho")).toHaveLength(1);
     expect(pageText()).not.toMatch(/Abrir venda|Fechar venda/);
-    expect(pageText()).toContain("Precisa de cortesias? Peça à equipe do Espaço Byla pelo WhatsApp.");
+    expect(pageText()).toContain("Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp.");
 
     await type(field("Nome"), "Peça Y");
     await type(field("Local"), "Espaço Byla");

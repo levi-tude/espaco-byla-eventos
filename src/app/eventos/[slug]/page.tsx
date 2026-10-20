@@ -78,7 +78,7 @@ export async function generateMetadata({
   const { event } = await loadPublicEvent(slug);
   if (!event) return {};
 
-  const title = `${event.name} | Espaço Byla`;
+  const title = `${event.name} | ACDH Eventos`;
   const description = [dateFormatter.format(new Date(event.starts_at)), event.venue]
     .filter(Boolean)
     .join(" · ");

@@ -28,7 +28,7 @@ function bannerFor({
 } {
   switch (approvalStatus) {
     case "em_analise":
-      return { tone: "info", text: "Em análise: o Espaço Byla vai conferir e responder em breve." };
+      return { tone: "info", text: "Em análise: o ACDH Eventos vai conferir e responder em breve." };
     case "recusado": {
       const note = approvalNote?.trim().replace(/[.!?\s]+$/u, "");
       return {
@@ -60,7 +60,7 @@ export function ApprovalBanner(props: ApprovalBannerProps) {
   function submit() {
     if (
       !window.confirm(
-        "Enviar para aprovação? Enquanto o Espaço Byla confere, o evento fica só leitura.",
+        "Enviar para aprovação? Enquanto o ACDH Eventos confere, o evento fica só leitura.",
       )
     ) {
       return;
