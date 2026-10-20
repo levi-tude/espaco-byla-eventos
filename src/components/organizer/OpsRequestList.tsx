@@ -46,7 +46,7 @@ function CancelRequestButton({ requestId }: { requestId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   function cancel() {
-    if (!window.confirm("Cancelar este pedido? A equipe do ACDH Eventos não vai mais analisá-lo.")) return;
+    if (!window.confirm("Cancelar este pedido? A equipe da ACDH Eventos não vai mais analisá-lo.")) return;
     setError(null);
     startTransition(async () => {
       try {

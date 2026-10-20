@@ -189,7 +189,7 @@ export default async function EquipePage() {
         <div>
           <h1 className="font-display text-4xl tracking-wide text-foreground">Eventos</h1>
           <p className="mt-1 text-base text-byla-muted">
-            Organize a programação e os ingressos do ACDH Eventos.
+            Organize a programação e os ingressos da ACDH Eventos.
           </p>
         </div>
 

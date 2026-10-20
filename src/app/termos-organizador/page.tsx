@@ -9,7 +9,7 @@ import { organizerAreaEnabled } from "@/lib/organizer/settings";
 export const metadata: Metadata = {
   title: "Termos do organizador · ACDH Eventos",
   description:
-    "Regras para quem cria e vende ingressos de eventos próprios pelo site do ACDH Eventos.",
+    "Regras para quem cria e vende ingressos de eventos próprios pelo site da ACDH Eventos.",
 };
 
 export default async function OrganizerTermsPage() {

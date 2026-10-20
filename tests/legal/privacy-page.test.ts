@@ -83,7 +83,7 @@ describe("página Política de Privacidade", () => {
 
   it("segurança: acesso restrito à equipe e aos organizadores, sempre com verificação em duas etapas", () => {
     expect(page()).toContain(
-      `acesso restrito à equipe do ${COMPANY.brand} e, para os próprios eventos, aos organizadores parceiros, sempre com verificação em duas etapas`,
+      `acesso restrito à equipe da ${COMPANY.brand} e, para os próprios eventos, aos organizadores parceiros, sempre com verificação em duas etapas`,
     );
   });
 
@@ -126,6 +126,6 @@ describe("página Política de Privacidade", () => {
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "");
     const html = renderToStaticMarkup(PrivacyPage());
     expect(html).not.toContain("mailto:");
-    expect(text(html)).toContain("os canais oficiais de atendimento do ACDH Eventos");
+    expect(text(html)).toContain("os canais oficiais de atendimento da ACDH Eventos");
   });
 });

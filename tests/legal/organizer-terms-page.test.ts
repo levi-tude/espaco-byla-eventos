@@ -51,7 +51,7 @@ const ITEMS = [
   "9. Dados dos compradores (LGPD)",
   "10. Portaria",
   "11. Suas responsabilidades",
-  "12. Responsabilidades do ACDH Eventos",
+  "12. Responsabilidades da ACDH Eventos",
   "13. Excluir um evento",
   "14. Suspensão e encerramento",
   "15. Mudanças nestes termos",
@@ -88,7 +88,7 @@ describe("página Termos do organizador", () => {
     }
   });
 
-  it("identifica o ACDH Eventos com os dados da empresa e o contato configurado", async () => {
+  it("identifica a ACDH Eventos com os dados da empresa e o contato configurado", async () => {
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "contato@exemplo.test");
     const html = await renderPage();
     const page = text(html);
@@ -102,7 +102,7 @@ describe("página Termos do organizador", () => {
     vi.stubEnv("PRIVACY_CONTACT_EMAIL", "");
     const html = await renderPage();
     expect(html).not.toContain("mailto:");
-    expect(text(html)).toContain("os canais oficiais de atendimento do ACDH Eventos");
+    expect(text(html)).toContain("os canais oficiais de atendimento da ACDH Eventos");
   });
 
   it("taxa de serviço vem da mesma constante dos Termos de compra e não sai da parte do organizador", async () => {
@@ -147,7 +147,7 @@ describe("página Termos do organizador", () => {
   it("item 3: nome e local (decisão 2A) dependem de nova confirmação depois de aprovado", async () => {
     const page = text(await renderPage());
     expect(page).toContain(
-      "Depois de aprovado, algumas mudanças (nome, local, preço de sessão já vendida, redução de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação do ACDH Eventos",
+      "Depois de aprovado, algumas mudanças (nome, local, preço de sessão já vendida, redução de lugares, troca de horário, cancelamento de sessão) dependem de nova confirmação da ACDH Eventos",
     );
   });
 
@@ -157,12 +157,12 @@ describe("página Termos do organizador", () => {
     expect(page).toContain("o Dois de Julho");
     expect(page).toContain("Sua parte = valor dos ingressos vendidos − estornos − contestações no cartão.");
     expect(page).toContain("O repasse não espera a conferência da tarifa do banco: ela não muda a sua parte.");
-    expect(page).toContain("se o banco não devolver a tarifa, o ACDH Eventos arca com ela");
+    expect(page).toContain("se o banco não devolver a tarifa, a ACDH Eventos arca com ela");
     expect(page).not.toContain("− tarifas do banco");
     expect(page).not.toContain("Se houver tarifa ainda em conferência");
-    expect(page).toContain("você devolve o valor por PIX ao ACDH Eventos em até 10 dias depois do aviso");
+    expect(page).toContain("você devolve o valor por PIX à ACDH Eventos em até 10 dias depois do aviso");
     expect(page).toContain("apague em até 90 dias depois do evento");
-    expect(page).toContain("avise o ACDH Eventos em até 24 horas");
+    expect(page).toContain("avise a ACDH Eventos em até 24 horas");
     expect(page).toContain("Cortesias");
     expect(page).toContain("Fica eleito o foro de Salvador – BA.");
   });

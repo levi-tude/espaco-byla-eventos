@@ -41,7 +41,7 @@ export type OrganizerNoticeData = {
   confirmAfter?: string;
   /** Número curto do pedido ("1234"), sem dado do comprador. */
   orderNumber?: string;
-  /** Chave PIX do ACDH Eventos para receber devoluções (não é dado de organizador). */
+  /** Chave PIX da ACDH Eventos para receber devoluções (não é dado de organizador). */
   espacoPixKey?: string;
   /** Resumo diário da equipe: só contagens e somas. */
   summary?: {
@@ -139,8 +139,8 @@ type NoticeBody = {
   footer: string;
 };
 
-const TEAM_FOOTER = "Aviso automático da área do organizador do ACDH Eventos.";
-const ORGANIZER_FOOTER = "Se tiver dúvidas, fale com a equipe do ACDH Eventos.";
+const TEAM_FOOTER = "Aviso automático da área do organizador da ACDH Eventos.";
+const ORGANIZER_FOOTER = "Se tiver dúvidas, fale com a equipe da ACDH Eventos.";
 
 function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): NoticeBody {
   const eventName = singleLine(data.eventName, MAX_EVENT_NAME) || "evento sem nome";
@@ -197,7 +197,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         subject: "Seu evento foi aprovado",
         title: "Seu evento foi aprovado",
         paragraphs: [
-          ["A equipe do ACDH Eventos aprovou o evento ", event, "."],
+          ["A equipe da ACDH Eventos aprovou o evento ", event, "."],
           ["Confira na sua área se as vendas já estão abertas. Se ainda não estiverem, você pode abrir quando quiser."],
         ],
         buttonLabel: "Ver meu evento",
@@ -208,7 +208,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         subject: "Seu evento precisa de ajustes",
         title: "Seu evento precisa de ajustes",
         paragraphs: [
-          ["A equipe do ACDH Eventos revisou o evento ", event, " e pediu alguns ajustes antes de aprovar."],
+          ["A equipe da ACDH Eventos revisou o evento ", event, " e pediu alguns ajustes antes de aprovar."],
           ...(note ? [[`O que ajustar: ${note}`]] : []),
           ["Faça os ajustes e envie de novo para aprovação."],
         ],
@@ -235,7 +235,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         subject: "Sua conta foi suspensa",
         title: "Sua conta foi suspensa",
         paragraphs: [
-          ["Sua conta de organizador no ACDH Eventos foi suspensa e o acesso à área do organizador está bloqueado."],
+          ["Sua conta de organizador na ACDH Eventos foi suspensa e o acesso à área do organizador está bloqueado."],
           ...(note ? [[`Motivo: ${note}`]] : []),
         ],
         buttonLabel: "Abrir o site",
@@ -252,8 +252,8 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         title: "Repasse registrado",
         paragraphs: [
           amount
-            ? ["O ACDH Eventos registrou o repasse de ", { strong: amount }, " do evento ", event, day ? ` (PIX de ${day}).` : "."]
-            : ["O ACDH Eventos registrou o acerto do evento ", event, " (descontado de valores a devolver, sem PIX)."],
+            ? ["A ACDH Eventos registrou o repasse de ", { strong: amount }, " do evento ", event, day ? ` (PIX de ${day}).` : "."]
+            : ["A ACDH Eventos registrou o acerto do evento ", event, " (descontado de valores a devolver, sem PIX)."],
           ["Os detalhes estão na aba Financeiro do evento, na sua área."],
         ],
         buttonLabel: "Ver financeiro",
@@ -266,7 +266,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         title: "Pedido de troca da chave PIX",
         paragraphs: [
           ["Recebemos um pedido para trocar a chave PIX dos seus repasses."],
-          ["Se não foi você, cancele na sua conta e avise o ACDH Eventos."],
+          ["Se não foi você, cancele na sua conta e avise a ACDH Eventos."],
           ["Até a confirmação do Espaço, os repasses continuam na chave atual."],
         ],
         buttonLabel: "Ver minha conta",
@@ -276,7 +276,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
       return {
         subject: "Chave PIX trocada",
         title: "Chave PIX trocada",
-        paragraphs: [["O ACDH Eventos confirmou a troca: os próximos repasses vão para a chave nova."]],
+        paragraphs: [["A ACDH Eventos confirmou a troca: os próximos repasses vão para a chave nova."]],
         buttonLabel: "Ver minha conta",
         footer: ORGANIZER_FOOTER,
       };
@@ -285,7 +285,7 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
         subject: "Troca da chave PIX recusada",
         title: "Troca da chave PIX recusada",
         paragraphs: [
-          ["O ACDH Eventos não confirmou a troca da chave PIX. Os repasses continuam na chave atual."],
+          ["A ACDH Eventos não confirmou a troca da chave PIX. Os repasses continuam na chave atual."],
           ...(note ? [[`Motivo: ${note}`]] : []),
         ],
         buttonLabel: "Ver minha conta",
@@ -313,12 +313,12 @@ function noticeBody(kind: OrganizerNoticeKind, data: OrganizerNoticeData): Notic
       const day = data.day && /^\d{4}-\d{2}-\d{2}$/.test(data.day) ? data.day.slice(5).split("-").reverse().join("/") : null;
       const key = singleLine(data.espacoPixKey, 77);
       return {
-        subject: "Devolução ao ACDH Eventos",
-        title: "Devolução ao ACDH Eventos",
+        subject: "Devolução à ACDH Eventos",
+        title: "Devolução à ACDH Eventos",
         paragraphs: [
           ["Estornos ou contestações do evento ", event, " depois do repasse deixaram um valor a devolver."],
-          [`Devolva ${amount} por PIX ao ACDH Eventos${day ? ` até ${day}` : ""}.`],
-          key ? ["Chave PIX do ACDH Eventos: ", { strong: key }] : ["O ACDH Eventos vai te mandar a chave PIX para a devolução."],
+          [`Devolva ${amount} por PIX à ACDH Eventos${day ? ` até ${day}` : ""}.`],
+          key ? ["Chave PIX da ACDH Eventos: ", { strong: key }] : ["A ACDH Eventos vai te mandar a chave PIX para a devolução."],
           ["Enquanto a devolução estiver atrasada, não dá para enviar novos eventos para aprovação."],
         ],
         buttonLabel: "Ver financeiro",

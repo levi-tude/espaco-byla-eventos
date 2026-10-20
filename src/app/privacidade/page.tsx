@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: "Política de Privacidade · ACDH Eventos",
   description:
-    "Como o ACDH Eventos trata os dados de quem compra ingressos e de quem organiza eventos pelo site.",
+    "Como a ACDH Eventos trata os dados de quem compra ingressos e de quem organiza eventos pelo site.",
 };
 
 export default function PrivacyPage() {
@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           Política de Privacidade
         </h1>
         <p className="mt-4 text-base leading-relaxed text-byla-muted">
-          Esta página explica, de forma simples, quais dados pessoais o{" "}
+          Esta página explica, de forma simples, quais dados pessoais a{" "}
           {COMPANY.brand} recebe quando você compra ingressos por este site, pede
           para fazer um evento ou usa uma conta de organizador, para que eles são
           usados e quais são os seus direitos, conforme a Lei Geral
@@ -188,7 +188,7 @@ export default function PrivacyPage() {
         <Section title="Segurança">
           <p>
             O site usa conexão criptografada (HTTPS), acesso restrito à equipe
-            do {COMPANY.brand} e, para os próprios eventos, aos organizadores
+            da {COMPANY.brand} e, para os próprios eventos, aos organizadores
             parceiros, sempre com verificação em duas etapas, e proteções contra
             robôs e fraudes. O link do seu
             pedido funciona como uma senha de acesso aos ingressos: não o

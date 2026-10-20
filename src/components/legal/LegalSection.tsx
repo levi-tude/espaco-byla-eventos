@@ -24,6 +24,6 @@ export function LegalContact() {
       {contactEmail}
     </a>
   ) : (
-    "os canais oficiais de atendimento do ACDH Eventos"
+    "os canais oficiais de atendimento da ACDH Eventos"
   );
 }

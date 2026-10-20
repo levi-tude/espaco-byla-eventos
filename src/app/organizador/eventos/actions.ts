@@ -90,7 +90,7 @@ export async function deleteOwnEvent(
   return result;
 }
 
-/** "Pedir exclusão" (evento com vendas): as vendas pausam e o ACDH Eventos decide. */
+/** "Pedir exclusão" (evento com vendas): as vendas pausam e a ACDH Eventos decide. */
 export async function requestEventDeletion(eventId: string, reason: string): Promise<ActionResult> {
   return runAction(() => requestEventDeletionOrThrow(eventId, reason), "Não foi possível enviar o pedido.");
 }

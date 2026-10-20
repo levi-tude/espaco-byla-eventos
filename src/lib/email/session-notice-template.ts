@@ -58,7 +58,7 @@ function formatSession(startsAt: string, endsAt?: string | null, name?: string |
 function contactLine(replyAvailable: boolean) {
   return replyAvailable
     ? "Em caso de dúvidas, responda este e-mail."
-    : "Se tiver dúvidas, fale com a equipe do ACDH Eventos.";
+    : "Se tiver dúvidas, fale com a equipe da ACDH Eventos.";
 }
 
 const paragraph = (content: string) =>
@@ -109,7 +109,7 @@ export function buildScheduleChangeEmail(data: ScheduleChangeEmailData): Session
   const refundLine = data.isCourtesy
     ? null
     : `Se não puder ir no novo horário, você pode pedir o reembolso até ${SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE} horas antes dele, ${
-        data.replyAvailable ? "respondendo este e-mail" : "falando com a equipe do ACDH Eventos"
+        data.replyAvailable ? "respondendo este e-mail" : "falando com a equipe da ACDH Eventos"
       }.`;
 
   const body = [

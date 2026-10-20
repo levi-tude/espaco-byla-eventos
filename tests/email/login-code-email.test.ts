@@ -47,7 +47,7 @@ describe("buildLoginCodeEmail", () => {
 
   it("cadastro: confirma o e-mail e vale 15 minutos", () => {
     const signup = buildLoginCodeEmail({ code: "042917", purpose: "cadastro" });
-    expect(signup.subject).toBe("Seu código do ACDH Eventos");
+    expect(signup.subject).toBe("Seu código da ACDH Eventos");
     expect(signup.subject).not.toContain("042917");
     for (const body of [signup.html, signup.text]) {
       expect(body).toContain("042917");
@@ -117,7 +117,7 @@ describe("sendLoginCodeEmail", () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
     await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "cadastro" });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.subject).toBe("Seu código do ACDH Eventos");
+    expect(body.subject).toBe("Seu código da ACDH Eventos");
     expect(body.text).toContain("15 minutos");
   });
 

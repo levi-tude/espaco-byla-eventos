@@ -107,7 +107,7 @@ export default async function OrganizerEventsPage() {
       </div>
 
       <Notice className="mt-6" live={false} tone="info">
-        Precisa de cortesias? Peça à equipe do ACDH Eventos pelo WhatsApp.
+        Precisa de cortesias? Peça à equipe da ACDH Eventos pelo WhatsApp.
       </Notice>
 
       {error ? (
@@ -117,7 +117,7 @@ export default async function OrganizerEventsPage() {
       ) : events.length === 0 ? (
         <EmptyState
           className="mt-6"
-          description="Toque em “+ Criar evento” para começar. O ACDH Eventos confere antes de abrir as vendas."
+          description="Toque em “+ Criar evento” para começar. A ACDH Eventos confere antes de abrir as vendas."
           title="Você ainda não tem eventos."
         />
       ) : (

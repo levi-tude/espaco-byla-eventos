@@ -19,7 +19,7 @@ import {
 export const metadata: Metadata = {
   title: "Termos de compra · ACDH Eventos",
   description:
-    "Regras de compra, entrada, cancelamento e reembolso dos ingressos do ACDH Eventos.",
+    "Regras de compra, entrada, cancelamento e reembolso dos ingressos da ACDH Eventos.",
 };
 
 const linkClass = "font-medium text-byla-link underline underline-offset-2";
@@ -55,7 +55,7 @@ export default function TermsPage() {
           Termos de compra
         </h1>
         <p className="mt-4 text-base leading-relaxed text-byla-muted">
-          Estas são as regras para comprar ingressos dos eventos do {COMPANY.brand}{" "}
+          Estas são as regras para comprar ingressos dos eventos da {COMPANY.brand}{" "}
           por este site. Ao marcar &ldquo;Li e aceito&rdquo; na compra, você concorda
           com estes termos e com a{" "}
           <Link className={linkClass} href="/privacidade">
@@ -73,7 +73,7 @@ export default function TermsPage() {
           <p>
             Alguns eventos são produzidos por organizadores parceiros, indicados como
             &ldquo;Produção&rdquo; na página do evento e no e-mail do ingresso. Mesmo nesses
-            casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pelo{" "}
+            casos, a venda, o pagamento, o atendimento e os reembolsos são feitos pela{" "}
             {COMPANY.brand}, conforme estes termos.
           </p>
         </Section>
@@ -256,7 +256,7 @@ export default function TermsPage() {
           <p>
             Antes de contestar uma compra com o banco do seu cartão, fale com a
             gente: nos casos destes termos, o reembolso é mais rápido por aqui. Se
-            houver contestação, o {COMPANY.brand} poderá apresentar ao banco os
+            houver contestação, a {COMPANY.brand} poderá apresentar ao banco os
             registros da compra, do envio e do uso dos ingressos na entrada.
           </p>
         </Section>

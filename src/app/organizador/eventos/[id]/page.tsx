@@ -466,7 +466,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
                 </>
               ) : (
                 <p className="text-base text-byla-muted">
-                  A portaria fica disponível depois que o ACDH Eventos aprovar o evento.
+                  A portaria fica disponível depois que a ACDH Eventos aprovar o evento.
                 </p>
               )}
             </div>

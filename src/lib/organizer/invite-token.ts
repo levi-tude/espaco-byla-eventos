@@ -24,7 +24,7 @@ export function inviteLink(appUrl: string, token: string, kind: "convite" | "red
 
 export function whatsappInviteUrl(link: string): string {
   const text =
-    "Olá! Este é o seu convite para criar eventos no site do ACDH Eventos. " +
+    "Olá! Este é o seu convite para criar eventos no site da ACDH Eventos. " +
     `O link vale por 7 dias e só pode ser usado uma vez: ${link}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }

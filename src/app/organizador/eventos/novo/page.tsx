@@ -22,7 +22,7 @@ export default async function NovoEventoOrganizadorPage() {
       <BackLink href="/organizador">Meus eventos</BackLink>
       <h1 className="mt-2 font-display text-4xl tracking-wide text-foreground">Criar evento</h1>
       <p className="mt-1 text-base text-byla-muted">
-        O evento fica como rascunho, só para você. Quando estiver pronto, envie para o ACDH Eventos
+        O evento fica como rascunho, só para você. Quando estiver pronto, envie para a ACDH Eventos
         aprovar.
       </p>
       <div className="mt-6">

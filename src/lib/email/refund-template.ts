@@ -113,7 +113,7 @@ export function buildRefundEmail(data: RefundEmailData): RefundEmailContent {
             </tr>
             <tr>
               <td style="padding:16px 24px 28px;">
-                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Se tiver dúvidas, fale com a equipe do ACDH Eventos.</p>
+                <p style="margin:0;font-size:13px;line-height:18px;color:#888888;">Se tiver dúvidas, fale com a equipe da ACDH Eventos.</p>
               </td>
             </tr>
           </table>

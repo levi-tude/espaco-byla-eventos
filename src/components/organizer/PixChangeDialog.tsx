@@ -83,7 +83,7 @@ function PixChangeDialog({ onClose, onDone }: { onClose: () => void; onDone: (me
           setError(result.error);
           return;
         }
-        onDone("Troca pedida. O ACDH Eventos confere e confirma; até lá, os repasses ficam na chave atual.");
+        onDone("Troca pedida. A ACDH Eventos confere e confirma; até lá, os repasses ficam na chave atual.");
         router.refresh();
       } catch {
         setError("Não foi possível pedir a troca. Tente de novo.");
@@ -103,7 +103,7 @@ function PixChangeDialog({ onClose, onDone }: { onClose: () => void; onDone: (me
       {!sentTo ? (
         <>
           <p className="text-base">
-            Por segurança, enviamos um código para o e-mail da sua conta. Depois, o ACDH Eventos confere a chave nova
+            Por segurança, enviamos um código para o e-mail da sua conta. Depois, a ACDH Eventos confere a chave nova
             antes de usar nos repasses (pode levar até 1 dia).
           </p>
           {error ? <Notice tone="danger">{error}</Notice> : null}
