@@ -4,11 +4,10 @@ import { alertTeamSetup } from "@/lib/alerts/team-alert";
 import { buildPasswordResetEmail } from "@/lib/email/password-reset-template";
 import { parseDailyQuota } from "@/lib/notices/rules";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { RESET_SEND_TIMEOUT_MS } from "@/app/redefinir-senha/constants";
 
 export type SendPasswordResetResult = "sent" | "quota" | "failed" | "skipped";
 
-/** Orçamento com o piso da action: RESET_RPC_TIMEOUT_MS (1500) + este (2000) = 3500 < 4000. */
-export const RESET_SEND_TIMEOUT_MS = 2000;
 const QUOTA_WARNING_AT = 90;
 
 function parseResendErrorName(body: string): string | null {

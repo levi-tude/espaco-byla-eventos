@@ -12,24 +12,12 @@ import { PASSWORD_RESET_PATH } from "@/lib/organizer/invite-token-format";
 import { parseEmail, parsePassword } from "@/lib/organizer/validation";
 import { clientIp, consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { RESET_REQUEST_FLOOR_MS, RESET_RPC_TIMEOUT_MS } from "@/app/redefinir-senha/constants";
 
 const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo à ACDH Eventos.";
 const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
-/** Mesma resposta exista ou não a conta (não revela cadastro). */
-export const PASSWORD_RESET_REQUEST_MESSAGE =
-  "Se este e-mail tiver uma conta, você vai receber um link para criar uma senha nova. Confira também a caixa de spam.";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Tempo mínimo de resposta do pedido (ms).
- * Orçamento: RESET_RPC_TIMEOUT_MS (1500) + RESET_SEND_TIMEOUT_MS (2000) = 3500 < 4000.
- * Sem after do Next: no Cloud Run a CPU é limitada depois da resposta.
- */
-export const RESET_REQUEST_FLOOR_MS = 4000;
-/** Timeout do RPC request_password_reset_link. */
-export const RESET_RPC_TIMEOUT_MS = 1500;
-/** Timeout do fetch Resend (espelha RESET_SEND_TIMEOUT_MS em send-password-reset). */
-export const RESET_SEND_TIMEOUT_MS = 2000;
 
 type ResetArea = "equipe" | "organizador";
 
