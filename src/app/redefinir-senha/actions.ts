@@ -1,25 +1,152 @@
 "use server";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
-import { hashInviteToken, isInviteTokenFormat } from "@/lib/organizer/invite-token";
-import { ORGANIZER_AREA_UNAVAILABLE_MESSAGE, organizerAreaEnabled } from "@/lib/organizer/settings";
-import { parsePassword } from "@/lib/organizer/validation";
+import { alertTeamSetup } from "@/lib/alerts/team-alert";
+import { sendPasswordResetEmail } from "@/lib/email/send-password-reset";
+import {
+  hashInviteToken,
+  isInviteTokenFormat,
+  newInviteToken,
+} from "@/lib/organizer/invite-token";
+import { PASSWORD_RESET_PATH } from "@/lib/organizer/invite-token-format";
+import { parseEmail, parsePassword } from "@/lib/organizer/validation";
 import { clientIp, consumeRateLimit, RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo à ACDH Eventos.";
 const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
+/** Mesma resposta exista ou não a conta (não revela cadastro). */
+export const PASSWORD_RESET_REQUEST_MESSAGE =
+  "Se este e-mail tiver uma conta, você vai receber um link para criar uma senha nova. Confira também a caixa de spam.";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Link de nova senha gerado pelo Admin (uso único, 24 h). O banco marca o link
- * usado e derruba as sessões verificadas antes de a senha ser trocada.
+ * Tempo mínimo de resposta do pedido (ms).
+ * Orçamento: RESET_RPC_TIMEOUT_MS (1500) + RESET_SEND_TIMEOUT_MS (2000) = 3500 < 4000.
+ * Sem after do Next: no Cloud Run a CPU é limitada depois da resposta.
  */
-export async function resetPasswordWithLink(token: string, password: string): Promise<ActionResult> {
+export const RESET_REQUEST_FLOOR_MS = 4000;
+/** Timeout do RPC request_password_reset_link. */
+export const RESET_RPC_TIMEOUT_MS = 1500;
+/** Timeout do fetch Resend (espelha RESET_SEND_TIMEOUT_MS em send-password-reset). */
+export const RESET_SEND_TIMEOUT_MS = 2000;
+
+type ResetArea = "equipe" | "organizador";
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitUntilFloor(startedAt: number): Promise<void> {
+  await sleep(RESET_REQUEST_FLOOR_MS - (Date.now() - startedAt));
+}
+
+async function alertPasswordResetSetup(details: string): Promise<void> {
+  try {
+    await alertTeamSetup(createAdminClient(), "senha_email_falhou", details);
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "desconhecido";
+    console.error("[nova-senha] Falha ao alertar a equipe.", { name });
+  }
+}
+
+/**
+ * RPC + e-mail + alertas. Nunca lança. Roda dentro da requisição (melhor esforço
+ * se passar do piso). Sem after do Next: no Cloud Run a CPU é limitada depois da resposta.
+ */
+async function deliverPasswordResetLink(email: string): Promise<void> {
+  try {
+    const token = newInviteToken();
+    const tokenHash = hashInviteToken(token);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .rpc("request_password_reset_link", {
+        p_email: email,
+        p_token_hash: tokenHash,
+      })
+      .abortSignal(AbortSignal.timeout(RESET_RPC_TIMEOUT_MS));
+    if (error) {
+      console.error("[nova-senha] Pedido de link recusado pelo banco.", { code: error.code });
+      await alertPasswordResetSetup(
+        `Pedido de link de nova senha: função do banco falhou (code ${error.code ?? "sem código"}). Aplique a migration se ainda não estiver no projeto.`,
+      );
+      return;
+    }
+
+    const row = Array.isArray(data) ? data[0] : null;
+    if (
+      !row ||
+      typeof row !== "object" ||
+      typeof (row as { user_id?: unknown }).user_id !== "string" ||
+      typeof (row as { email?: unknown }).email !== "string"
+    ) {
+      return;
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, "");
+    if (!appUrl) {
+      console.error("[nova-senha] Pedido de link sem NEXT_PUBLIC_APP_URL.");
+      await alertPasswordResetSetup("Pedido de link de nova senha: falta NEXT_PUBLIC_APP_URL.");
+      return;
+    }
+
+    const link = `${appUrl}${PASSWORD_RESET_PATH}#token=${token}`;
+    const sent = await sendPasswordResetEmail({
+      to: (row as { email: string }).email,
+      link,
+    });
+    if (sent !== "sent") {
+      console.error("[nova-senha] Link gerado no banco, mas o e-mail não saiu.", { sent });
+    }
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "desconhecido";
+    console.error("[nova-senha] Falha no pedido de link.", { name });
+    await alertPasswordResetSetup(`Pedido de link de nova senha falhou (${name}).`);
+  }
+}
+
+/**
+ * Pedido público de link de nova senha (uso único via banco + Resend).
+ * Sempre a mesma mensagem e ~RESET_REQUEST_FLOOR_MS de resposta: não revela se o e-mail existe.
+ */
+export async function requestPasswordResetLink(email: string): Promise<ActionResult> {
+  return runAction(async () => {
+    const parsed = parseEmail(email);
+    if (!parsed.ok) throw new ActionError(parsed.error);
+
+    const startedAt = Date.now();
+    const admin = createAdminClient();
+    const ip = await clientIp();
+    if (!(await consumeRateLimit(admin, RATE_LIMITS.passwordResetRequestPerIp, ip))) {
+      await waitUntilFloor(startedAt);
+      throw new ActionError(RATE_LIMIT_MESSAGE);
+    }
+    if (!(await consumeRateLimit(admin, RATE_LIMITS.passwordResetRequestPerEmail, parsed.value))) {
+      await waitUntilFloor(startedAt);
+      throw new ActionError(RATE_LIMIT_MESSAGE);
+    }
+
+    const work = deliverPasswordResetLink(parsed.value);
+    void work.catch(() => {});
+    await Promise.race([work, sleep(RESET_REQUEST_FLOOR_MS - (Date.now() - startedAt))]);
+    await waitUntilFloor(startedAt);
+    return undefined;
+  }, "Não foi possível pedir o link agora. Tente de novo em alguns minutos.");
+}
+
+/**
+ * Link de nova senha (uso único, 24 h). O banco marca o link usado e derruba
+ * sessões verificadas, aparelhos lembrados e sessões Auth antes da troca.
+ */
+export async function resetPasswordWithLink(
+  token: string,
+  password: string,
+): Promise<ActionResult<{ area: ResetArea }>> {
   return runAction(async () => {
     if (!isInviteTokenFormat(token)) throw new ActionError(LINK_INVALID_MESSAGE);
-    if (!(await organizerAreaEnabled())) throw new ActionError(ORGANIZER_AREA_UNAVAILABLE_MESSAGE);
-    // Nome e e-mail da conta só aparecem depois de gastar o link: aqui vale a regra sem eles.
     const parsed = parsePassword(password);
     if (!parsed.ok) throw new ActionError(parsed.error);
 
@@ -37,11 +164,21 @@ export async function resetPasswordWithLink(token: string, password: string): Pr
       throw new ActionError(LINK_INVALID_MESSAGE);
     }
 
-    const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password: parsed.value });
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
+      password: parsed.value,
+    });
     if (updateError) {
-      console.error(`[nova-senha] Senha não trocada; o link já foi usado (${updateError.status ?? "sem status"}).`);
+      console.error(
+        `[nova-senha] Senha não trocada; o link já foi usado (${updateError.status ?? "sem status"}).`,
+      );
       throw new ActionError(RESET_FAILED_MESSAGE);
     }
-    return undefined;
+
+    const { data: staff } = await admin
+      .from("staff_profiles")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return { area: staff ? "equipe" : "organizador" };
   }, RESET_FAILED_MESSAGE);
 }

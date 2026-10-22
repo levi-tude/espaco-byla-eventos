@@ -28,7 +28,11 @@ export const RATE_LIMITS = {
   inviteCheckPerIp: { bucket: "invite-check:ip", limit: 20, windowSeconds: 3600 },
   inviteCodePerIp: { bucket: "invite-code:ip", limit: 10, windowSeconds: 3600 },
   inviteCompletePerIp: { bucket: "invite-complete:ip", limit: 10, windowSeconds: 3600 },
+  /** Troca de senha com o link (uso do token). */
   passwordResetPerIp: { bucket: "password-reset:ip", limit: 10, windowSeconds: 3600 },
+  /** Pedido do link por e-mail (separado da troca). */
+  passwordResetRequestPerIp: { bucket: "password-reset-request:ip", limit: 5, windowSeconds: 3600 },
+  passwordResetRequestPerEmail: { bucket: "password-reset-request:email", limit: 3, windowSeconds: 3600 },
   organizerSavePerUser: { bucket: "org-save:user", limit: 120, windowSeconds: 3600 },
   organizerUploadPerUser: { bucket: "org-upload:user", limit: 60, windowSeconds: 3600 },
   organizerUploadPerUserDay: { bucket: "org-upload:user-day", limit: 20, windowSeconds: 86_400 },

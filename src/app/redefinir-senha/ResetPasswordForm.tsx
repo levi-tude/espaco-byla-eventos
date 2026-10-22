@@ -2,22 +2,31 @@
 
 import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 
-import { resetPasswordWithLink } from "@/app/redefinir-senha/actions";
+import {
+  PASSWORD_RESET_REQUEST_MESSAGE,
+  requestPasswordResetLink,
+  resetPasswordWithLink,
+} from "@/app/redefinir-senha/actions";
 import { PASSWORD_HINT, PASSWORD_MISMATCH_MESSAGE, takeTokenFromLocation } from "@/components/organizer/SignupWizard";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { AREAS } from "@/lib/auth/area";
-import { parsePassword } from "@/lib/organizer/validation";
+import { inviteTokenFromHash } from "@/lib/organizer/invite-token-format";
+import { parseEmail, parsePassword } from "@/lib/organizer/validation";
+import { createClient } from "@/lib/supabase/client";
 
-const LINK_INVALID_MESSAGE = "Este link não vale mais. Peça um novo à ACDH Eventos.";
+const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
 
-type Phase = "sem_link" | "formulario" | "pronto";
+type Phase = "carregando" | "pedir_email" | "pedido_enviado" | "formulario" | "pronto";
+type ResetArea = "equipe" | "organizador";
 
 export function ResetPasswordForm() {
   const started = useRef(false);
   const token = useRef<string | null>(null);
-  const [phase, setPhase] = useState<Phase>("formulario");
+  const [phase, setPhase] = useState<Phase>("carregando");
+  const [area, setArea] = useState<ResetArea>("organizador");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState("");
@@ -26,11 +35,39 @@ export function ResetPasswordForm() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    token.current = takeTokenFromLocation().token;
-    if (!token.current) setPhase("sem_link");
+
+    const hash = window.location.hash;
+    if (inviteTokenFromHash(hash)) {
+      token.current = takeTokenFromLocation().token;
+      queueMicrotask(() => {
+        setPhase(token.current ? "formulario" : "pedir_email");
+      });
+      return;
+    }
+
+    // Sem link de uso único: só pedido por e-mail. Sessão logada NÃO libera troca de senha.
+    queueMicrotask(() => setPhase("pedir_email"));
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submitRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const parsed = parseEmail(email);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+    startTransition(async () => {
+      const result = await requestPasswordResetLink(parsed.value).catch(() => null);
+      if (!result?.ok) {
+        setError(result?.error ?? "Não foi possível pedir o link agora. Tente de novo em alguns minutos.");
+        return;
+      }
+      setPhase("pedido_enviado");
+    });
+  }
+
+  function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const parsed = parsePassword(password);
@@ -45,30 +82,69 @@ export function ResetPasswordForm() {
     startTransition(async () => {
       const result = await resetPasswordWithLink(token.current ?? "", password).catch(() => null);
       if (!result?.ok) {
-        setError(result?.error ?? "Não foi possível trocar a senha. Fale com a ACDH Eventos.");
+        setError(result?.error ?? RESET_FAILED_MESSAGE);
         return;
       }
+      setArea(result.data.area);
       setPassword("");
       setPasswordConfirm("");
+      await createClient().auth.signOut({ scope: "local" }).catch(() => undefined);
       setPhase("pronto");
     });
   }
 
-  if (phase === "sem_link") {
+  if (phase === "carregando") {
+    return <p className="text-base text-byla-muted">Carregando…</p>;
+  }
+
+  if (phase === "pedido_enviado") {
     return (
-      <Notice title="Link indisponível" tone="danger">
-        {LINK_INVALID_MESSAGE}
-      </Notice>
+      <div className="grid gap-4">
+        <Notice title="Confira o seu e-mail" tone="success">
+          {PASSWORD_RESET_REQUEST_MESSAGE}
+        </Notice>
+        <ButtonLink fullWidth href={AREAS.organizador.login} size="lg" variant="secondary">
+          Voltar para entrar
+        </ButtonLink>
+      </div>
+    );
+  }
+
+  if (phase === "pedir_email") {
+    return (
+      <form className="grid gap-4" onSubmit={submitRequest}>
+        <p className="text-base text-byla-muted">
+          Informe o e-mail da conta. Se ele estiver cadastrado, mandamos um link para criar uma
+          senha nova.
+        </p>
+        <Field
+          autoCapitalize="none"
+          autoComplete="email"
+          inputMode="email"
+          label="E-mail"
+          name="email"
+          onChange={(event) => setEmail(event.target.value)}
+          required
+          spellCheck={false}
+          type="email"
+          value={email}
+        />
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        <Button fullWidth loading={pending} loadingLabel="Enviando…" size="lg" type="submit">
+          Enviar link
+        </Button>
+      </form>
     );
   }
 
   if (phase === "pronto") {
+    const loginHref = area === "equipe" ? AREAS.equipe.login : AREAS.organizador.login;
     return (
       <div className="grid gap-4">
-        <Notice title="Senha nova salva." tone="success">
-          Entre com o seu e-mail e a senha nova. Vamos mandar um código para o seu e-mail.
+        <Notice title="Senha trocada. Entre de novo." tone="success">
+          Use o e-mail e a senha nova. Vamos mandar um código para o seu e-mail.
         </Notice>
-        <ButtonLink fullWidth href={AREAS.organizador.login} size="lg">
+        <ButtonLink fullWidth href={loginHref} size="lg">
           Entrar
         </ButtonLink>
       </div>
@@ -76,7 +152,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form className="grid gap-4" onSubmit={submit}>
+    <form className="grid gap-4" onSubmit={submitPassword}>
       <Field
         autoComplete="new-password"
         hint={PASSWORD_HINT}

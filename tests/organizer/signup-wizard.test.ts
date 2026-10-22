@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   verifyInviteEmailCode: vi.fn(),
   completeOrganizerSignup: vi.fn(),
   resetPasswordWithLink: vi.fn(),
+  requestPasswordResetLink: vi.fn(),
   startOrganizerLoginAction: vi.fn(),
   signInWithPassword: vi.fn(),
   replace: vi.fn(),
@@ -25,13 +26,23 @@ vi.mock("@/app/convite/actions", () => ({
   verifyInviteEmailCode: mocks.verifyInviteEmailCode,
   completeOrganizerSignup: mocks.completeOrganizerSignup,
 }));
-vi.mock("@/app/redefinir-senha/actions", () => ({ resetPasswordWithLink: mocks.resetPasswordWithLink }));
+vi.mock("@/app/redefinir-senha/actions", () => ({
+  resetPasswordWithLink: mocks.resetPasswordWithLink,
+  requestPasswordResetLink: mocks.requestPasswordResetLink,
+  PASSWORD_RESET_REQUEST_MESSAGE:
+    "Se este e-mail tiver uma conta, você vai receber um link para criar uma senha nova. Confira também a caixa de spam.",
+}));
 vi.mock("@/app/organizador/verificar/actions", () => ({ startOrganizerLoginAction: mocks.startOrganizerLoginAction }));
 vi.mock("@/components/public/HumanCheck", () => ({
   useHumanCheck: () => ({ slot: null, takeToken: async () => "humano" }),
 }));
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { signInWithPassword: mocks.signInWithPassword } }),
+  createClient: () => ({
+    auth: {
+      signInWithPassword: mocks.signInWithPassword,
+      signOut: vi.fn(async () => undefined),
+    },
+  }),
 }));
 
 import { ResetPasswordForm } from "@/app/redefinir-senha/ResetPasswordForm";
@@ -98,7 +109,7 @@ beforeEach(() => {
   mocks.completeOrganizerSignup.mockResolvedValue({ ok: true, data: { email: "fulana@exemplo.com" } });
   mocks.signInWithPassword.mockResolvedValue({ data: {}, error: null });
   mocks.startOrganizerLoginAction.mockResolvedValue({ ok: true, data: { next: "/organizador/verificar" } });
-  mocks.resetPasswordWithLink.mockResolvedValue({ ok: true, data: undefined });
+  mocks.resetPasswordWithLink.mockResolvedValue({ ok: true, data: { area: "organizador" } });
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -357,6 +368,9 @@ describe("ResetPasswordForm", () => {
   it("lê o token do #, tira da barra e troca a senha", async () => {
     openAt(`/redefinir-senha#${TOKEN}`);
     await render(createElement(ResetPasswordForm));
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(window.location.hash).toBe("");
 
     await type("password", "Outra frase comprida 47");
@@ -364,15 +378,19 @@ describe("ResetPasswordForm", () => {
     await submit();
 
     expect(mocks.resetPasswordWithLink).toHaveBeenCalledWith(TOKEN, "Outra frase comprida 47");
-    expect(pageText()).toContain("Senha nova salva.");
+    expect(pageText()).toContain("Senha trocada. Entre de novo.");
     expect(container.querySelector('a[href="/organizador/entrar"]')).not.toBeNull();
   });
 
-  it("sem token não deixa enviar e explica o que fazer", async () => {
+  it("sem token pede o e-mail para mandar o link", async () => {
     openAt("/redefinir-senha");
     await render(createElement(ResetPasswordForm));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    expect(pageText()).toContain("Este link não vale mais. Peça um novo à ACDH Eventos.");
+    expect(pageText()).toContain("Informe o e-mail da conta");
+    expect(container.querySelector('[name="email"]')).not.toBeNull();
     expect(container.querySelector('[name="password"]')).toBeNull();
   });
 });

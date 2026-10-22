@@ -37,6 +37,8 @@ type LoginCodeFormProps = {
   actions?: LoginCodeActions;
   /** Para onde ir quando a sessão já está verificada (padrão: equipe). */
   homePath?: string;
+  /** Aviso ao abrir a tela (ex.: falha no primeiro envio do código). */
+  initialNotice?: string;
 };
 
 function formatWait(seconds: number): string {
@@ -53,6 +55,7 @@ export function LoginCodeForm({
   rememberDays,
   actions = TEAM_ACTIONS,
   homePath = "/equipe",
+  initialNotice = "",
 }: LoginCodeFormProps) {
   const router = useRouter();
   const [hasCode, setHasCode] = useState(initialHasCode);
@@ -60,7 +63,7 @@ export function LoginCodeForm({
   const [remember, setRemember] = useState(true);
   const [wait, setWait] = useState(resendInSeconds);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const [info, setInfo] = useState(initialNotice);
   const [isSubmitting, startSubmit] = useTransition();
   const [isSending, startSend] = useTransition();
 
@@ -153,7 +156,9 @@ export function LoginCodeForm({
           </Checkbox>
 
           {error ? <Notice tone="danger">{error}</Notice> : null}
-          {info && !error ? <Notice tone="success">{info}</Notice> : null}
+          {info && !error ? (
+            <Notice tone={info === initialNotice && initialNotice ? "warning" : "success"}>{info}</Notice>
+          ) : null}
 
           <Button
             disabled={code.length !== 6}
@@ -181,6 +186,7 @@ export function LoginCodeForm({
       ) : (
         <div className="space-y-5">
           {error ? <Notice tone="danger">{error}</Notice> : null}
+          {info && !error ? <Notice tone="warning">{info}</Notice> : null}
           <Button
             disabled={wait > 0}
             fullWidth

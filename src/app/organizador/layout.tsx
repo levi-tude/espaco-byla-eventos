@@ -33,15 +33,36 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
     return children;
   }
 
-  const state = await readLoginState(await createServerClient(), "organizador");
+  let state: Awaited<ReturnType<typeof readLoginState>>;
+  try {
+    state = await readLoginState(await createServerClient(), "organizador");
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "desconhecido";
+    console.error("[organizador] Falha ao ler o estado do login.", { name });
+    redirect(login);
+  }
   if (state.status === "pendente") redirect(verify);
   if (state.status !== "verificado") redirect(login);
 
-  const actor = await getActor();
-  const needsTerms =
-    actor?.kind === "organizador"
-      ? await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId)
-      : false;
+  let showTermsBanner = false;
+  try {
+    const actor = await getActor();
+    if (actor?.kind === "organizador") {
+      const terms = await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId);
+      showTermsBanner = terms === "pendente";
+    }
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "desconhecido";
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+    console.error(
+      "[organizador] Falha ao montar o aviso de termos.",
+      code ? { name, code } : { name },
+    );
+    showTermsBanner = false;
+  }
 
   return (
     <div className="min-h-screen bg-byla-bg text-foreground">
@@ -82,7 +103,7 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
         </div>
       </header>
 
-      {needsTerms ? <OrganizerTermsBanner /> : null}
+      {showTermsBanner ? <OrganizerTermsBanner /> : null}
       {children}
     </div>
   );

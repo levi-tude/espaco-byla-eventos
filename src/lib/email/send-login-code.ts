@@ -1,7 +1,9 @@
 import "server-only";
 
+import { alertTeamSetup } from "@/lib/alerts/team-alert";
 import { buildLoginCodeEmail, type LoginCodePurpose } from "@/lib/email/login-code-template";
 import { parseDailyQuota } from "@/lib/notices/rules";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type SendLoginCodeResult = "sent" | "quota" | "failed" | "skipped";
 
@@ -9,12 +11,30 @@ const SEND_TIMEOUT_MS = 8000;
 /** Acima disso, o log avisa que o limite diário do plano gratuito (100) está perto. */
 const QUOTA_WARNING_AT = 90;
 
-async function isDailyQuotaError(response: Response): Promise<boolean> {
-  if (response.status !== 429) return false;
+function parseResendErrorName(body: string): string | null {
   try {
-    return /(daily|monthly)_quota_exceeded/.test((await response.text()).slice(0, 2000));
+    const parsed = JSON.parse(body) as { name?: unknown; error?: { name?: unknown } };
+    const name = parsed.name ?? parsed.error?.name;
+    return typeof name === "string" && name.trim() ? name.trim().slice(0, 80) : null;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+function isDailyQuotaBody(status: number, body: string): boolean {
+  return status === 429 && /(daily|monthly)_quota_exceeded/.test(body.slice(0, 2000));
+}
+
+async function alertLoginCodeDeliveryFailure(status: number, errorName: string | null): Promise<void> {
+  try {
+    await alertTeamSetup(
+      createAdminClient(),
+      "codigo_email_falhou",
+      `O envio do código de acesso falhou (status ${status}${errorName ? `, ${errorName}` : ""}). Quem tenta entrar vê o aviso na tela e pode pedir de novo.`,
+    );
+  } catch (error) {
+    const kind = error instanceof Error ? error.name : "desconhecido";
+    console.error(`[codigo-acesso] Falha ao alertar a equipe (${kind}).`);
   }
 }
 
@@ -51,12 +71,25 @@ export async function sendLoginCodeEmail({
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
 
-    if (await isDailyQuotaError(response)) {
-      console.error("[codigo-acesso] Limite diário de e-mails atingido; código não enviado.");
+    const body = await response.text().catch(() => "");
+    const errorName = parseResendErrorName(body);
+
+    if (isDailyQuotaBody(response.status, body)) {
+      console.error("[codigo-acesso] Limite diário de e-mails atingido; código não enviado.", {
+        status: response.status,
+        name: errorName,
+      });
+      await alertLoginCodeDeliveryFailure(response.status, errorName);
       return "quota";
     }
     if (!response.ok) {
-      console.error(`[codigo-acesso] Serviço de e-mail recusou o código (${response.status}).`);
+      console.error("[codigo-acesso] Serviço de e-mail recusou o código.", {
+        status: response.status,
+        name: errorName,
+      });
+      if (response.status === 401 || response.status === 403 || response.status === 422) {
+        await alertLoginCodeDeliveryFailure(response.status, errorName);
+      }
       return "failed";
     }
 

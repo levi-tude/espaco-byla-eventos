@@ -32,12 +32,7 @@ export default async function OrganizerEnterPage() {
           </h1>
 
           {enabled ? (
-            <>
-              <OrganizerLoginForm />
-              <p className="mt-6 text-sm text-byla-muted">
-                Esqueceu a senha? Peça um link novo à equipe da ACDH Eventos.
-              </p>
-            </>
+            <OrganizerLoginForm />
           ) : (
             <Notice className="mt-6" live={false} tone="info">
               A área do organizador ainda não está disponível.

@@ -267,11 +267,14 @@ describe("startLoginVerification (logo depois da senha)", () => {
     expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
 
-  it("falha no envio não impede de chegar à tela do código (lá dá para reenviar)", async () => {
+  it("falha no envio chega à tela do código com aviso (lá dá para reenviar)", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.sendLoginCodeEmail.mockResolvedValue("failed");
     rpcReturns({ login_session_state: state("pendente") });
-    expect(await startLoginVerification()).toEqual({ next: "/equipe/verificar" });
+    expect(await startLoginVerification()).toEqual({
+      next: "/equipe/verificar",
+      notice: "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.",
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -159,7 +159,7 @@ export default async function CheckoutPage({
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
-      <SiteHeader />
+      <PublicSiteHeader />
       <div
         className={`mx-auto w-full max-w-5xl flex-1 px-4 pt-2 sm:px-6 sm:pt-4 ${
           showForm ? "pb-36 lg:pb-16" : "pb-16"

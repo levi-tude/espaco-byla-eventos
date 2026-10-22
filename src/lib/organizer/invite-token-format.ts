@@ -8,6 +8,8 @@ export function isInviteTokenFormat(value: unknown): value is string {
 }
 
 export function inviteTokenFromHash(hash: string): string | null {
-  const token = hash.startsWith("#") ? hash.slice(1) : hash;
+  let token = hash.startsWith("#") ? hash.slice(1) : hash;
+  // Aceita #token=<valor> (pedido self-service) e #<valor> (link do Admin).
+  if (token.startsWith("token=")) token = token.slice("token=".length);
   return isInviteTokenFormat(token) ? token : null;
 }

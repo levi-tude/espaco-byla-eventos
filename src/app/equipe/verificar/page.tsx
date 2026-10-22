@@ -11,7 +11,8 @@ import {
   maskEmail,
   secondsUntil,
 } from "@/lib/auth/login-code";
-import { readLoginState } from "@/lib/auth/login-verification";
+import { SEND_FAILED_MESSAGE, readLoginState } from "@/lib/auth/login-verification";
+import { loginCodeNoticeFromSearch } from "@/lib/auth/login-verify-notice";
 import { STAFF_HOME_PATH, STAFF_LOGIN_PATH } from "@/lib/auth/staff-gate";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -20,7 +21,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function VerifyLoginPage() {
+export default async function VerifyLoginPage(props?: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const supabase = await createServerClient();
   const state = await readLoginState(supabase, "equipe");
   if (state.status === "fora") redirect(STAFF_LOGIN_PATH);
@@ -29,6 +32,10 @@ export default async function VerifyLoginPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const initialNotice = loginCodeNoticeFromSearch(
+    (await props?.searchParams) ?? {},
+    SEND_FAILED_MESSAGE,
+  );
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-byla-bg">
@@ -50,6 +57,7 @@ export default async function VerifyLoginPage() {
           <LoginCodeForm
             codeMinutes={LOGIN_CODE_TTL_MINUTES}
             hasCode={secondsUntil(state.codeExpiresAt) > 0}
+            initialNotice={initialNotice}
             maskedEmail={maskEmail(user?.email)}
             rememberDays={DEVICE_REMEMBER_DAYS}
             resendCooldownSeconds={LOGIN_CODE_RESEND_SECONDS}

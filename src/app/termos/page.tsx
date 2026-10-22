@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { LegalContact, LegalSection as Section } from "@/components/legal/LegalSection";
 import { BackLink } from "@/components/ui/BackLink";
 import { MAX_PEOPLE_PER_ORDER, RESERVATION_MINUTES } from "@/lib/domain/availability";
@@ -46,7 +46,7 @@ export default function TermsPage() {
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
-      <SiteHeader />
+      <PublicSiteHeader />
       <article className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <p className="text-sm font-semibold text-byla-accent-text">
           Atualizados em {TERMS_UPDATED_LABEL}

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { EventEndedNotice } from "@/components/public/EventEndedNotice";
 import { EventGallery } from "@/components/public/EventGallery";
 import { FeeNote } from "@/components/public/FeeNote";
@@ -228,7 +228,7 @@ export default async function EventoPublicoPage({
         showBuy ? "pb-32 lg:pb-16" : "pb-16"
       }`}
     >
-      <SiteHeader />
+      <PublicSiteHeader />
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 pt-2 sm:px-6 sm:pt-4">
         <BackLink href="/">Ver programação</BackLink>

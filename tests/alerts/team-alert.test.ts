@@ -61,6 +61,7 @@ describe("alertTeam", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(init.body);
     expect(body.to).toEqual(["equipe@example.com"]);
     expect(body.subject).toContain("[Alerta]");
@@ -70,6 +71,18 @@ describe("alertTeam", () => {
     expect(body.text).toContain("comprador@example.com");
     expect(body.text).toContain(orderId);
     expect(body.text).toContain("https://site.example/equipe");
+  });
+
+  it("no catch do envio, o log leva só o name do erro (não o objeto)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = new Error("segredo-interno-do-erro");
+    boom.name = "TypeError";
+    fetchMock.mockRejectedValueOnce(boom);
+    await alertTeam(admin, "email_nao_enviado", orderId, "detalhes");
+    const dumped = JSON.stringify(error.mock.calls);
+    expect(dumped).toContain("TypeError");
+    expect(dumped).not.toContain("segredo-interno-do-erro");
+    expect(dumped).not.toMatch(/"error"\s*:/);
   });
 
   it.each([

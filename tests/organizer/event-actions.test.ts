@@ -67,7 +67,7 @@ vi.mock("@/lib/organizer/notify", () => ({
 }));
 vi.mock("@/lib/organizer/terms-gate", () => ({
   assertOrganizerTermsAccepted: vi.fn(async () => undefined),
-  organizerNeedsTermsAcceptance: vi.fn(async () => false),
+  organizerNeedsTermsAcceptance: vi.fn(async () => "aceito"),
 }));
 
 import {

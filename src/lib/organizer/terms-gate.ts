@@ -9,6 +9,11 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+/** Status só para o aviso do layout (não bloqueia ações). */
+export type OrganizerTermsStatus = "aceito" | "pendente" | "desconhecido";
+
+const TERMS_READ_TIMEOUT_MS = 3_000;
+
 /** Confere se o organizador aceitou a versão vigente dos Termos (N16). */
 export async function assertOrganizerTermsAccepted(
   admin: Admin,
@@ -28,15 +33,41 @@ export async function assertOrganizerTermsAccepted(
   }
 }
 
+/**
+ * Só o banner do layout. Em erro/demora devolve "desconhecido" (não mostra aviso).
+ * As ações de escrita usam `assertOrganizerTermsAccepted` (falha fechada).
+ */
 export async function organizerNeedsTermsAcceptance(
   admin: Admin,
   userId: string,
-): Promise<boolean> {
-  const { data, error } = await admin
-    .from("organizer_profiles")
-    .select("terms_version")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error || !data) return true;
-  return data.terms_version !== ORGANIZER_TERMS_VERSION;
+): Promise<OrganizerTermsStatus> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TERMS_READ_TIMEOUT_MS);
+  try {
+    const { data, error } = await admin
+      .from("organizer_profiles")
+      .select("terms_version")
+      .eq("user_id", userId)
+      .abortSignal(controller.signal)
+      .maybeSingle();
+    if (error) {
+      console.error("[organizador] Falha ao ler aceite dos termos para o aviso.", {
+        code: error.code,
+      });
+      return "desconhecido";
+    }
+    if (!data) return "pendente";
+    return data.terms_version === ORGANIZER_TERMS_VERSION ? "aceito" : "pendente";
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "abort")
+        : error instanceof Error
+          ? error.name
+          : "desconhecido";
+    console.error("[organizador] Falha ao ler aceite dos termos para o aviso.", { code });
+    return "desconhecido";
+  } finally {
+    clearTimeout(timer);
+  }
 }

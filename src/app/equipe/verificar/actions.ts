@@ -14,7 +14,9 @@ import { STAFF_LOGIN_PATH } from "@/lib/auth/staff-gate";
 const GENERIC_ERROR = "Não foi possível continuar. Tente de novo.";
 
 /** Chamada pela tela de login logo depois da senha certa. */
-export async function startLoginVerificationAction(): Promise<ActionResult<{ next: string }>> {
+export async function startLoginVerificationAction(): Promise<
+  ActionResult<{ next: string; notice?: string }>
+> {
   return runAction(() => startLoginVerification(), "Não foi possível entrar.");
 }
 

@@ -1,7 +1,7 @@
 import { CalendarDays, CalendarX, MapPin } from "lucide-react";
 import Link from "next/link";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { HomeSingleEvent } from "@/components/public/HomeSingleEvent";
 import { OrganizerCallout } from "@/components/public/OrganizerCallout";
 import { type PastEventCard, PastEventsSection } from "@/components/public/PastEventsSection";
@@ -109,7 +109,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   return (
     <main className="relative flex min-h-full flex-1 flex-col bg-byla-bg">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(64,128,252,0.18),_transparent_55%)]" />
-      <SiteHeader />
+      <PublicSiteHeader />
       <div className="relative mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
         <div className="max-w-2xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-byla-accent-text">

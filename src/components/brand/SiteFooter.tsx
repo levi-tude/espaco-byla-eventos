@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ORGANIZER_REQUEST_PATH } from "@/components/public/OrganizerCallout";
 import { COMPANY } from "@/lib/legal/privacy";
 import { TERMS_PATH } from "@/lib/legal/terms";
+import { organizerAreaPublicHref } from "@/lib/organizer/public-nav";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 const linkClass =
@@ -10,7 +11,10 @@ const linkClass =
 
 export async function SiteFooter() {
   const year = new Date().getFullYear();
-  const organizerArea = await organizerAreaEnabled();
+  const [organizerHref, showRequest] = await Promise.all([
+    organizerAreaPublicHref(),
+    organizerAreaEnabled(),
+  ]);
 
   return (
     <footer className="border-t border-byla-border bg-byla-bg">
@@ -22,14 +26,18 @@ export async function SiteFooter() {
           ·
         </span>
         <nav aria-label="Links do rodapé" className="flex flex-wrap items-center justify-center gap-1">
-          {organizerArea ? (
+          <Link className={linkClass} href={organizerHref}>
+            Área do organizador
+          </Link>
+          {showRequest ? (
             <>
+              <span aria-hidden>·</span>
               <Link className={linkClass} href={ORGANIZER_REQUEST_PATH}>
                 Quero fazer meu evento
               </Link>
-              <span aria-hidden>·</span>
             </>
           ) : null}
+          <span aria-hidden>·</span>
           <Link className={linkClass} href={TERMS_PATH}>
             Termos de compra
           </Link>

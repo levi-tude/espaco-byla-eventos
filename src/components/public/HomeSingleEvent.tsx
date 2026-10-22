@@ -1,7 +1,7 @@
 import { CalendarDays, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { SessionChips } from "@/components/public/SessionChips";
 import { ButtonLink } from "@/components/ui/Button";
 import { CoverImage } from "@/components/ui/CoverImage";
@@ -18,7 +18,13 @@ type EventCard = {
   priceLabel?: string | null;
 };
 
-export function HomeSingleEvent({ event, children }: { event: EventCard; children?: ReactNode }) {
+export async function HomeSingleEvent({
+  event,
+  children,
+}: {
+  event: EventCard;
+  children?: ReactNode;
+}) {
   const sessions = event.sessions ?? [];
   const multi = sessions.length > 1;
   return (
@@ -39,7 +45,7 @@ export function HomeSingleEvent({ event, children }: { event: EventCard; childre
       </div>
 
       <div className="relative">
-        <SiteHeader />
+        <PublicSiteHeader />
       </div>
 
       <div className="relative mx-auto w-full max-w-4xl flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 lg:max-w-6xl lg:pt-16">
