@@ -37,7 +37,8 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
   try {
     state = await readLoginState(await createServerClient(), "organizador");
   } catch (error) {
-    console.error("[organizador] Falha ao ler o estado do login.", error);
+    const name = error instanceof Error ? error.name : "desconhecido";
+    console.error("[organizador] Falha ao ler o estado do login.", { name });
     redirect(login);
   }
   if (state.status === "pendente") redirect(verify);
@@ -51,7 +52,15 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
       showTermsBanner = terms === "pendente";
     }
   } catch (error) {
-    console.error("[organizador] Falha ao montar o aviso de termos.", error);
+    const name = error instanceof Error ? error.name : "desconhecido";
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+    console.error(
+      "[organizador] Falha ao montar o aviso de termos.",
+      code ? { name, code } : { name },
+    );
     showTermsBanner = false;
   }
 

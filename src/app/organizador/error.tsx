@@ -4,10 +4,10 @@ import { ErrorScreen } from "@/components/ui/ErrorScreen";
 
 export default function OrganizerError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-byla-bg">
@@ -15,7 +15,7 @@ export default function OrganizerError({
         error={error}
         homeHref="/organizador"
         homeLabel="Voltar para meus eventos"
-        retry={reset}
+        retry={retry}
       />
     </div>
   );

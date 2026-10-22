@@ -14,17 +14,14 @@ import { Notice } from "@/components/ui/Notice";
 import { AREAS } from "@/lib/auth/area";
 import { inviteTokenFromHash } from "@/lib/organizer/invite-token-format";
 import { parseEmail, parsePassword } from "@/lib/organizer/validation";
-import { createClient } from "@/lib/supabase/client";
 
 const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
 
 type Phase = "carregando" | "pedir_email" | "pedido_enviado" | "formulario" | "pronto";
-type Mode = "convite" | "recuperacao";
 
 export function ResetPasswordForm() {
   const started = useRef(false);
   const token = useRef<string | null>(null);
-  const [mode, setMode] = useState<Mode>("convite");
   const [phase, setPhase] = useState<Phase>("carregando");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,30 +36,14 @@ export function ResetPasswordForm() {
     const hash = window.location.hash;
     if (inviteTokenFromHash(hash)) {
       token.current = takeTokenFromLocation().token;
-      // Leitura do # (fora do React): atualiza a fase no próximo tick.
       queueMicrotask(() => {
-        setMode("convite");
         setPhase(token.current ? "formulario" : "pedir_email");
       });
       return;
     }
 
-    const supabase = createClient();
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setMode("recuperacao");
-        setPhase("formulario");
-        if (window.location.hash) {
-          window.history.replaceState(
-            window.history.state,
-            "",
-            `${window.location.pathname}${window.location.search}`,
-          );
-        }
-        return;
-      }
-      setPhase("pedir_email");
-    });
+    // Sem link de uso único: só pedido por e-mail. Sessão logada NÃO libera troca de senha.
+    queueMicrotask(() => setPhase("pedir_email"));
   }, []);
 
   function submitRequest(event: FormEvent<HTMLFormElement>) {
@@ -96,24 +77,10 @@ export function ResetPasswordForm() {
       return;
     }
     startTransition(async () => {
-      if (mode === "convite") {
-        const result = await resetPasswordWithLink(token.current ?? "", password).catch(() => null);
-        if (!result?.ok) {
-          setError(result?.error ?? RESET_FAILED_MESSAGE);
-          return;
-        }
-      } else {
-        const supabase = createClient();
-        const { error: updateError } = await supabase.auth.updateUser({ password });
-        if (updateError) {
-          console.error("[nova-senha] Recuperação recusada.", {
-            status: updateError.status ?? "sem status",
-            name: updateError.name,
-          });
-          setError(RESET_FAILED_MESSAGE);
-          return;
-        }
-        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      const result = await resetPasswordWithLink(token.current ?? "", password).catch(() => null);
+      if (!result?.ok) {
+        setError(result?.error ?? RESET_FAILED_MESSAGE);
+        return;
       }
       setPassword("");
       setPasswordConfirm("");

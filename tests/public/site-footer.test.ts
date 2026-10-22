@@ -6,9 +6,15 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   createClient: vi.fn(),
   getActor: vi.fn(async () => null as { kind: string; userId: string } | null),
+  cookieNames: [] as string[],
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    getAll: () => mocks.cookieNames.map((name) => ({ name, value: "x" })),
+  }),
+}));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) =>
     createElement("a", { href, ...rest }, children),
@@ -99,6 +105,7 @@ describe("rodapé", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mocks.getActor.mockResolvedValue(null);
+    mocks.cookieNames = [];
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
     mocks.createClient.mockReturnValue(client);
@@ -116,14 +123,17 @@ describe("rodapé", () => {
     expect(text(html)).toContain("Quero fazer meu evento");
     expect(html).toContain(`href="${TERMS_PATH}"`);
     expect(html).toContain('href="/privacidade"');
+    expect(mocks.getActor).not.toHaveBeenCalled();
   });
 
   it("organizador logado: Área do organizador aponta para /organizador", async () => {
+    mocks.cookieNames = ["sb-exemplo-auth-token"];
     mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.getActor.mockResolvedValue({ kind: "organizador", userId: "u1" });
     const html = renderToStaticMarkup(await SiteFooter());
     expect(html).toContain(`href="${ORGANIZER_HOME}"`);
     expect(html).not.toContain(`href="${ORGANIZER_ENTER}"`);
+    expect(mocks.getActor).toHaveBeenCalled();
   });
 
   it("com a área desligada: Área do organizador fica; Quero fazer meu evento some", async () => {

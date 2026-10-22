@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   requestPasswordResetLink: vi.fn(),
   startOrganizerLoginAction: vi.fn(),
   signInWithPassword: vi.fn(),
-  getSession: vi.fn(async () => ({ data: { session: null } })),
   replace: vi.fn(),
 }));
 
@@ -38,14 +37,7 @@ vi.mock("@/components/public/HumanCheck", () => ({
   useHumanCheck: () => ({ slot: null, takeToken: async () => "humano" }),
 }));
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    auth: {
-      signInWithPassword: mocks.signInWithPassword,
-      getSession: mocks.getSession,
-      updateUser: vi.fn(),
-      signOut: vi.fn(),
-    },
-  }),
+  createClient: () => ({ auth: { signInWithPassword: mocks.signInWithPassword } }),
 }));
 
 import { ResetPasswordForm } from "@/app/redefinir-senha/ResetPasswordForm";

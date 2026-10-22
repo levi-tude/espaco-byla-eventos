@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
-import { AreaTemporarilyUnavailable } from "@/components/organizer/AreaTemporarilyUnavailable";
-import { organizerAreaSwitchState } from "@/lib/organizer/settings";
 
 import { ResetPasswordForm } from "./ResetPasswordForm";
 
@@ -12,18 +9,8 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+/** Pedido/troca de senha: não depende da chave da área do organizador (equipe também usa). */
 export default async function ResetPasswordPage() {
-  const area = await organizerAreaSwitchState();
-  if (area === "off") notFound();
-  if (area === "unknown") {
-    return (
-      <main className="relative flex min-h-full flex-1 flex-col">
-        <PublicSiteHeader />
-        <AreaTemporarilyUnavailable />
-      </main>
-    );
-  }
-
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
       <PublicSiteHeader />
