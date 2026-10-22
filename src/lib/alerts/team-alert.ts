@@ -145,12 +145,16 @@ async function deliverAlert(
         subject: `[Alerta] ${subject}`,
         text: await buildText(),
       }),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (response.ok) return;
     console.error(`[alerta] Resend recusou o alerta (${response.status}).`, log);
   } catch (error) {
-    console.error("[alerta] Falha ao enviar alerta.", { ...log, error });
+    console.error("[alerta] Falha ao enviar alerta.", {
+      ...log,
+      name: error instanceof Error ? error.name : "desconhecido",
+    });
   }
 
   if (reserved && !(await releaseRateLimit(admin, rule, dedupKey))) {

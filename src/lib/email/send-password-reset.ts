@@ -7,7 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type SendPasswordResetResult = "sent" | "quota" | "failed" | "skipped";
 
-const SEND_TIMEOUT_MS = 8000;
+/** Orçamento com o piso da action: RESET_RPC_TIMEOUT_MS (1500) + este (2000) = 3500 < 4000. */
+export const RESET_SEND_TIMEOUT_MS = 2000;
 const QUOTA_WARNING_AT = 90;
 
 function parseResendErrorName(body: string): string | null {
@@ -74,7 +75,7 @@ export async function sendPasswordResetEmail({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ from, to: [to], subject, html, text }),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+      signal: AbortSignal.timeout(RESET_SEND_TIMEOUT_MS),
     });
 
     const body = await response.text().catch(() => "");

@@ -1,7 +1,5 @@
 "use server";
 
-import { after } from "next/server";
-
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { alertTeamSetup } from "@/lib/alerts/team-alert";
 import { sendPasswordResetEmail } from "@/lib/email/send-password-reset";
@@ -22,7 +20,29 @@ export const PASSWORD_RESET_REQUEST_MESSAGE =
   "Se este e-mail tiver uma conta, você vai receber um link para criar uma senha nova. Confira também a caixa de spam.";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Tempo mínimo de resposta do pedido (ms).
+ * Orçamento: RESET_RPC_TIMEOUT_MS (1500) + RESET_SEND_TIMEOUT_MS (2000) = 3500 < 4000.
+ * Sem after(): no Cloud Run a CPU é limitada depois da resposta.
+ */
+export const RESET_REQUEST_FLOOR_MS = 4000;
+/** Timeout do RPC request_password_reset_link. */
+export const RESET_RPC_TIMEOUT_MS = 1500;
+/** Timeout do fetch Resend (espelha RESET_SEND_TIMEOUT_MS em send-password-reset). */
+export const RESET_SEND_TIMEOUT_MS = 2000;
+
 type ResetArea = "equipe" | "organizador";
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitUntilFloor(startedAt: number): Promise<void> {
+  await sleep(RESET_REQUEST_FLOOR_MS - (Date.now() - startedAt));
+}
 
 async function alertPasswordResetSetup(details: string): Promise<void> {
   try {
@@ -34,19 +54,20 @@ async function alertPasswordResetSetup(details: string): Promise<void> {
 }
 
 /**
- * RPC + e-mail + alertas. Roda depois da resposta (after), para o tempo de
- * resposta não revelar se a conta existe. after() é suportado no Node.js /
- * Docker / Cloud Run com output standalone do Next.
+ * RPC + e-mail + alertas. Nunca lança. Roda dentro da requisição (melhor esforço
+ * se passar do piso). Sem after(): no Cloud Run a CPU é limitada depois da resposta.
  */
 async function deliverPasswordResetLink(email: string): Promise<void> {
   try {
     const token = newInviteToken();
     const tokenHash = hashInviteToken(token);
     const admin = createAdminClient();
-    const { data, error } = await admin.rpc("request_password_reset_link", {
-      p_email: email,
-      p_token_hash: tokenHash,
-    });
+    const { data, error } = await admin
+      .rpc("request_password_reset_link", {
+        p_email: email,
+        p_token_hash: tokenHash,
+      })
+      .abortSignal(AbortSignal.timeout(RESET_RPC_TIMEOUT_MS));
     if (error) {
       console.error("[nova-senha] Pedido de link recusado pelo banco.", { code: error.code });
       await alertPasswordResetSetup(
@@ -82,32 +103,36 @@ async function deliverPasswordResetLink(email: string): Promise<void> {
     }
   } catch (error) {
     const name = error instanceof Error ? error.name : "desconhecido";
-    console.error("[nova-senha] Falha após a resposta do pedido.", { name });
-    await alertPasswordResetSetup(
-      `Pedido de link de nova senha falhou depois da resposta (${name}).`,
-    );
+    console.error("[nova-senha] Falha no pedido de link.", { name });
+    await alertPasswordResetSetup(`Pedido de link de nova senha falhou (${name}).`);
   }
 }
 
 /**
  * Pedido público de link de nova senha (uso único via banco + Resend).
- * Sempre a mesma mensagem e o mesmo tempo de resposta: não revela se o e-mail existe.
+ * Sempre a mesma mensagem e ~RESET_REQUEST_FLOOR_MS de resposta: não revela se o e-mail existe.
  */
 export async function requestPasswordResetLink(email: string): Promise<ActionResult> {
   return runAction(async () => {
     const parsed = parseEmail(email);
     if (!parsed.ok) throw new ActionError(parsed.error);
 
+    const startedAt = Date.now();
     const admin = createAdminClient();
     const ip = await clientIp();
     if (!(await consumeRateLimit(admin, RATE_LIMITS.passwordResetRequestPerIp, ip))) {
+      await waitUntilFloor(startedAt);
       throw new ActionError(RATE_LIMIT_MESSAGE);
     }
     if (!(await consumeRateLimit(admin, RATE_LIMITS.passwordResetRequestPerEmail, parsed.value))) {
+      await waitUntilFloor(startedAt);
       throw new ActionError(RATE_LIMIT_MESSAGE);
     }
 
-    after(() => deliverPasswordResetLink(parsed.value));
+    const work = deliverPasswordResetLink(parsed.value);
+    void work.catch(() => {});
+    await Promise.race([work, sleep(RESET_REQUEST_FLOOR_MS - (Date.now() - startedAt))]);
+    await waitUntilFloor(startedAt);
     return undefined;
   }, "Não foi possível pedir o link agora. Tente de novo em alguns minutos.");
 }

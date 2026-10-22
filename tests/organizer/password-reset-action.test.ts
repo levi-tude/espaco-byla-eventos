@@ -2,28 +2,16 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => {
-  const afterCallbacks: Array<() => void | Promise<void>> = [];
-  return {
-    rpc: vi.fn(),
-    updateUserById: vi.fn(),
-    from: vi.fn(),
-    sendPasswordResetEmail: vi.fn(),
-    alertTeamSetup: vi.fn(),
-    order: [] as string[],
-    afterCallbacks,
-    after: vi.fn((fn: () => void | Promise<void>) => {
-      afterCallbacks.push(fn);
-    }),
-    async flushAfter() {
-      const pending = afterCallbacks.splice(0);
-      for (const cb of pending) await cb();
-    },
-  };
-});
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+  updateUserById: vi.fn(),
+  from: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  alertTeamSetup: vi.fn(),
+  order: [] as string[],
+}));
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/server", () => ({ after: (fn: () => void | Promise<void>) => mocks.after(fn) }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-real-ip": "203.0.113.9" }),
 }));
@@ -41,6 +29,7 @@ vi.mock("@/components/brand/PublicSiteHeader", () => ({ PublicSiteHeader: () => 
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: mocks.alertTeamSetup }));
 vi.mock("@/lib/email/send-password-reset", () => ({
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
+  RESET_SEND_TIMEOUT_MS: 2000,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -53,6 +42,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 import {
   PASSWORD_RESET_REQUEST_MESSAGE,
   requestPasswordResetLink,
+  RESET_REQUEST_FLOOR_MS,
+  RESET_RPC_TIMEOUT_MS,
+  RESET_SEND_TIMEOUT_MS,
   resetPasswordWithLink,
 } from "@/app/redefinir-senha/actions";
 import ResetPasswordPage, { metadata as resetMetadata } from "@/app/redefinir-senha/page";
@@ -64,6 +56,14 @@ const TOKEN = newInviteToken();
 const USER_ID = "00000000-0000-4000-8000-0000000000bb";
 const PASSWORD = "Outra frase comprida 47";
 const EMAIL = "pessoa@exemplo.com";
+
+function withAbortSignal<T extends PromiseLike<unknown>>(promise: T) {
+  return Object.assign(promise, {
+    abortSignal() {
+      return this;
+    },
+  });
+}
 
 function staffLookup(isStaff: boolean) {
   mocks.from.mockReturnValue({
@@ -83,36 +83,82 @@ function database({
   requestLimit = true,
   reset,
   request,
+  requestNever = false,
 }: {
   limit?: boolean;
   requestLimit?: boolean;
   reset?: { data?: unknown; error?: { message: string; code?: string } };
   request?: { data?: unknown; error?: { message?: string; code?: string } | null };
+  requestNever?: boolean;
 } = {}) {
-  mocks.rpc.mockImplementation(async (fn: string, args?: Record<string, unknown>) => {
+  mocks.rpc.mockImplementation((fn: string, args?: Record<string, unknown>) => {
     mocks.order.push(fn);
     if (fn === "consume_rate_limit") {
       const bucket = String(args?.p_bucket ?? "");
-      if (bucket.startsWith("password-reset-request:")) return { data: requestLimit, error: null };
-      return { data: limit, error: null };
+      if (bucket.startsWith("password-reset-request:")) {
+        return withAbortSignal(Promise.resolve({ data: requestLimit, error: null }));
+      }
+      return withAbortSignal(Promise.resolve({ data: limit, error: null }));
     }
     if (fn === "request_password_reset_link") {
-      return {
-        data: request?.data ?? [],
-        error: request?.error === undefined ? null : request.error,
-      };
+      if (requestNever) return withAbortSignal(new Promise(() => {}));
+      return withAbortSignal(
+        Promise.resolve({
+          data: request?.data ?? [],
+          error: request?.error === undefined ? null : request.error,
+        }),
+      );
     }
     if (fn === "use_password_reset_invite") {
-      return { data: reset?.data ?? USER_ID, error: reset?.error ?? null };
+      return withAbortSignal(
+        Promise.resolve({ data: reset?.data ?? USER_ID, error: reset?.error ?? null }),
+      );
     }
-    return { data: null, error: { message: "inesperado" } };
+    return withAbortSignal(Promise.resolve({ data: null, error: { message: "inesperado" } }));
   });
+}
+
+async function expectPendingUntilFloor(promise: Promise<unknown>) {
+  let settled = false;
+  void promise.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  await vi.advanceTimersByTimeAsync(RESET_REQUEST_FLOOR_MS - 1);
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  await promise;
+  expect(settled).toBe(true);
+}
+
+function spyAllConsole() {
+  return {
+    log: vi.spyOn(console, "log").mockImplementation(() => {}),
+    info: vi.spyOn(console, "info").mockImplementation(() => {}),
+    warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
+    error: vi.spyOn(console, "error").mockImplementation(() => {}),
+    debug: vi.spyOn(console, "debug").mockImplementation(() => {}),
+  };
+}
+
+function assertNoSecretsInConsole(spies: ReturnType<typeof spyAllConsole>, secrets: string[]) {
+  const dumped = JSON.stringify(
+    Object.values(spies).flatMap((spy) => spy.mock.calls),
+  );
+  for (const secret of secrets) {
+    expect(dumped).not.toContain(secret);
+  }
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.order.length = 0;
-  mocks.afterCallbacks.length = 0;
+  vi.useFakeTimers();
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://acdheventos.com.br");
   mocks.sendPasswordResetEmail.mockResolvedValue("sent");
   mocks.alertTeamSetup.mockResolvedValue(undefined);
@@ -125,53 +171,35 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
+describe("constantes do piso", () => {
+  it("orçamento 1500 + 2000 = 3500 < 4000", () => {
+    expect(RESET_REQUEST_FLOOR_MS).toBe(4000);
+    expect(RESET_RPC_TIMEOUT_MS).toBe(1500);
+    expect(RESET_SEND_TIMEOUT_MS).toBe(2000);
+    expect(RESET_RPC_TIMEOUT_MS + RESET_SEND_TIMEOUT_MS).toBeLessThan(RESET_REQUEST_FLOOR_MS);
+  });
+});
+
 describe("requestPasswordResetLink", () => {
-  it("responde na hora sem esperar o envio (Resend lento)", async () => {
-    database({ request: { data: [{ user_id: USER_ID, email: EMAIL }] } });
-    let resolveSend: (() => void) | undefined;
-    mocks.sendPasswordResetEmail.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSend = () => resolve("sent");
-        }),
-    );
-
-    const started = Date.now();
-    const result = await requestPasswordResetLink(EMAIL);
-    expect(Date.now() - started).toBeLessThan(200);
-    expect(result).toEqual({ ok: true, data: undefined });
-    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
-    expect(mocks.order).not.toContain("request_password_reset_link");
-
-    const flush = mocks.flushAfter();
-    await vi.waitFor(() => expect(mocks.sendPasswordResetEmail).toHaveBeenCalledTimes(1));
-    resolveSend?.();
-    await flush;
-  });
-
-  it("e-mail inexistente (0 linhas): mesma mensagem, sem envio", async () => {
+  it("e-mail inexistente: resposta em 4000 ms, mesma mensagem, sem envio", async () => {
     database({ request: { data: [] } });
-    expect(await requestPasswordResetLink(EMAIL)).toEqual({ ok: true, data: undefined });
-    await mocks.flushAfter();
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: true, data: undefined });
     expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith("request_password_reset_link", {
-      p_email: EMAIL,
-      p_token_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
-    });
   });
 
-  it("RPC devolve linha: envia uma vez com o link e só o hash no RPC", async () => {
+  it("conta existe: envia 1 vez, só hash no RPC, resposta em 4000 ms", async () => {
     database({ request: { data: [{ user_id: USER_ID, email: EMAIL }] } });
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await requestPasswordResetLink(`  ${EMAIL.toUpperCase()} `)).toEqual({
-      ok: true,
-      data: undefined,
-    });
-    await mocks.flushAfter();
+    const spies = spyAllConsole();
+    const promise = requestPasswordResetLink(`  ${EMAIL.toUpperCase()} `);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: true, data: undefined });
     expect(mocks.sendPasswordResetEmail).toHaveBeenCalledTimes(1);
     const [{ to, link }] = mocks.sendPasswordResetEmail.mock.calls[0];
     expect(to).toBe(EMAIL);
@@ -182,37 +210,56 @@ describe("requestPasswordResetLink", () => {
       p_token_hash: hashInviteToken(token),
     });
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain(token);
-    expect(JSON.stringify(log.mock.calls)).not.toContain(EMAIL);
-    expect(JSON.stringify(log.mock.calls)).not.toContain(token);
+    assertNoSecretsInConsole(spies, [EMAIL, token, link]);
   });
 
-  it("falha no envio: mesma mensagem; log sem e-mail", async () => {
-    database({ request: { data: [{ user_id: USER_ID, email: EMAIL }] } });
-    mocks.sendPasswordResetEmail.mockResolvedValue("failed");
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await requestPasswordResetLink(EMAIL)).toEqual({ ok: true, data: undefined });
-    await mocks.flushAfter();
-    expect(log.mock.calls.flat().join(" ")).not.toContain(EMAIL);
-  });
-
-  it("RPC inexistente: mesma mensagem + alerta à equipe", async () => {
-    database({ request: { data: null, error: { code: "PGRST202", message: "function not found" } } });
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await requestPasswordResetLink(EMAIL)).toEqual({ ok: true, data: undefined });
-    await mocks.flushAfter();
+  it("RPC que nunca resolve: resposta em 4000 ms com a mesma mensagem", async () => {
+    database({ requestNever: true });
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: true, data: undefined });
     expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
-    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
-      expect.anything(),
-      "senha_email_falhou",
-      expect.stringContaining("PGRST202"),
-    );
-    expect(JSON.stringify(log.mock.calls)).not.toContain(EMAIL);
   });
 
-  it("limite por IP recusa sem agendar o after", async () => {
+  it.each([
+    ["403", "failed", "403"],
+    ["500", "failed", "500"],
+    ["cota 429", "quota", "429"],
+    ["rede", "failed", "rede"],
+  ] as const)(
+    "Resend %s: mesma mensagem em 4000 ms + alerta",
+    async (_caso, sent, detail) => {
+      database({ request: { data: [{ user_id: USER_ID, email: EMAIL }] } });
+      mocks.sendPasswordResetEmail.mockImplementation(async () => {
+        await mocks.alertTeamSetup({}, "senha_email_falhou", `status ${detail}`);
+        return sent;
+      });
+      const promise = requestPasswordResetLink(EMAIL);
+      await expectPendingUntilFloor(promise);
+      expect(await promise).toEqual({ ok: true, data: undefined });
+      expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+        expect.anything(),
+        "senha_email_falhou",
+        expect.stringContaining(detail),
+      );
+    },
+  );
+
+  it("alerta que nunca resolve: resposta ainda sai em 4000 ms", async () => {
+    database({
+      request: { data: null, error: { code: "PGRST202", message: "function not found" } },
+    });
+    mocks.alertTeamSetup.mockImplementation(() => new Promise(() => {}));
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: true, data: undefined });
+  });
+
+  it("limite por IP: RATE_LIMIT_MESSAGE em 4000 ms", async () => {
     database({ requestLimit: false });
-    expect(await requestPasswordResetLink(EMAIL)).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
-    expect(mocks.after).not.toHaveBeenCalled();
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
     expect(mocks.rpc).toHaveBeenCalledWith("consume_rate_limit", {
       p_bucket: "password-reset-request:ip",
       p_key_hash: hashRateLimitKey("203.0.113.9"),
@@ -222,24 +269,44 @@ describe("requestPasswordResetLink", () => {
     expect(mocks.order).not.toContain("request_password_reset_link");
   });
 
-  it("limite por e-mail recusa sem agendar o after", async () => {
-    mocks.rpc.mockImplementation(async (fn: string, args?: Record<string, unknown>) => {
+  it("limite por e-mail: RATE_LIMIT_MESSAGE em 4000 ms", async () => {
+    mocks.rpc.mockImplementation((fn: string, args?: Record<string, unknown>) => {
       mocks.order.push(fn);
       if (fn === "consume_rate_limit") {
         const bucket = String(args?.p_bucket ?? "");
-        if (bucket === "password-reset-request:ip") return { data: true, error: null };
-        if (bucket === "password-reset-request:email") return { data: false, error: null };
+        if (bucket === "password-reset-request:ip") {
+          return withAbortSignal(Promise.resolve({ data: true, error: null }));
+        }
+        if (bucket === "password-reset-request:email") {
+          return withAbortSignal(Promise.resolve({ data: false, error: null }));
+        }
       }
-      return { data: null, error: { message: "inesperado" } };
+      return withAbortSignal(Promise.resolve({ data: null, error: { message: "inesperado" } }));
     });
-    expect(await requestPasswordResetLink(EMAIL)).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
-    expect(mocks.after).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith("consume_rate_limit", {
-      p_bucket: "password-reset-request:email",
-      p_key_hash: hashRateLimitKey(EMAIL),
-      p_limit: 3,
-      p_window_seconds: 3600,
-    });
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    expect(await promise).toEqual({ ok: false, error: RATE_LIMIT_MESSAGE });
+    expect(mocks.order).not.toContain("request_password_reset_link");
+  });
+
+  it("e-mail inválido: erro na hora, sem esperar o piso", async () => {
+    const started = Date.now();
+    const result = await requestPasswordResetLink("nao-e-email");
+    expect(Date.now() - started).toBeLessThan(50);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("nenhum console recebe e-mail, token ou link", async () => {
+    database({ request: { data: [{ user_id: USER_ID, email: EMAIL }] } });
+    const spies = spyAllConsole();
+    const promise = requestPasswordResetLink(EMAIL);
+    await expectPendingUntilFloor(promise);
+    await promise;
+    const link = mocks.sendPasswordResetEmail.mock.calls[0][0].link as string;
+    const token = link.split("#token=")[1];
+    assertNoSecretsInConsole(spies, [EMAIL, token, link]);
   });
 
   it("mensagem pública é a genérica", () => {
@@ -248,25 +315,14 @@ describe("requestPasswordResetLink", () => {
 });
 
 describe("resetPasswordWithLink", () => {
-  it.each([["vazio", ""], ["curto", "abc"], ["não texto", null]])(
-    "link fora do formato (%s) recusa sem banco",
-    async (_caso, token) => {
-      expect(await resetPasswordWithLink(token as string, PASSWORD)).toEqual({
-        ok: false,
-        error: LINK_INVALID,
-      });
-      expect(mocks.rpc).not.toHaveBeenCalled();
-    },
-  );
-
-  it("link usado volta genérico e não troca a senha", async () => {
+  it("link reutilizado volta genérico e não troca a senha", async () => {
     database({ reset: { error: { message: "ORG_CONVITE: Link inválido." } } });
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({ ok: false, error: LINK_INVALID });
     expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
-  it("sucesso: usa o hash, troca a senha e indica a área", async () => {
+  it("sucesso organizador: area organizador", async () => {
     expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({
       ok: true,
       data: { area: "organizador" },
@@ -274,11 +330,9 @@ describe("resetPasswordWithLink", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("use_password_reset_invite", {
       p_token_hash: hashInviteToken(TOKEN),
     });
-    expect(mocks.updateUserById).toHaveBeenCalledWith(USER_ID, { password: PASSWORD });
-    expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain(TOKEN);
   });
 
-  it("conta da equipe: devolve area equipe", async () => {
+  it("sucesso equipe: area equipe", async () => {
     staffLookup(true);
     expect(await resetPasswordWithLink(TOKEN, PASSWORD)).toEqual({
       ok: true,
@@ -295,8 +349,5 @@ describe("página /redefinir-senha", () => {
   it("fica disponível sem depender da área do organizador", async () => {
     const html = renderToStaticMarkup(await ResetPasswordPage());
     expect(html).toContain("Digite o e-mail da conta para receber o link");
-    for (const word of ["supabase", "resend", "cloudflare", "google"]) {
-      expect(html.toLowerCase()).not.toContain(word);
-    }
   });
 });

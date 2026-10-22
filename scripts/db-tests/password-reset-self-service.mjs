@@ -1,4 +1,4 @@
-// Testa a migration 20261022120000_password_reset_self_service.sql num Postgres
+// Testa a migration 20261022130343_password_reset_self_service.sql num Postgres
 // temporário: aplica todas as migrations, roda o ensaio e confere que termina com
 // ENSAIO e só "ok". Não usa banco real.
 //
@@ -23,7 +23,7 @@ const pg = await load("pg");
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIGRATIONS = process.env.BYLA_MIGRATIONS_DIR ?? join(ROOT, "supabase", "migrations");
 const ENSAIO = join(ROOT, "supabase", "tests", "password_reset_self_service_check.sql");
-const THIS_MIGRATION = "20261022120000_password_reset_self_service.sql";
+const THIS_MIGRATION = "20261022130343_password_reset_self_service.sql";
 const PORT = 54921;
 const DATA_DIR = join(TOOLS, "data-password-reset");
 const PASSWORD = randomUUID();
