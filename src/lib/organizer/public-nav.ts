@@ -1,15 +1,17 @@
 import "server-only";
 
 import { getActor } from "@/lib/auth/actor";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
 
 /**
  * Destino do botão "Área do organizador" no site público.
- * `null` = área desligada (não mostrar o botão).
+ * Sempre disponível (não depende da chave da área).
  */
-export async function organizerAreaPublicHref(): Promise<string | null> {
-  if (!(await organizerAreaEnabled())) return null;
-  const actor = await getActor();
-  if (actor?.kind === "organizador") return "/organizador";
+export async function organizerAreaPublicHref(): Promise<string> {
+  try {
+    const actor = await getActor();
+    if (actor?.kind === "organizador") return "/organizador";
+  } catch (error) {
+    console.error("[organizador] Falha ao resolver o link da área pública.", error);
+  }
   return "/organizador/entrar";
 }

@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  alertTeamSetup: vi.fn(async () => undefined),
+}));
+
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: mocks.alertTeamSetup }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 
 import { buildLoginCodeEmail } from "@/lib/email/login-code-template";
 import { sendLoginCodeEmail } from "@/lib/email/send-login-code";
@@ -88,6 +94,7 @@ describe("sendLoginCodeEmail", () => {
     vi.stubEnv("RESEND_FROM_EMAIL", "ACDH Eventos <ingressos@exemplo.online>");
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
+    mocks.alertTeamSetup.mockClear();
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -129,19 +136,29 @@ describe("sendLoginCodeEmail", () => {
     expect(read()).not.toContain("pessoa@exemplo.com");
   });
 
-  it("limite diário do serviço vira 'quota'", async () => {
+  it("limite diário do serviço vira 'quota' e avisa a equipe", async () => {
     const read = logs();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ name: "daily_quota_exceeded" }), { status: 429 }),
     );
     expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("quota");
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+      expect.anything(),
+      "codigo_email_falhou",
+      expect.stringContaining("429"),
+    );
     expect(read()).not.toMatch(/123456|pessoa@exemplo\.com/);
   });
 
   it("recusa ou falha de rede vira 'failed' sem vazar código ou e-mail no log", async () => {
     const read = logs();
-    fetchMock.mockResolvedValueOnce(new Response("nope", { status: 422 }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ name: "validation_error" }), { status: 422 }));
     expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("failed");
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+      expect.anything(),
+      "codigo_email_falhou",
+      expect.stringContaining("validation_error"),
+    );
     fetchMock.mockRejectedValueOnce(new Error("fora do ar pessoa@exemplo.com 123456"));
     expect(await sendLoginCodeEmail({ to: "pessoa@exemplo.com", code: "123456", purpose: "equipe" })).toBe("failed");
     expect(read()).not.toMatch(/123456|pessoa@exemplo\.com/);

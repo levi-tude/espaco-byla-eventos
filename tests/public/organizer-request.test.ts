@@ -30,7 +30,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/organizer/settings", () => ({
   ORGANIZER_AREA_UNAVAILABLE_MESSAGE: "Esta área está indisponível no momento.",
+  ORGANIZER_AREA_TEMPORARILY_UNAVAILABLE_MESSAGE:
+    "Esta área está indisponível agora. Tente de novo em instantes.",
   organizerAreaEnabled: mocks.areaEnabled,
+  organizerAreaSwitchState: async () => ((await mocks.areaEnabled()) ? "on" : "off"),
 }));
 vi.mock("@/lib/organizer/notify", () => ({
   notifyTeamSignupRequest: mocks.notifyTeamSignupRequest,

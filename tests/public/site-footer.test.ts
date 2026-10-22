@@ -126,18 +126,20 @@ describe("rodapé", () => {
     expect(html).not.toContain(`href="${ORGANIZER_ENTER}"`);
   });
 
-  it("com a área desligada (ou sem resposta do banco) os links de organizador não aparecem", async () => {
+  it("com a área desligada: Área do organizador fica; Quero fazer meu evento some", async () => {
     mocks.rpc.mockResolvedValue({ data: false, error: null });
     const off = renderToStaticMarkup(await SiteFooter());
+    expect(off).toContain(`href="${ORGANIZER_ENTER}"`);
+    expect(text(off)).toContain("Área do organizador");
     expect(off).not.toContain(REQUEST_PATH);
-    expect(off).not.toContain(ORGANIZER_ENTER);
     expect(text(off)).not.toContain("Quero fazer meu evento");
-    expect(text(off)).not.toContain("Área do organizador");
     expect(off).toContain(`href="${TERMS_PATH}"`);
 
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "fora do ar" } });
-    expect(renderToStaticMarkup(await SiteFooter())).not.toContain(REQUEST_PATH);
+    const unknown = renderToStaticMarkup(await SiteFooter());
+    expect(unknown).toContain(`href="${ORGANIZER_ENTER}"`);
+    expect(unknown).not.toContain(REQUEST_PATH);
     errorLog.mockRestore();
   });
 });

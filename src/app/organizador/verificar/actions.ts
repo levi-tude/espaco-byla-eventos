@@ -14,7 +14,9 @@ import {
 const GENERIC_ERROR = "Não foi possível continuar. Tente de novo.";
 
 /** Chamada pela entrada do organizador (e pelo fim do cadastro) logo depois da senha certa. */
-export async function startOrganizerLoginAction(): Promise<ActionResult<{ next: string }>> {
+export async function startOrganizerLoginAction(): Promise<
+  ActionResult<{ next: string; notice?: string }>
+> {
   return runAction(() => startLoginVerification("organizador"), "Não foi possível entrar.");
 }
 

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
+import { AreaTemporarilyUnavailable } from "@/components/organizer/AreaTemporarilyUnavailable";
+import { organizerAreaSwitchState } from "@/lib/organizer/settings";
 
 import { ResetPasswordForm } from "./ResetPasswordForm";
 
@@ -12,7 +13,16 @@ export const metadata: Metadata = {
 };
 
 export default async function ResetPasswordPage() {
-  if (!(await organizerAreaEnabled())) notFound();
+  const area = await organizerAreaSwitchState();
+  if (area === "off") notFound();
+  if (area === "unknown") {
+    return (
+      <main className="relative flex min-h-full flex-1 flex-col">
+        <PublicSiteHeader />
+        <AreaTemporarilyUnavailable />
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">
@@ -20,7 +30,8 @@ export default async function ResetPasswordPage() {
       <div className="mx-auto w-full max-w-xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl">Nova senha</h1>
         <p className="mt-3 text-base leading-relaxed text-byla-muted">
-          Crie uma senha nova para a sua conta de organizador. Este link só funciona uma vez.
+          Digite o e-mail da conta para receber o link, ou abra o link que você já recebeu para
+          criar uma senha nova.
         </p>
         <div className="mt-6 rounded-2xl border border-byla-border bg-byla-surface p-4 sm:p-6">
           <ResetPasswordForm />

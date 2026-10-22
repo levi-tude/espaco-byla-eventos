@@ -33,7 +33,14 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/organizer/settings", () => ({
   ORGANIZER_AREA_UNAVAILABLE_MESSAGE: "Esta área está indisponível no momento.",
+  ORGANIZER_AREA_TEMPORARILY_UNAVAILABLE_MESSAGE:
+    "Esta área está indisponível agora. Tente de novo em instantes.",
   organizerAreaEnabled: mocks.areaEnabled,
+  organizerAreaSwitchState: async () => {
+    const enabled = await mocks.areaEnabled();
+    if (enabled === "unknown") return "unknown";
+    return enabled ? "on" : "off";
+  },
 }));
 
 import { resetPasswordWithLink } from "@/app/redefinir-senha/actions";
@@ -146,14 +153,20 @@ describe("página /redefinir-senha", () => {
     await expect(ResetPasswordPage()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
   });
 
+  it("sem resposta do banco mostra indisponível em vez de 404", async () => {
+    mocks.areaEnabled.mockResolvedValue("unknown");
+    const html = renderToStaticMarkup(await ResetPasswordPage());
+    expect(html).toContain("Esta área está indisponível agora. Tente de novo em instantes.");
+    expect(html).toContain("Recarregar");
+  });
+
   it("não aparece em buscadores", () => {
     expect(resetMetadata.robots).toMatchObject({ index: false });
   });
 
-  it("mostra o campo de senha nova com a regra simples", async () => {
+  it("explica o pedido de link (o formulário de senha só aparece com o token)", async () => {
     const html = renderToStaticMarkup(await ResetPasswordPage());
-    expect(html).toContain("Mínimo de 12 caracteres, com letras e números.");
-    expect(html).toMatch(/autocomplete="new-password"/i);
+    expect(html).toContain("Digite o e-mail da conta para receber o link");
     for (const word of ["supabase", "resend", "cloudflare", "google"]) expect(html.toLowerCase()).not.toContain(word);
   });
 });

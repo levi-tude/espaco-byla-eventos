@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 
 import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { OrganizerTermsText } from "@/components/legal/OrganizerTermsText";
+import { AreaTemporarilyUnavailable } from "@/components/organizer/AreaTemporarilyUnavailable";
 import { BackLink } from "@/components/ui/BackLink";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
+import { organizerAreaSwitchState } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
   title: "Termos do organizador · ACDH Eventos",
@@ -13,7 +14,16 @@ export const metadata: Metadata = {
 };
 
 export default async function OrganizerTermsPage() {
-  if (!(await organizerAreaEnabled())) notFound();
+  const area = await organizerAreaSwitchState();
+  if (area === "off") notFound();
+  if (area === "unknown") {
+    return (
+      <main className="relative flex min-h-full flex-1 flex-col">
+        <PublicSiteHeader />
+        <AreaTemporarilyUnavailable />
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">

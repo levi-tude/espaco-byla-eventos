@@ -32,7 +32,8 @@ export const VERIFY_PATH = AREAS.equipe.verify;
 
 export const LOGIN_FAILED_MESSAGE = "Não foi possível entrar.";
 export const SESSION_ENDED_MESSAGE = "Sua sessão terminou. Entre de novo.";
-const SEND_FAILED_MESSAGE = "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.";
+export const SEND_FAILED_MESSAGE =
+  "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.";
 const CHECK_FAILED_MESSAGE = "Não foi possível conferir o código. Tente de novo.";
 
 const DEVICE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
@@ -127,7 +128,9 @@ async function sendNewCode(
 }
 
 /** Logo depois da senha: aparelho lembrado entra direto; senão manda o código. */
-export async function startLoginVerification(area: LoginArea = "equipe"): Promise<{ next: string }> {
+export async function startLoginVerification(
+  area: LoginArea = "equipe",
+): Promise<{ next: string; notice?: string }> {
   const { home, verify, deviceCookie } = AREAS[checkedArea(area)];
   const supabase = await createServerClient();
   const state = await readLoginState(supabase, area);
@@ -148,8 +151,9 @@ export async function startLoginVerification(area: LoginArea = "equipe"): Promis
   try {
     if ((await sendNewCode(supabase, state, area)) === "verificado") return { next: home };
   } catch (error) {
-    // A tela do código mostra "Enviar código" e a mensagem certa ao tentar de novo.
+    // Continua na tela do código com aviso; o botão de reenviar fica disponível.
     if (!(error instanceof ActionError)) throw error;
+    return { next: verify, notice: error.message };
   }
   return { next: verify };
 }

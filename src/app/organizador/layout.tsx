@@ -33,20 +33,26 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
     return children;
   }
 
-  const state = await readLoginState(await createServerClient(), "organizador");
+  let state: Awaited<ReturnType<typeof readLoginState>>;
+  try {
+    state = await readLoginState(await createServerClient(), "organizador");
+  } catch (error) {
+    console.error("[organizador] Falha ao ler o estado do login.", error);
+    redirect(login);
+  }
   if (state.status === "pendente") redirect(verify);
   if (state.status !== "verificado") redirect(login);
 
-  let needsTerms = false;
+  let showTermsBanner = false;
   try {
     const actor = await getActor();
     if (actor?.kind === "organizador") {
-      needsTerms = await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId);
+      const terms = await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId);
+      showTermsBanner = terms === "pendente";
     }
   } catch (error) {
-    // Não derruba a área inteira por falha ao ler o status dos termos.
     console.error("[organizador] Falha ao montar o aviso de termos.", error);
-    needsTerms = false;
+    showTermsBanner = false;
   }
 
   return (
@@ -88,7 +94,7 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
         </div>
       </header>
 
-      {needsTerms ? <OrganizerTermsBanner /> : null}
+      {showTermsBanner ? <OrganizerTermsBanner /> : null}
       {children}
     </div>
   );

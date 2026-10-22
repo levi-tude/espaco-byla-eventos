@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { startLoginVerificationAction } from "@/app/equipe/verificar/actions";
@@ -9,6 +10,8 @@ import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { loginVerifyPathWithNotice } from "@/lib/auth/login-verify-notice";
+import { PASSWORD_RESET_PATH } from "@/lib/organizer/invite-token-format";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -45,7 +48,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace(result.data.next);
+    router.replace(loginVerifyPathWithNotice(result.data.next, result.data.notice));
     router.refresh();
   }
 
@@ -98,6 +101,15 @@ export default function LoginPage() {
             >
               Entrar
             </Button>
+
+            <p className="text-center">
+              <Link
+                className="inline-flex min-h-11 items-center justify-center text-base font-medium text-byla-link underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue"
+                href={PASSWORD_RESET_PATH}
+              >
+                Esqueci minha senha
+              </Link>
+            </p>
           </form>
         </section>
       </div>

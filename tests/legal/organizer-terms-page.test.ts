@@ -15,7 +15,12 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 vi.mock("@/components/brand/PublicSiteHeader", () => ({ PublicSiteHeader: () => null }));
-vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: mocks.areaEnabled }));
+vi.mock("@/lib/organizer/settings", () => ({
+  ORGANIZER_AREA_TEMPORARILY_UNAVAILABLE_MESSAGE:
+    "Esta área está indisponível agora. Tente de novo em instantes.",
+  organizerAreaEnabled: mocks.areaEnabled,
+  organizerAreaSwitchState: async () => ((await mocks.areaEnabled()) ? "on" : "off"),
+}));
 
 import OrganizerTermsPage from "@/app/termos-organizador/page";
 import { OrganizerTermsText } from "@/components/legal/OrganizerTermsText";

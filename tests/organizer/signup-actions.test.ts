@@ -47,6 +47,7 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {} }) }))
 vi.mock("@/lib/organizer/settings", () => ({
   ORGANIZER_AREA_UNAVAILABLE_MESSAGE: "Esta área está indisponível no momento.",
   organizerAreaEnabled: mocks.areaEnabled,
+  organizerAreaSwitchState: async () => ((await mocks.areaEnabled()) ? "on" : "off"),
 }));
 vi.mock("@/lib/email/send-login-code", () => ({ sendLoginCodeEmail: mocks.sendLoginCodeEmail }));
 vi.mock("@/app/organizador/verificar/actions", () => ({ startOrganizerLoginAction: vi.fn() }));

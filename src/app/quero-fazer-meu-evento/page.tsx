@@ -3,10 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
+import { AreaTemporarilyUnavailable } from "@/components/organizer/AreaTemporarilyUnavailable";
 import { OrganizerRequestForm } from "@/components/public/OrganizerRequestForm";
 import { BackLink } from "@/components/ui/BackLink";
 import { ORGANIZER_TERMS_PATH } from "@/lib/legal/organizer-terms";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
+import { organizerAreaSwitchState } from "@/lib/organizer/settings";
 
 export const metadata: Metadata = {
   title: "Quero fazer meu evento · ACDH Eventos",
@@ -14,7 +15,16 @@ export const metadata: Metadata = {
 };
 
 export default async function OrganizerRequestPage() {
-  if (!(await organizerAreaEnabled())) notFound();
+  const area = await organizerAreaSwitchState();
+  if (area === "off") notFound();
+  if (area === "unknown") {
+    return (
+      <main className="relative flex min-h-full flex-1 flex-col">
+        <PublicSiteHeader />
+        <AreaTemporarilyUnavailable />
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex min-h-full flex-1 flex-col">

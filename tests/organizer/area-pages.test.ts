@@ -39,12 +39,15 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 vi.mock("@/components/brand/ThemeToggle", () => ({ ThemeToggle: () => null }));
-vi.mock("@/lib/auth/login-verification", () => ({ readLoginState: mocks.readLoginState }));
+vi.mock("@/lib/auth/login-verification", () => ({
+  readLoginState: mocks.readLoginState,
+  SEND_FAILED_MESSAGE: "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.",
+}));
 vi.mock("@/lib/auth/actor", () => ({ getActor: mocks.getActor }));
 vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: mocks.areaEnabled }));
 vi.mock("@/lib/organizer/terms-gate", () => ({
   assertOrganizerTermsAccepted: vi.fn(async () => undefined),
-  organizerNeedsTermsAcceptance: vi.fn(async () => false),
+  organizerNeedsTermsAcceptance: vi.fn(async () => "aceito"),
 }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
@@ -203,11 +206,13 @@ describe("entrar", () => {
     expect(html).not.toMatch(/type="email"/);
   });
 
-  it("área ligada: título, e-mail e senha", async () => {
+  it("área ligada: título, e-mail, senha e esqueci minha senha", async () => {
     const html = render(await EnterPage());
     expect(text(html)).toContain("Área do organizador");
     expect(html).toMatch(/type="email"/);
     expect(html).toMatch(/autocomplete="current-password"/i);
+    expect(html).toContain('href="/redefinir-senha"');
+    expect(text(html)).toContain("Esqueci minha senha");
     expect(html).not.toMatch(/supabase|resend\b|mercado pago/i);
   });
 

@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("@/components/brand/PublicSiteHeader", () => ({ PublicSiteHeader: () => null }));
 vi.mock("@/lib/organizer/public-nav", () => ({
-  organizerAreaPublicHref: async () => null,
+  organizerAreaPublicHref: async () => "/organizador/entrar",
 }));
 vi.mock("@/lib/organizer/settings", () => ({ organizerAreaEnabled: async () => false }));
 
