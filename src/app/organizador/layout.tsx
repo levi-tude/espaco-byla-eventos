@@ -13,7 +13,6 @@ import { AREAS } from "@/lib/auth/area";
 import { getActor } from "@/lib/auth/actor";
 import { readLoginState } from "@/lib/auth/login-verification";
 import { organizerNeedsTermsAcceptance } from "@/lib/organizer/terms-gate";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -48,7 +47,7 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
   try {
     const actor = await getActor();
     if (actor?.kind === "organizador") {
-      const terms = await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId);
+      const terms = await organizerNeedsTermsAcceptance(await createServerClient(), actor.userId);
       showTermsBanner = terms === "pendente";
     }
   } catch (error) {

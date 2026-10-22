@@ -138,7 +138,8 @@ export async function submitPixChange(input: SubmitPixChangeInput): Promise<Acti
     const confirmAfter = typeof result.confirm_after === "string" ? result.confirm_after : "";
     revalidatePath(ACCOUNT_PATH);
 
-    const { data: profile } = await admin
+    // Sessão do próprio organizador (RLS), não o service_role.
+    const { data: profile } = await (await createServerClient())
       .from("organizer_profiles")
       .select("public_name")
       .eq("user_id", userId)
