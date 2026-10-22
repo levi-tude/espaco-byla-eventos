@@ -8,11 +8,7 @@ import { type EditorSession, savedTypeKey } from "@/components/equipe/session-dr
 import type { EditorTicketType } from "@/components/equipe/TicketTypesEditor";
 import { ApprovalBanner } from "@/components/organizer/ApprovalBanner";
 import { DeleteEventSection } from "@/components/organizer/DeleteEventSection";
-import {
-  ORGANIZER_EVENT_TABS,
-  OrganizerEventTabs,
-  type OrganizerEventTabId,
-} from "@/components/organizer/OrganizerEventTabs";
+import { OrganizerEventTabs } from "@/components/organizer/OrganizerEventTabs";
 import { OpsRequestList, type OrganizerOpsRequest } from "@/components/organizer/OpsRequestList";
 import { formatEventDays, organizerEventStatus } from "@/components/organizer/OrganizerEventCard";
 import { OrganizerFinancePanel } from "@/components/organizer/OrganizerFinancePanel";
@@ -34,6 +30,7 @@ import type { GalleryImage } from "@/lib/media/gallery";
 import { publicMediaUrl } from "@/lib/media/paths";
 import { eventShareModel, publicAppBaseUrl } from "@/lib/events/share-link";
 import { payoutSituation } from "@/lib/organizer/finance";
+import { ORGANIZER_EVENT_TABS, type OrganizerEventTabId } from "@/lib/organizer/event-tabs";
 import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { lockedFieldsFor } from "@/lib/organizer/post-approval";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
