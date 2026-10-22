@@ -2,7 +2,7 @@ import { Ban, Clock, Hourglass, type LucideIcon, Undo2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { OrderPayment } from "@/components/public/OrderPayment";
 import { OrderTotal, PaidOrderSummary } from "@/components/public/OrderSummary";
 import { PaymentConfirmed } from "@/components/public/PaymentConfirmed";
@@ -76,7 +76,7 @@ function isReservationExpired(expiresAt: string | null) {
 function OrderShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <main className="flex min-h-full flex-1 flex-col">
-      <SiteHeader />
+      <PublicSiteHeader />
       <div
         className={`mx-auto w-full flex-1 px-4 pb-16 pt-2 sm:px-6 sm:pt-4 ${
           wide ? "max-w-5xl" : "max-w-2xl"

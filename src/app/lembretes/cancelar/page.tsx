@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SiteHeader } from "@/components/brand/SiteHeader";
+import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { isReminderOptoutToken } from "@/lib/reminders/rules";
@@ -24,7 +24,7 @@ export default async function CancelRemindersPage({
 
   return (
     <div className="flex flex-1 flex-col">
-      <SiteHeader />
+      <PublicSiteHeader />
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-12">
         <h1 className="font-display text-4xl tracking-wide text-foreground">
           Lembretes por e-mail

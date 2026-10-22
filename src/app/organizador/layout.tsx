@@ -37,11 +37,17 @@ export default async function OrganizadorLayout({ children }: { children: ReactN
   if (state.status === "pendente") redirect(verify);
   if (state.status !== "verificado") redirect(login);
 
-  const actor = await getActor();
-  const needsTerms =
-    actor?.kind === "organizador"
-      ? await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId)
-      : false;
+  let needsTerms = false;
+  try {
+    const actor = await getActor();
+    if (actor?.kind === "organizador") {
+      needsTerms = await organizerNeedsTermsAcceptance(createAdminClient(), actor.userId);
+    }
+  } catch (error) {
+    // Não derruba a área inteira por falha ao ler o status dos termos.
+    console.error("[organizador] Falha ao montar o aviso de termos.", error);
+    needsTerms = false;
+  }
 
   return (
     <div className="min-h-screen bg-byla-bg text-foreground">

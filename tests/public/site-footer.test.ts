@@ -2,7 +2,11 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), createClient: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+  createClient: vi.fn(),
+  getActor: vi.fn(async () => null as { kind: string; userId: string } | null),
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/link", () => ({
@@ -10,11 +14,14 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
+vi.mock("@/lib/auth/actor", () => ({ getActor: () => mocks.getActor() }));
 
 import { OrganizerCallout } from "@/components/public/OrganizerCallout";
 import { TERMS_PATH } from "@/lib/legal/terms";
 
 const REQUEST_PATH = "/quero-fazer-meu-evento";
+const ORGANIZER_ENTER = "/organizador/entrar";
+const ORGANIZER_HOME = "/organizador";
 
 let SiteFooter: typeof import("@/components/brand/SiteFooter").SiteFooter;
 let organizerAreaEnabled: typeof import("@/lib/organizer/settings").organizerAreaEnabled;
@@ -91,6 +98,7 @@ describe("organizerAreaEnabled", () => {
 describe("rodapé", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    mocks.getActor.mockResolvedValue(null);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://exemplo.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "chave-anonima");
     mocks.createClient.mockReturnValue(client);
@@ -98,21 +106,33 @@ describe("rodapé", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("com a área ligada mostra o link Quero fazer meu evento", async () => {
+  it("com a área ligada mostra Área do organizador e Quero fazer meu evento", async () => {
     mocks.rpc.mockResolvedValue({ data: true, error: null });
     const html = renderToStaticMarkup(await SiteFooter());
 
+    expect(html).toContain(`href="${ORGANIZER_ENTER}"`);
+    expect(text(html)).toContain("Área do organizador");
     expect(html).toContain(`href="${REQUEST_PATH}"`);
     expect(text(html)).toContain("Quero fazer meu evento");
     expect(html).toContain(`href="${TERMS_PATH}"`);
     expect(html).toContain('href="/privacidade"');
   });
 
-  it("com a área desligada (ou sem resposta do banco) o link não aparece", async () => {
+  it("organizador logado: Área do organizador aponta para /organizador", async () => {
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    mocks.getActor.mockResolvedValue({ kind: "organizador", userId: "u1" });
+    const html = renderToStaticMarkup(await SiteFooter());
+    expect(html).toContain(`href="${ORGANIZER_HOME}"`);
+    expect(html).not.toContain(`href="${ORGANIZER_ENTER}"`);
+  });
+
+  it("com a área desligada (ou sem resposta do banco) os links de organizador não aparecem", async () => {
     mocks.rpc.mockResolvedValue({ data: false, error: null });
     const off = renderToStaticMarkup(await SiteFooter());
     expect(off).not.toContain(REQUEST_PATH);
+    expect(off).not.toContain(ORGANIZER_ENTER);
     expect(text(off)).not.toContain("Quero fazer meu evento");
+    expect(text(off)).not.toContain("Área do organizador");
     expect(off).toContain(`href="${TERMS_PATH}"`);
 
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});

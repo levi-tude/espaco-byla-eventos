@@ -23,7 +23,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) =>
     createElement("a", { href, ...rest }, children),
 }));
-vi.mock("@/components/brand/SiteHeader", () => ({ SiteHeader: () => null }));
+vi.mock("@/components/brand/PublicSiteHeader", () => ({ PublicSiteHeader: () => null }));
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -157,3 +157,4 @@ describe("página /redefinir-senha", () => {
     for (const word of ["supabase", "resend", "cloudflare", "google"]) expect(html.toLowerCase()).not.toContain(word);
   });
 });
+

@@ -28,6 +28,11 @@ export async function assertOrganizerTermsAccepted(
   }
 }
 
+/**
+ * Só o banner: true = precisa aceitar. Em falha de leitura, NÃO força o aviso
+ * (evita “aceitei e o banner ficou” quando o banco demora/erra depois do aceite).
+ * As ações de escrita ainda usam `assertOrganizerTermsAccepted` (falha fechada).
+ */
 export async function organizerNeedsTermsAcceptance(
   admin: Admin,
   userId: string,
@@ -37,6 +42,12 @@ export async function organizerNeedsTermsAcceptance(
     .select("terms_version")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || !data) return true;
+  if (error) {
+    console.error("[organizador] Falha ao ler aceite dos termos para o aviso.", {
+      code: error.code,
+    });
+    return false;
+  }
+  if (!data) return true;
   return data.terms_version !== ORGANIZER_TERMS_VERSION;
 }

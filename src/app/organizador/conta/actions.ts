@@ -33,8 +33,9 @@ export async function acceptOrganizerTermsAction(): Promise<ActionResult> {
       console.error("[organizador] Falha ao aceitar os termos.", error.code);
       throw new ActionError("Não foi possível registrar o aceite. Tente de novo.");
     }
-    revalidatePath("/organizador");
-    revalidatePath("/organizador/conta");
+    // O aviso vive no layout: invalidar o layout inteiro (não só a page).
+    revalidatePath("/organizador", "layout");
+    revalidatePath("/organizador/conta", "page");
     return undefined;
   }, "Não foi possível registrar o aceite. Tente de novo.");
 }

@@ -13,6 +13,7 @@ import { ORGANIZER_TERMS_PATH } from "@/lib/legal/organizer-terms";
 export function OrganizerTermsBanner() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
 
   async function accept() {
@@ -24,8 +25,12 @@ export function OrganizerTermsBanner() {
       setError(result.error);
       return;
     }
+    // Some na hora: não espera o refresh (que pode falhar se o banco estiver lento).
+    setAccepted(true);
     router.refresh();
   }
+
+  if (accepted) return null;
 
   return (
     <Notice className="mx-auto mt-4 max-w-6xl px-4 sm:px-6" tone="warning">

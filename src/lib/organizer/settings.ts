@@ -56,12 +56,19 @@ async function askDatabase(url: string, anonKey: string): Promise<boolean | null
 }
 
 function failed(log: string): null {
+  // Só a chave ligada/desligada da área (rodapé, login). NÃO é aceite de termos.
   if (lastAnswer && Date.now() - lastAnswer.at <= LAST_ANSWER_MAX_AGE_MS) {
     console.warn("[organizador] Sem resposta do banco para a chave da área; usando a última resposta.");
   } else {
     console.error(log);
   }
   return null;
+}
+
+/** Testes e ações que precisam forçar nova leitura da chave da área. */
+export function clearOrganizerAreaSwitchCache(): void {
+  lastAnswer = null;
+  pending = null;
 }
 
 /**

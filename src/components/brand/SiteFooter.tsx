@@ -3,14 +3,14 @@ import Link from "next/link";
 import { ORGANIZER_REQUEST_PATH } from "@/components/public/OrganizerCallout";
 import { COMPANY } from "@/lib/legal/privacy";
 import { TERMS_PATH } from "@/lib/legal/terms";
-import { organizerAreaEnabled } from "@/lib/organizer/settings";
+import { organizerAreaPublicHref } from "@/lib/organizer/public-nav";
 
 const linkClass =
   "inline-flex min-h-11 items-center rounded-lg px-2 font-medium underline-offset-2 transition hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
 
 export async function SiteFooter() {
   const year = new Date().getFullYear();
-  const organizerArea = await organizerAreaEnabled();
+  const organizerHref = await organizerAreaPublicHref();
 
   return (
     <footer className="border-t border-byla-border bg-byla-bg">
@@ -22,8 +22,12 @@ export async function SiteFooter() {
           ·
         </span>
         <nav aria-label="Links do rodapé" className="flex flex-wrap items-center justify-center gap-1">
-          {organizerArea ? (
+          {organizerHref ? (
             <>
+              <Link className={linkClass} href={organizerHref}>
+                Área do organizador
+              </Link>
+              <span aria-hidden>·</span>
               <Link className={linkClass} href={ORGANIZER_REQUEST_PATH}>
                 Quero fazer meu evento
               </Link>
