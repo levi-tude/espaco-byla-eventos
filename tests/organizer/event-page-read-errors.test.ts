@@ -98,7 +98,6 @@ vi.mock("@/components/organizer/OrganizerOrderList", () => ({ OrganizerOrderList
 vi.mock("@/components/organizer/OrganizerSalesPanel", () => ({ OrganizerSalesPanel: () => null }));
 vi.mock("@/components/organizer/OrganizerNoAccess", () => ({ OrganizerNoAccess: () => null }));
 vi.mock("@/components/organizer/OrganizerEventTabs", () => ({
-  ORGANIZER_EVENT_TABS: [],
   OrganizerEventTabs: ({
     evento,
     deleteSection,

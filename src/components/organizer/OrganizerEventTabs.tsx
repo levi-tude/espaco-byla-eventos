@@ -3,17 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { cx } from "@/components/ui/cx";
-
-export const ORGANIZER_EVENT_TABS = [
-  { id: "evento", label: "Evento" },
-  { id: "vendas", label: "Vendas" },
-  { id: "pedidos", label: "Pedidos" },
-  { id: "portaria", label: "Portaria" },
-  { id: "pedidos-equipe", label: "Pedidos à equipe" },
-  { id: "financeiro", label: "Financeiro" },
-] as const;
-
-export type OrganizerEventTabId = (typeof ORGANIZER_EVENT_TABS)[number]["id"];
+import { ORGANIZER_EVENT_TABS, type OrganizerEventTabId } from "@/lib/organizer/event-tabs";
 
 const tabClass =
   "inline-flex min-h-11 items-center whitespace-nowrap rounded-lg border px-4 text-base font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
