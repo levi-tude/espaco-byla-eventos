@@ -29,8 +29,6 @@ vi.mock("@/app/convite/actions", () => ({
 vi.mock("@/app/redefinir-senha/actions", () => ({
   resetPasswordWithLink: mocks.resetPasswordWithLink,
   requestPasswordResetLink: mocks.requestPasswordResetLink,
-  PASSWORD_RESET_REQUEST_MESSAGE:
-    "Se este e-mail tiver uma conta, você vai receber um link para criar uma senha nova. Confira também a caixa de spam.",
 }));
 vi.mock("@/app/organizador/verificar/actions", () => ({ startOrganizerLoginAction: mocks.startOrganizerLoginAction }));
 vi.mock("@/components/public/HumanCheck", () => ({

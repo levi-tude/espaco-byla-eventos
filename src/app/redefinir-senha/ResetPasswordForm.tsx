@@ -2,8 +2,8 @@
 
 import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 
+import { PASSWORD_RESET_REQUEST_MESSAGE } from "@/app/redefinir-senha/constants";
 import {
-  PASSWORD_RESET_REQUEST_MESSAGE,
   requestPasswordResetLink,
   resetPasswordWithLink,
 } from "@/app/redefinir-senha/actions";

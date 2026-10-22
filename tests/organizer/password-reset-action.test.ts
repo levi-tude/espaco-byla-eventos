@@ -29,7 +29,6 @@ vi.mock("@/components/brand/PublicSiteHeader", () => ({ PublicSiteHeader: () => 
 vi.mock("@/lib/alerts/team-alert", () => ({ alertTeamSetup: mocks.alertTeamSetup }));
 vi.mock("@/lib/email/send-password-reset", () => ({
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
-  RESET_SEND_TIMEOUT_MS: 2000,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -39,14 +38,13 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+import { requestPasswordResetLink, resetPasswordWithLink } from "@/app/redefinir-senha/actions";
 import {
   PASSWORD_RESET_REQUEST_MESSAGE,
-  requestPasswordResetLink,
   RESET_REQUEST_FLOOR_MS,
   RESET_RPC_TIMEOUT_MS,
   RESET_SEND_TIMEOUT_MS,
-  resetPasswordWithLink,
-} from "@/app/redefinir-senha/actions";
+} from "@/app/redefinir-senha/constants";
 import ResetPasswordPage, { metadata as resetMetadata } from "@/app/redefinir-senha/page";
 import { hashInviteToken, newInviteToken } from "@/lib/organizer/invite-token";
 import { hashRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
