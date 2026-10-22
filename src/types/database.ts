@@ -1309,6 +1309,14 @@ export type Database = {
         Args: { p_token_hash: string };
         Returns: string;
       };
+      password_reset_account_allowed: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
+      request_password_reset_link: {
+        Args: { p_email: string; p_token_hash: string };
+        Returns: { email: string; user_id: string }[];
+      };
       submit_signup_request: {
         Args: {
           p_approx_date: string | null;

@@ -37,7 +37,12 @@ vi.mock("@/components/public/HumanCheck", () => ({
   useHumanCheck: () => ({ slot: null, takeToken: async () => "humano" }),
 }));
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { signInWithPassword: mocks.signInWithPassword } }),
+  createClient: () => ({
+    auth: {
+      signInWithPassword: mocks.signInWithPassword,
+      signOut: vi.fn(async () => undefined),
+    },
+  }),
 }));
 
 import { ResetPasswordForm } from "@/app/redefinir-senha/ResetPasswordForm";
@@ -104,7 +109,7 @@ beforeEach(() => {
   mocks.completeOrganizerSignup.mockResolvedValue({ ok: true, data: { email: "fulana@exemplo.com" } });
   mocks.signInWithPassword.mockResolvedValue({ data: {}, error: null });
   mocks.startOrganizerLoginAction.mockResolvedValue({ ok: true, data: { next: "/organizador/verificar" } });
-  mocks.resetPasswordWithLink.mockResolvedValue({ ok: true, data: undefined });
+  mocks.resetPasswordWithLink.mockResolvedValue({ ok: true, data: { area: "organizador" } });
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -373,7 +378,7 @@ describe("ResetPasswordForm", () => {
     await submit();
 
     expect(mocks.resetPasswordWithLink).toHaveBeenCalledWith(TOKEN, "Outra frase comprida 47");
-    expect(pageText()).toContain("Senha nova salva.");
+    expect(pageText()).toContain("Senha trocada. Entre de novo.");
     expect(container.querySelector('a[href="/organizador/entrar"]')).not.toBeNull();
   });
 

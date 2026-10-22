@@ -22,6 +22,7 @@ describe("token do convite", () => {
   });
   it("lê o token do # e monta o link sem o token na parte enviada ao servidor", () => {
     expect(inviteTokenFromHash(`#${"b".repeat(43)}`)).toBe("b".repeat(43));
+    expect(inviteTokenFromHash(`#token=${"e".repeat(43)}`)).toBe("e".repeat(43));
     expect(inviteTokenFromHash("#curto")).toBeNull();
     expect(inviteLink("https://ingressos.espacobyla.online/", "c".repeat(43), "convite")).toBe(
       `https://ingressos.espacobyla.online/convite#${"c".repeat(43)}`,

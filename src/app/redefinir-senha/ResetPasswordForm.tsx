@@ -14,15 +14,18 @@ import { Notice } from "@/components/ui/Notice";
 import { AREAS } from "@/lib/auth/area";
 import { inviteTokenFromHash } from "@/lib/organizer/invite-token-format";
 import { parseEmail, parsePassword } from "@/lib/organizer/validation";
+import { createClient } from "@/lib/supabase/client";
 
 const RESET_FAILED_MESSAGE = "Não foi possível trocar a senha. Fale com a ACDH Eventos.";
 
 type Phase = "carregando" | "pedir_email" | "pedido_enviado" | "formulario" | "pronto";
+type ResetArea = "equipe" | "organizador";
 
 export function ResetPasswordForm() {
   const started = useRef(false);
   const token = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("carregando");
+  const [area, setArea] = useState<ResetArea>("organizador");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -82,8 +85,10 @@ export function ResetPasswordForm() {
         setError(result?.error ?? RESET_FAILED_MESSAGE);
         return;
       }
+      setArea(result.data.area);
       setPassword("");
       setPasswordConfirm("");
+      await createClient().auth.signOut({ scope: "local" }).catch(() => undefined);
       setPhase("pronto");
     });
   }
@@ -133,12 +138,13 @@ export function ResetPasswordForm() {
   }
 
   if (phase === "pronto") {
+    const loginHref = area === "equipe" ? AREAS.equipe.login : AREAS.organizador.login;
     return (
       <div className="grid gap-4">
-        <Notice title="Senha nova salva." tone="success">
-          Entre com o seu e-mail e a senha nova. Vamos mandar um código para o seu e-mail.
+        <Notice title="Senha trocada. Entre de novo." tone="success">
+          Use o e-mail e a senha nova. Vamos mandar um código para o seu e-mail.
         </Notice>
-        <ButtonLink fullWidth href={AREAS.organizador.login} size="lg">
+        <ButtonLink fullWidth href={loginHref} size="lg">
           Entrar
         </ButtonLink>
       </div>
