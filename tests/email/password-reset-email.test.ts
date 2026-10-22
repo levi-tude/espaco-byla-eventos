@@ -26,6 +26,14 @@ describe("buildPasswordResetEmail", () => {
       expect(body).not.toMatch(VENDORS);
     }
   });
+
+  it("escapa & < > \" ' no HTML (texto permanece cru)", () => {
+    const link = "https://exemplo.com/path?a=1&b=<x>&c=\"y\"&d='z'";
+    const email = buildPasswordResetEmail({ link });
+    expect(email.html).toContain("a=1&amp;b=&lt;x&gt;&amp;c=&quot;y&quot;&amp;d=&#39;z&#39;");
+    expect(email.html).not.toContain('href="https://exemplo.com/path?a=1&b=<x>');
+    expect(email.text).toContain(link);
+  });
 });
 
 describe("sendPasswordResetEmail", () => {
@@ -62,6 +70,37 @@ describe("sendPasswordResetEmail", () => {
     );
     expect(JSON.stringify([...log.mock.calls, ...mocks.alertTeamSetup.mock.calls])).not.toMatch(
       /pessoa@exemplo\.com/,
+    );
+  });
+
+  it("5xx: failed + alerta", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 503 }));
+    expect(await sendPasswordResetEmail({ to: "pessoa@exemplo.com", link: LINK })).toBe("failed");
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+      expect.anything(),
+      "senha_email_falhou",
+      expect.stringContaining("503"),
+    );
+  });
+
+  it("timeout: failed + alerta", async () => {
+    const timeout = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    fetchMock.mockRejectedValue(timeout);
+    expect(await sendPasswordResetEmail({ to: "pessoa@exemplo.com", link: LINK })).toBe("failed");
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+      expect.anything(),
+      "senha_email_falhou",
+      expect.stringMatching(/estourou o tempo|TimeoutError/),
+    );
+  });
+
+  it("erro de rede: failed + alerta", async () => {
+    fetchMock.mockRejectedValue(Object.assign(new TypeError("fetch failed"), { name: "TypeError" }));
+    expect(await sendPasswordResetEmail({ to: "pessoa@exemplo.com", link: LINK })).toBe("failed");
+    expect(mocks.alertTeamSetup).toHaveBeenCalledWith(
+      expect.anything(),
+      "senha_email_falhou",
+      expect.stringMatching(/rede|TypeError/),
     );
   });
 

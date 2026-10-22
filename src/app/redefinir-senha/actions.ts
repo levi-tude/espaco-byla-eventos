@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import { alertTeamSetup } from "@/lib/alerts/team-alert";
 import { sendPasswordResetEmail } from "@/lib/email/send-password-reset";
@@ -32,8 +34,64 @@ async function alertPasswordResetSetup(details: string): Promise<void> {
 }
 
 /**
+ * RPC + e-mail + alertas. Roda depois da resposta (after), para o tempo de
+ * resposta não revelar se a conta existe. after() é suportado no Node.js /
+ * Docker / Cloud Run com output standalone do Next.
+ */
+async function deliverPasswordResetLink(email: string): Promise<void> {
+  try {
+    const token = newInviteToken();
+    const tokenHash = hashInviteToken(token);
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("request_password_reset_link", {
+      p_email: email,
+      p_token_hash: tokenHash,
+    });
+    if (error) {
+      console.error("[nova-senha] Pedido de link recusado pelo banco.", { code: error.code });
+      await alertPasswordResetSetup(
+        `Pedido de link de nova senha: função do banco falhou (code ${error.code ?? "sem código"}). Aplique a migration se ainda não estiver no projeto.`,
+      );
+      return;
+    }
+
+    const row = Array.isArray(data) ? data[0] : null;
+    if (
+      !row ||
+      typeof row !== "object" ||
+      typeof (row as { user_id?: unknown }).user_id !== "string" ||
+      typeof (row as { email?: unknown }).email !== "string"
+    ) {
+      return;
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, "");
+    if (!appUrl) {
+      console.error("[nova-senha] Pedido de link sem NEXT_PUBLIC_APP_URL.");
+      await alertPasswordResetSetup("Pedido de link de nova senha: falta NEXT_PUBLIC_APP_URL.");
+      return;
+    }
+
+    const link = `${appUrl}${PASSWORD_RESET_PATH}#token=${token}`;
+    const sent = await sendPasswordResetEmail({
+      to: (row as { email: string }).email,
+      link,
+    });
+    if (sent !== "sent") {
+      console.error("[nova-senha] Link gerado no banco, mas o e-mail não saiu.", { sent });
+    }
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "desconhecido";
+    console.error("[nova-senha] Falha após a resposta do pedido.", { name });
+    await alertPasswordResetSetup(
+      `Pedido de link de nova senha falhou depois da resposta (${name}).`,
+    );
+  }
+}
+
+/**
  * Pedido público de link de nova senha (uso único via banco + Resend).
- * Sempre a mesma mensagem: não revela se o e-mail existe.
+ * Sempre a mesma mensagem e o mesmo tempo de resposta: não revela se o e-mail existe.
  */
 export async function requestPasswordResetLink(email: string): Promise<ActionResult> {
   return runAction(async () => {
@@ -49,46 +107,7 @@ export async function requestPasswordResetLink(email: string): Promise<ActionRes
       throw new ActionError(RATE_LIMIT_MESSAGE);
     }
 
-    const token = newInviteToken();
-    const tokenHash = hashInviteToken(token);
-    const { data, error } = await admin.rpc("request_password_reset_link", {
-      p_email: parsed.value,
-      p_token_hash: tokenHash,
-    });
-    if (error) {
-      console.error("[nova-senha] Pedido de link recusado pelo banco.", { code: error.code });
-      await alertPasswordResetSetup(
-        `Pedido de link de nova senha: função do banco falhou (code ${error.code ?? "sem código"}). Aplique a migration se ainda não estiver no projeto.`,
-      );
-      return undefined;
-    }
-
-    const row = Array.isArray(data) ? data[0] : null;
-    if (
-      !row ||
-      typeof row !== "object" ||
-      typeof (row as { user_id?: unknown }).user_id !== "string" ||
-      typeof (row as { email?: unknown }).email !== "string"
-    ) {
-      return undefined;
-    }
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, "");
-    if (!appUrl) {
-      console.error("[nova-senha] Pedido de link sem NEXT_PUBLIC_APP_URL.");
-      await alertPasswordResetSetup("Pedido de link de nova senha: falta NEXT_PUBLIC_APP_URL.");
-      return undefined;
-    }
-
-    // Formato lido por inviteTokenFromHash (#token=<valor> ou #<valor>).
-    const link = `${appUrl}${PASSWORD_RESET_PATH}#token=${token}`;
-    const sent = await sendPasswordResetEmail({
-      to: (row as { email: string }).email,
-      link,
-    });
-    if (sent !== "sent") {
-      console.error("[nova-senha] Link gerado no banco, mas o e-mail não saiu.", { sent });
-    }
+    after(() => deliverPasswordResetLink(parsed.value));
     return undefined;
   }, "Não foi possível pedir o link agora. Tente de novo em alguns minutos.");
 }

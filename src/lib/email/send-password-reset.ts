@@ -25,19 +25,28 @@ function isDailyQuotaBody(status: number, body: string): boolean {
 }
 
 async function alertPasswordResetDeliveryFailure(
-  status: number | "skipped",
+  status: number | "skipped" | "timeout" | "network",
   errorName: string | null,
 ): Promise<void> {
   try {
     const detail =
       status === "skipped"
         ? "E-mail de nova senha não enviado: falta configurar o serviço de e-mail."
-        : `O envio do link de nova senha falhou (status ${status}${errorName ? `, ${errorName}` : ""}).`;
+        : status === "timeout"
+          ? `O envio do link de nova senha estourou o tempo${errorName ? ` (${errorName})` : ""}.`
+          : status === "network"
+            ? `O envio do link de nova senha falhou na rede${errorName ? ` (${errorName})` : ""}.`
+            : `O envio do link de nova senha falhou (status ${status}${errorName ? `, ${errorName}` : ""}).`;
     await alertTeamSetup(createAdminClient(), "senha_email_falhou", detail);
   } catch (error) {
     const kind = error instanceof Error ? error.name : "desconhecido";
     console.error(`[nova-senha] Falha ao alertar a equipe (${kind}).`);
   }
+}
+
+function isTimeoutError(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : "";
+  return name === "TimeoutError" || name === "AbortError";
 }
 
 /** Envia o link de nova senha. Logs nunca levam e-mail, token ou link. */
@@ -84,9 +93,8 @@ export async function sendPasswordResetEmail({
         status: response.status,
         name: errorName,
       });
-      if (response.status === 401 || response.status === 403 || response.status === 422) {
-        await alertPasswordResetDeliveryFailure(response.status, errorName);
-      }
+      // 4xx de config, 5xx e demais falhas: alerta (dedupe 24 h no alertTeamSetup).
+      await alertPasswordResetDeliveryFailure(response.status, errorName);
       return "failed";
     }
 
@@ -98,6 +106,11 @@ export async function sendPasswordResetEmail({
   } catch (error) {
     const kind = error instanceof Error ? error.name : "desconhecido";
     console.error(`[nova-senha] Falha ao enviar o link (${kind}).`);
+    if (isTimeoutError(error)) {
+      await alertPasswordResetDeliveryFailure("timeout", kind);
+    } else {
+      await alertPasswordResetDeliveryFailure("network", kind);
+    }
     return "failed";
   }
 }
