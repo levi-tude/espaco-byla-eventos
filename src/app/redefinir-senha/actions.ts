@@ -23,7 +23,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /**
  * Tempo mínimo de resposta do pedido (ms).
  * Orçamento: RESET_RPC_TIMEOUT_MS (1500) + RESET_SEND_TIMEOUT_MS (2000) = 3500 < 4000.
- * Sem after(): no Cloud Run a CPU é limitada depois da resposta.
+ * Sem after do Next: no Cloud Run a CPU é limitada depois da resposta.
  */
 export const RESET_REQUEST_FLOOR_MS = 4000;
 /** Timeout do RPC request_password_reset_link. */
@@ -55,7 +55,7 @@ async function alertPasswordResetSetup(details: string): Promise<void> {
 
 /**
  * RPC + e-mail + alertas. Nunca lança. Roda dentro da requisição (melhor esforço
- * se passar do piso). Sem after(): no Cloud Run a CPU é limitada depois da resposta.
+ * se passar do piso). Sem after do Next: no Cloud Run a CPU é limitada depois da resposta.
  */
 async function deliverPasswordResetLink(email: string): Promise<void> {
   try {
