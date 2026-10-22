@@ -28,16 +28,18 @@ vi.mock("@/lib/organizer/notify", () => ({
   organizerNoticeLink: (path: string) => `https://site.example${path}`,
 }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: async () => ({ auth: { getUser: mocks.getUser }, rpc: vi.fn() }),
-}));
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    rpc: mocks.adminRpc,
+  // organizer_profiles é lido com a sessão do organizador (RLS), não com o service_role.
+  createServerClient: async () => ({
+    auth: { getUser: mocks.getUser },
+    rpc: vi.fn(),
     from: () => {
       const chain = { select: () => chain, eq: () => chain, maybeSingle: mocks.profileLookup };
       return chain;
     },
   }),
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({ rpc: mocks.adminRpc }),
 }));
 
 import { cancelPixChange, sendPixChangeCode, submitPixChange } from "@/app/organizador/conta/actions";

@@ -5,9 +5,14 @@ import {
   ORGANIZER_TERMS_REQUIRED_MESSAGE,
   ORGANIZER_TERMS_VERSION,
 } from "@/lib/legal/organizer-terms";
-import type { createAdminClient } from "@/lib/supabase/admin";
+import type { createServerClient } from "@/lib/supabase/server";
 
-type Admin = ReturnType<typeof createAdminClient>;
+/**
+ * Cliente da SESSÃO do organizador (RLS organizer_profiles_self_read), nunca o
+ * service_role: organizer_profiles guarda chave PIX, documento e contato (LGPD) e o
+ * service_role não tem acesso direto à tabela.
+ */
+type SessionClient = Awaited<ReturnType<typeof createServerClient>>;
 
 /** Status só para o aviso do layout (não bloqueia ações). */
 export type OrganizerTermsStatus = "aceito" | "pendente" | "desconhecido";
@@ -16,10 +21,10 @@ const TERMS_READ_TIMEOUT_MS = 3_000;
 
 /** Confere se o organizador aceitou a versão vigente dos Termos (N16). */
 export async function assertOrganizerTermsAccepted(
-  admin: Admin,
+  session: SessionClient,
   userId: string,
 ): Promise<void> {
-  const { data, error } = await admin
+  const { data, error } = await session
     .from("organizer_profiles")
     .select("terms_version")
     .eq("user_id", userId)
@@ -38,13 +43,13 @@ export async function assertOrganizerTermsAccepted(
  * As ações de escrita usam `assertOrganizerTermsAccepted` (falha fechada).
  */
 export async function organizerNeedsTermsAcceptance(
-  admin: Admin,
+  session: SessionClient,
   userId: string,
 ): Promise<OrganizerTermsStatus> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TERMS_READ_TIMEOUT_MS);
   try {
-    const { data, error } = await admin
+    const { data, error } = await session
       .from("organizer_profiles")
       .select("terms_version")
       .eq("user_id", userId)
