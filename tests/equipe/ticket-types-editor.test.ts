@@ -65,7 +65,13 @@ describe("tipos do evento (o preço fica nas sessões)", () => {
     expect(draftTypesFromState(state)).toEqual([
       { key: "preset:inteira", name: "Inteira", kind: "inteira", peoplePerUnit: 1 },
       { key: "preset:casadinha", name: "Casadinha", kind: "inteira", peoplePerUnit: 2 },
-      { key: `custom:${customId}`, name: "Mesa", kind: "inteira", peoplePerUnit: 6 },
+      {
+        key: `custom:${customId}`,
+        name: "Mesa",
+        kind: "inteira",
+        peoplePerUnit: 6,
+        outsideCategoryQuota: false,
+      },
     ]);
     expect(savedTypeKey({ id: customId, preset: null })).toBe(`custom:${customId}`);
     expect(savedTypeKey({ id: customId, preset: "meia" })).toBe("preset:meia");

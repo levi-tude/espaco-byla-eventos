@@ -251,6 +251,7 @@ export function limitedTypesForDraft(
       kind: type.kind,
       peoplePerUnit: type.peoplePerUnit,
       maxUnits: parseLimit(priceDraftFor(draft, type.key).maxUnits) ?? null,
+      outsideCategoryQuota: type.outsideCategoryQuota,
     }));
 }
 

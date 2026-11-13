@@ -7,6 +7,11 @@ export type LimitedType = {
   kind: "inteira" | "meia";
   peoplePerUnit: number;
   maxUnits: number | null;
+  /**
+   * Tipo com código compartilhado: conta no total e no próprio limite, mas não
+   * na cota de inteira/meia (ex.: Projeto Capacitação / bolsista).
+   */
+  outsideCategoryQuota?: boolean;
 };
 
 const CATEGORY_NAMES = { inteira: "inteiras", meia: "meias" } as const;
@@ -46,9 +51,14 @@ function peopleSum(types: LimitedType[]): number {
   return types.reduce((sum, type) => sum + (limitPeople(type) ?? 0), 0);
 }
 
+function inCategoryQuota(type: LimitedType): boolean {
+  return !type.outsideCategoryQuota;
+}
+
 /**
  * Limites dos tipos contados em ingressos: cada um cabe no total e na cota da
  * sua categoria, e a soma dos limites também (decisão de 2026-10-03).
+ * Tipos com código (`outsideCategoryQuota`) só entram no total / limite próprio.
  */
 export function typeLimitsError(
   capacity: number,
@@ -61,6 +71,7 @@ export function typeLimitsError(
     if (people > capacity) {
       return `O limite de “${type.name}” (${limitText(type, people)}) passa do total da sessão (${capacity}). Diminua o limite ou aumente o total.`;
     }
+    if (!inCategoryQuota(type)) continue;
     const quota = type.kind === "inteira" ? quotas.inteiraQuota : quotas.meiaQuota;
     if (quota !== null && people > quota) {
       return `O limite de “${type.name}” (${limitText(type, people)}) passa da quantidade de ${CATEGORY_NAMES[type.kind]} (${quota}). Diminua o limite ou aumente a quantidade de ${CATEGORY_NAMES[type.kind]}.`;
@@ -71,10 +82,22 @@ export function typeLimitsError(
   if (total > capacity) {
     return `A soma dos limites dos tipos (${total} ingressos) passa do total (${capacity}). Diminua algum limite ou aumente o total.`;
   }
+
+  const unlockPeople = peopleSum(types.filter((type) => type.outsideCategoryQuota));
+  const { inteiraQuota, meiaQuota } = quotas;
+  if (
+    unlockPeople > 0 &&
+    inteiraQuota !== null &&
+    meiaQuota !== null &&
+    inteiraQuota + meiaQuota + unlockPeople > capacity
+  ) {
+    return `Inteiras (${inteiraQuota}) + meias (${meiaQuota}) + tipos com código (${unlockPeople}) passam do total (${capacity}). Diminua alguma cota/limite ou aumente o total.`;
+  }
+
   for (const kind of ["inteira", "meia"] as const) {
     const quota = kind === "inteira" ? quotas.inteiraQuota : quotas.meiaQuota;
     if (quota === null) continue;
-    const sum = peopleSum(types.filter((type) => type.kind === kind));
+    const sum = peopleSum(types.filter((type) => type.kind === kind && inCategoryQuota(type)));
     if (sum > quota) {
       return `A soma dos limites das ${CATEGORY_NAMES[kind]} (${sum} ingressos) passa da quantidade de ${CATEGORY_NAMES[kind]} (${quota}). Diminua algum limite ou aumente a quantidade de ${CATEGORY_NAMES[kind]}.`;
     }
