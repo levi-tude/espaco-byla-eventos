@@ -81,7 +81,16 @@ describe("tipos do evento (o preço fica nas sessões)", () => {
       ok: true,
       types: [
         { preset: "inteira", priceCents: 0, maxUnits: null },
-        { preset: null, id: customId, name: "Mesa", peoplePerUnit: 6, priceCents: 0, maxUnits: null },
+        {
+          preset: null,
+          id: customId,
+          name: "Mesa",
+          peoplePerUnit: 6,
+          priceCents: 0,
+          maxUnits: null,
+          unlockCodeOp: "clear",
+          unlockCode: null,
+        },
       ],
     });
     state.customs[0].name = "  ";
@@ -98,6 +107,30 @@ describe("tipos do evento (o preço fica nas sessões)", () => {
     expect(ticketTypesFromState(state)).toEqual({
       ok: false,
       error: "Marque pelo menos um tipo de ingresso para vender.",
+    });
+  });
+
+  it("tipo com código: exige código novo se ainda não tem; keep se já tem", () => {
+    const customId = "30000000-0000-4000-8000-000000000001";
+    const state = initialTicketTypesState([
+      saved({}),
+      saved({ id: customId, preset: null, name: "Bolsista", peoplePerUnit: 1, hasUnlockCode: true }),
+    ]);
+    expect(state.customs[0].requiresCode).toBe(true);
+    expect(ticketTypesFromState(state)).toMatchObject({
+      ok: true,
+      types: [
+        { preset: "inteira" },
+        { preset: null, name: "Bolsista", unlockCodeOp: "keep", unlockCode: null },
+      ],
+    });
+    state.customs[0].hasUnlockCode = false;
+    state.customs[0].unlockCodeDraft = "";
+    expect(ticketTypesFromState(state).ok).toBe(false);
+    state.customs[0].unlockCodeDraft = "bolsista2026";
+    expect(ticketTypesFromState(state)).toMatchObject({
+      ok: true,
+      types: [{}, { unlockCodeOp: "set", unlockCode: "bolsista2026" }],
     });
   });
 });

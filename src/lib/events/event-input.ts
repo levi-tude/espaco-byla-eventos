@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { ActionError } from "@/lib/action-result";
 import { quotaDbErrorMessage } from "@/lib/domain/quotas";
 import {
@@ -18,6 +20,19 @@ import {
   ticketTypesErrorMessage,
 } from "@/lib/domain/ticket-types";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
+import { normalizeUnlockCodePlaintext } from "@/lib/tickets/unlock-code-hash";
+
+function withUnlockHashes(types: TicketTypeInput[]): TicketTypeInput[] {
+  return types.map((type) => {
+    if (type.preset !== null || type.unlockCodeOp !== "set") return type;
+    const code = normalizeUnlockCodePlaintext(type.unlockCode);
+    if (!code) return type;
+    return {
+      ...type,
+      unlockCodeHash: createHash("sha256").update(code, "utf8").digest("hex"),
+    };
+  });
+}
 
 export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -100,9 +115,18 @@ export function normalizeEventInput(input: EventInput): NormalizedEventInput {
   if (missing >= 0) {
     throw new ActionError(`Informe o preço de “${infos[missing].name}” em pelo menos uma sessão.`);
   }
-  const ticketTypes = normalizeTicketTypes(
-    input.ticketTypes.map((type, index) => ({ ...type, priceCents: mirror[index], maxUnits: null })),
-  );
+  const mirrored: TicketTypeInput[] = input.ticketTypes.map((type, index) => {
+    const priceCents = mirror[index] ?? 0;
+    if (type.preset !== null) {
+      return { preset: type.preset, priceCents, maxUnits: null };
+    }
+    return {
+      ...type,
+      priceCents,
+      maxUnits: null,
+    };
+  });
+  const ticketTypes = normalizeTicketTypes(withUnlockHashes(mirrored));
   if (!ticketTypes.ok) throw new ActionError(ticketTypes.error);
 
   if (coverImageUrl && !isHttpsUrl(coverImageUrl)) {

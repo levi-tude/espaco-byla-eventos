@@ -37,6 +37,8 @@ export type EditorTicketType = {
   hasSales: boolean;
   unitsSold: number;
   unitsTaken: number;
+  /** Já tem código no banco (o hash nunca vem para a tela). */
+  hasUnlockCode?: boolean;
 };
 
 type PresetRow = { checked: boolean };
@@ -46,6 +48,10 @@ type CustomRow = {
   id: string | null;
   name: string;
   peoplePerUnit: number;
+  requiresCode: boolean;
+  hasUnlockCode: boolean;
+  /** Código novo digitado; vazio = manter o atual se já existe. */
+  unlockCodeDraft: string;
 };
 
 export type TicketTypesState = {
@@ -91,6 +97,9 @@ export function initialTicketTypesState(types?: EditorTicketType[]): TicketTypes
       id: type.id,
       name: type.name,
       peoplePerUnit: type.peoplePerUnit,
+      requiresCode: Boolean(type.hasUnlockCode),
+      hasUnlockCode: Boolean(type.hasUnlockCode),
+      unlockCodeDraft: "",
     }));
 
   return { presets, customs };
@@ -131,6 +140,22 @@ export function ticketTypesFromState(
   for (const row of state.customs) {
     const name = row.name.trim();
     if (!name) return { ok: false, error: "Informe o nome de cada tipo novo." };
+    let unlockCodeOp: "keep" | "set" | "clear" = "clear";
+    let unlockCode: string | null = null;
+    if (row.requiresCode) {
+      const draft = row.unlockCodeDraft.trim();
+      if (draft) {
+        unlockCodeOp = "set";
+        unlockCode = draft;
+      } else if (row.hasUnlockCode) {
+        unlockCodeOp = "keep";
+      } else {
+        return {
+          ok: false,
+          error: `Informe o código de acesso para “${name}” (quem compra precisa digitar esse código).`,
+        };
+      }
+    }
     types.push({
       preset: null,
       id: row.id,
@@ -138,6 +163,8 @@ export function ticketTypesFromState(
       peoplePerUnit: row.peoplePerUnit,
       priceCents: 0,
       maxUnits: null,
+      unlockCodeOp,
+      unlockCode,
     });
   }
 
@@ -295,7 +322,18 @@ export function TicketTypesEditor({
   function addCustom() {
     onChange({
       ...value,
-      customs: [...value.customs, { key: newRowKey(), id: null, name: "", peoplePerUnit: 1 }],
+      customs: [
+        ...value.customs,
+        {
+          key: newRowKey(),
+          id: null,
+          name: "",
+          peoplePerUnit: 1,
+          requiresCode: false,
+          hasUnlockCode: false,
+          unlockCodeDraft: "",
+        },
+      ],
     });
   }
 
@@ -432,6 +470,42 @@ export function TicketTypesEditor({
                   Cada compra gera {unitContentsLabel(row.peoplePerUnit, "inteira")}.
                   {rowSales?.hasSales ? " Já tem vendas: o número de pessoas não muda." : ""}
                 </p>
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 py-1">
+                  <input
+                    checked={row.requiresCode}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-byla-action"
+                    onChange={(event) =>
+                      setCustom(row.key, {
+                        requiresCode: event.target.checked,
+                        unlockCodeDraft: event.target.checked ? row.unlockCodeDraft : "",
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  <span>
+                    <span className="block text-base font-semibold">Só com código</span>
+                    <span className="block text-sm text-byla-muted">
+                      Quem compra precisa digitar o código (ex.: bolsistas). Use o limite
+                      abaixo ou na sessão para a quantidade.
+                    </span>
+                  </span>
+                </label>
+                {row.requiresCode ? (
+                  <label className={fieldLabelClass}>
+                    {row.hasUnlockCode ? "Novo código (deixe em branco para manter o atual)" : "Código de acesso"}
+                    <input
+                      autoComplete="off"
+                      className={inputClass}
+                      maxLength={64}
+                      onChange={(event) => setCustom(row.key, { unlockCodeDraft: event.target.value })}
+                      placeholder={row.hasUnlockCode ? "••••••••" : "Ex.: bolsista2026"}
+                      required={!row.hasUnlockCode}
+                      spellCheck={false}
+                      type="text"
+                      value={row.unlockCodeDraft}
+                    />
+                  </label>
+                ) : null}
                 <SalesHint maxUnits={price?.maxUnits} sales={rowSales} />
                 {prices && price ? (
                   <div className="grid gap-3 @md:grid-cols-2">

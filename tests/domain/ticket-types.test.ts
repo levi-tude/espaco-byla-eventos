@@ -18,6 +18,7 @@ function custom(overrides: Record<string, unknown> = {}) {
     peoplePerUnit: 1,
     priceCents: 12000,
     maxUnits: null,
+    unlockCodeOp: "clear",
     ...overrides,
   };
 }
@@ -72,8 +73,45 @@ describe("validação dos tipos do evento", () => {
     ).toEqual({
       ok: true,
       items: [
-        { id: CUSTOM_ID, name: "Mesa", people_per_unit: 6, price_cents: 12000, max_units: 5 },
+        {
+          id: CUSTOM_ID,
+          name: "Mesa",
+          people_per_unit: 6,
+          price_cents: 12000,
+          max_units: 5,
+          unlock_code_op: "clear",
+        },
       ],
+    });
+  });
+
+  it("código de acesso: set exige hash; keep/clear passam sem hash", () => {
+    const hash = "a".repeat(64);
+    expect(
+      normalizeTicketTypes([
+        custom({ unlockCodeOp: "set", unlockCodeHash: hash, unlockCode: "bolsista2026" }),
+      ]),
+    ).toEqual({
+      ok: true,
+      items: [
+        {
+          id: null,
+          name: "Camarote",
+          people_per_unit: 1,
+          price_cents: 12000,
+          max_units: null,
+          unlock_code_op: "set",
+          unlock_code_hash: hash,
+        },
+      ],
+    });
+    expect(normalizeTicketTypes([custom({ unlockCodeOp: "set", unlockCode: "ab" })])).toEqual({
+      ok: false,
+      error: "Informe um código de 6 a 64 caracteres para “Camarote”.",
+    });
+    expect(normalizeTicketTypes([custom({ unlockCodeOp: "keep" })])).toMatchObject({
+      ok: true,
+      items: [{ unlock_code_op: "keep" }],
     });
   });
 

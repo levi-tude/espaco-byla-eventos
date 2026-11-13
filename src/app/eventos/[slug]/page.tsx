@@ -116,11 +116,12 @@ export default async function EventoPublicoPage({
       loadEventGallery(supabase, event.id),
       supabase
         .from("ticket_types")
-        .select("id, name, kind, price_cents, people_per_unit")
+        .select("id, name, kind, price_cents, people_per_unit, unlock_code_hash")
         .eq("event_id", event.id)
         .neq("kind", "cortesia")
         .is("archived_at", null)
         .eq("active", true)
+        .is("unlock_code_hash", null)
         .order("sort_order")
         .order("id"),
       loadEventSessions(admin, event.id),

@@ -636,6 +636,7 @@ export type Database = {
           preset: string | null;
           price_cents: number;
           sort_order: number;
+          unlock_code_hash: string | null;
         };
         Insert: {
           active?: boolean;
@@ -649,6 +650,7 @@ export type Database = {
           preset?: string | null;
           price_cents: number;
           sort_order?: number;
+          unlock_code_hash?: string | null;
         };
         Update: {
           active?: boolean;
@@ -662,6 +664,7 @@ export type Database = {
           preset?: string | null;
           price_cents?: number;
           sort_order?: number;
+          unlock_code_hash?: string | null;
         };
         Relationships: [
           {

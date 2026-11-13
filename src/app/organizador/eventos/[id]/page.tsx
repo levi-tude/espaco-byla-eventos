@@ -14,7 +14,17 @@ import { formatEventDays, organizerEventStatus } from "@/components/organizer/Or
 import { OrganizerFinancePanel } from "@/components/organizer/OrganizerFinancePanel";
 import { OrganizerNoAccess } from "@/components/organizer/OrganizerNoAccess";
 import { type OrganizerOrder, OrganizerOrderList } from "@/components/organizer/OrganizerOrderList";
-import { OrganizerSalesPanel, type OrganizerSalesSession } from "@/components/organizer/OrganizerSalesPanel";
+import {
+  OrganizerSalesPanel,
+  type OrganizerSalesSession,
+} from "@/components/organizer/OrganizerSalesPanel";
+import {
+  buildEventTotals,
+  buildTypeRows,
+  mergeTypeRows,
+  type SoldTicketRow,
+  type TypeMeta,
+} from "@/lib/organizer/sales-breakdown";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -52,7 +62,7 @@ const SOLD_STATUSES = new Set(["pago", "estornado", "aguardando_decisao"]);
 
 const EVENT_SELECT = `
   id, slug, name, venue, description, cover_image_url, sales_open, approval_status, approval_note, organizer_id, deleted_at,
-  ticket_types(id, preset, name, kind, people_per_unit, sort_order, archived_at),
+  ticket_types(id, preset, name, kind, people_per_unit, sort_order, archived_at, unlock_code_hash),
   event_sessions(
     id, name, starts_at, ends_at, capacity, inteira_quota, meia_quota, sales_open, status, archived_at,
     session_ticket_types(ticket_type_id, price_cents, max_units, on_sale)
@@ -163,16 +173,25 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
     sessionIds.map((sessionId) => loadSessionAvailability(admin, sessionId)),
   );
 
-  const [ordersResult, summary, buyerOrders, opsRequests, finance, availabilities] = await Promise.all([
-    admin.from("orders").select("session_id, status, expires_at").eq("event_id", event.id),
-    loadEventSessions(admin, event.id),
-    admin.rpc("organizer_event_orders", { p_actor: actor.userId, p_event_id: event.id }),
-    admin.rpc("organizer_event_requests", { p_actor: actor.userId, p_event_id: event.id }),
-    loadOrganizerEventFinance(actor.userId, event.id),
-    availabilitiesPromise,
-  ]);
+  const [ordersResult, summary, buyerOrders, opsRequests, finance, availabilities, soldTicketsResult] =
+    await Promise.all([
+      admin.from("orders").select("session_id, status, expires_at").eq("event_id", event.id),
+      loadEventSessions(admin, event.id),
+      admin.rpc("organizer_event_orders", { p_actor: actor.userId, p_event_id: event.id }),
+      admin.rpc("organizer_event_requests", { p_actor: actor.userId, p_event_id: event.id }),
+      loadOrganizerEventFinance(actor.userId, event.id),
+      availabilitiesPromise,
+      admin
+        .from("tickets")
+        .select("session_id, ticket_type_id, price_cents")
+        .eq("event_id", event.id)
+        .in("status", ["pago", "check_in"]),
+    ]);
   if (buyerOrders.error) console.error("[organizador] Falha ao ler os pedidos do evento.", buyerOrders.error.code);
   if (opsRequests.error) console.error("[organizador] Falha ao ler os pedidos à equipe.", opsRequests.error.code);
+  if (soldTicketsResult.error) {
+    console.error("[organizador] Falha ao ler ingressos vendidos.", soldTicketsResult.error.code);
+  }
 
   const orderRows = ordersResult.data;
   const editorLoadFailed = Boolean(eventQueryError || ordersResult.error);
@@ -233,6 +252,9 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
       hasSales: current?.hasSales ?? true,
       unitsSold: current?.unitsSold ?? 0,
       unitsTaken: current?.unitsTaken ?? 0,
+      hasUnlockCode: Boolean(
+        "unlock_code_hash" in type && typeof type.unlock_code_hash === "string" && type.unlock_code_hash,
+      ),
     };
   });
 
@@ -286,9 +308,30 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   ];
 
   const summaryById = new Map((summary?.sessions ?? []).map((session) => [session.id, session]));
+  const typeMeta: TypeMeta[] = ticketTypes.map((type) => ({
+    id: type.id,
+    name: type.name,
+    peoplePerUnit: type.people_per_unit,
+    sortOrder: type.sort_order ?? 0,
+  }));
+  const soldTickets: SoldTicketRow[] = (soldTicketsResult.data ?? []).flatMap((row) =>
+    typeof row.session_id === "string" &&
+    typeof row.ticket_type_id === "string" &&
+    typeof row.price_cents === "number"
+      ? [
+          {
+            session_id: row.session_id,
+            ticket_type_id: row.ticket_type_id,
+            price_cents: row.price_cents,
+          },
+        ]
+      : [],
+  );
   const salesSessions: OrganizerSalesSession[] = sessions.map((session) => {
     const sale = summaryById.get(session.id);
     const sessionAvailability = availabilityBySession.get(session.id) ?? null;
+    const sessionSold = soldTickets.filter((ticket) => ticket.session_id === session.id);
+    const types = buildTypeRows(sessionSold, typeMeta, sessionAvailability);
     return {
       id: session.id,
       label: formatSessionLabel(session.name, session.starts_at, session.ends_at),
@@ -299,7 +342,17 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
       soldOut: sale?.soldOut ?? false,
       sold: sessionAvailability?.sold ?? null,
       remaining: sale?.remaining ?? sessionAvailability?.remaining ?? null,
+      held: sessionAvailability?.held ?? null,
+      revenueCents: types.reduce((total, type) => total + type.revenueCents, 0),
+      types,
     };
+  });
+  const allAvailability = sumAvailability(availabilities);
+  const salesTotals = buildEventTotals({
+    sold: allAvailability?.sold ?? null,
+    remaining: allAvailability?.remaining ?? null,
+    held: allAvailability?.held ?? null,
+    types: mergeTypeRows(salesSessions, typeMeta),
   });
 
   const lastSession = activeSessions.at(-1);
@@ -476,6 +529,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
             </h2>
             <div className="mt-3">
               <OrganizerSalesPanel
+                totals={salesTotals}
                 approved={approved}
                 eventId={event.id}
                 eventSalesOpen={event.sales_open}

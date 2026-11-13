@@ -24,6 +24,7 @@ import { buyerVisibleSessions, SALES_CLOSED_MESSAGE } from "@/lib/domain/session
 import { isUuid } from "@/lib/domain/ticket-types";
 import { loadServiceFeePolicy } from "@/lib/payments/service-fee-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readUnlockCookie, unlockedTypeIds } from "@/lib/tickets/unlock-code";
 
 /** Só pedido não pago deste evento preenche o checkout; o token já é a chave do pedido. */
 async function loadResumeOrder(
@@ -64,10 +65,10 @@ export default async function CheckoutPage({
 
   if (!event) notFound();
 
-  const [{ data: ticketTypes }, summary, resumeOrder, feePolicy] = await Promise.all([
+  const [{ data: ticketTypes }, summary, resumeOrder, feePolicy, unlock] = await Promise.all([
     admin
       .from("ticket_types")
-      .select("id, name, kind, preset, price_cents, people_per_unit")
+      .select("id, name, kind, preset, price_cents, people_per_unit, unlock_code_hash")
       .eq("event_id", event.id)
       .neq("kind", "cortesia")
       .is("archived_at", null)
@@ -77,7 +78,18 @@ export default async function CheckoutPage({
     loadEventSessions(admin, event.id),
     resumeToken ? loadResumeOrder(admin, event.id, resumeToken) : Promise.resolve(null),
     loadServiceFeePolicy(admin),
+    readUnlockCookie(event.id),
   ]);
+  const unlockedIds = unlock
+    ? unlockedTypeIds(
+        (ticketTypes ?? []).map((type) => ({
+          id: type.id,
+          unlock_code_hash: type.unlock_code_hash,
+        })),
+        unlock.codeHash,
+      )
+    : new Set<string>();
+  const hasRestrictedTypes = (ticketTypes ?? []).some((type) => Boolean(type.unlock_code_hash));
 
   // Sessão da compra: a do pedido retomado, a escolhida na página do evento ou,
   // em evento de sessão única, a única. O banco confere de novo ao reservar.
@@ -105,6 +117,7 @@ export default async function CheckoutPage({
     (availability?.types ?? []).map((type) => [type.ticketTypeId, type]),
   );
   const publicTicketTypes: CheckoutTicketType[] = (ticketTypes ?? []).flatMap((type) => {
+    if (type.unlock_code_hash && !unlockedIds.has(type.id)) return [];
     const current = sessionTypes.get(type.id);
     if (session && (!current || current.onSale === false || !current.priceCents)) return [];
     return [
@@ -116,6 +129,7 @@ export default async function CheckoutPage({
         priceCents: session && current?.priceCents ? current.priceCents : type.price_cents,
         peoplePerUnit: type.people_per_unit,
         remainingUnits: current?.remainingUnits ?? null,
+        unlockedWithCode: Boolean(type.unlock_code_hash),
       },
     ];
   });
@@ -154,7 +168,8 @@ export default async function CheckoutPage({
               : "Os ingressos deste evento esgotaram."
             : salesStateMessages.held;
 
-  const showForm = !blockedMessage && publicTicketTypes.length > 0;
+  const showForm =
+    !blockedMessage && (publicTicketTypes.length > 0 || (hasRestrictedTypes && !needsChoice));
   const chooseAnother = needsChoice || (multi && blockedMessage !== null && state !== "held");
 
   return (
@@ -176,12 +191,13 @@ export default async function CheckoutPage({
           {showForm ? (
             <CheckoutForm
               // Ao cancelar o pedido retomado, remonta com a disponibilidade atualizada.
-              key={`${resume?.publicToken ?? ""}:${resume?.awaitingUntil ? "aguardando" : ""}:${session?.id ?? ""}`}
+              key={`${resume?.publicToken ?? ""}:${resume?.awaitingUntil ? "aguardando" : ""}:${session?.id ?? ""}:${unlockedIds.size}`}
               remaining={availability?.remaining ?? null}
               categoryRemaining={
                 availability ? toCheckoutAvailability(availability).categoryRemaining : NO_CATEGORY_LIMIT
               }
               feePolicy={feePolicy}
+              hasRestrictedTypes={hasRestrictedTypes}
               resume={resume}
               session={checkoutSession}
               slug={slug}

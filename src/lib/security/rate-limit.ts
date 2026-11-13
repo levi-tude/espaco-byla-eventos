@@ -33,6 +33,8 @@ export const RATE_LIMITS = {
   /** Pedido do link por e-mail (separado da troca). */
   passwordResetRequestPerIp: { bucket: "password-reset-request:ip", limit: 5, windowSeconds: 3600 },
   passwordResetRequestPerEmail: { bucket: "password-reset-request:email", limit: 3, windowSeconds: 3600 },
+  /** Código de ingresso restrito (bolsista etc.) no checkout. */
+  ticketUnlockPerIp: { bucket: "ticket-unlock:ip", limit: 10, windowSeconds: 3600 },
   organizerSavePerUser: { bucket: "org-save:user", limit: 120, windowSeconds: 3600 },
   organizerUploadPerUser: { bucket: "org-upload:user", limit: 60, windowSeconds: 3600 },
   organizerUploadPerUserDay: { bucket: "org-upload:user-day", limit: 20, windowSeconds: 86_400 },
