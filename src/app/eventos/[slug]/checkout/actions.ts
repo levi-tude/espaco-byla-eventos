@@ -28,7 +28,7 @@ import {
 } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  hashUnlockCode,
+  unlockCodeHashCandidates,
   normalizeUnlockCode,
   readUnlockCookie,
   unlockedTypeIds,
@@ -64,6 +64,8 @@ const UNLOCK_FAILED_MESSAGE =
   "Não foi possível liberar com este código. Confira e tente de novo.";
 const RESTRICTED_TYPE_MESSAGE =
   "Um dos tipos escolhidos precisa de código de acesso. Informe o código e tente de novo.";
+const RESTRICTED_CHECK_FAILED_MESSAGE =
+  "Não foi possível conferir os ingressos agora. Tente de novo em instantes.";
 
 async function activeSessionCount(
   admin: ReturnType<typeof createAdminClient>,
@@ -184,12 +186,17 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     .filter(([, qty]) => qty > 0)
     .map(([ticketTypeId]) => ticketTypeId);
   if (selectedIds.length) {
-    const { data: lockedTypes } = await admin
+    const { data: lockedTypes, error: lockedError } = await admin
       .from("ticket_types")
       .select("id, unlock_code_hash")
       .eq("event_id", event.id)
       .in("id", selectedIds)
       .not("unlock_code_hash", "is", null);
+    // Falha fechada: sem saber quais tipos exigem código, não cria o pedido.
+    if (lockedError) {
+      console.error("[checkout] Falha ao conferir tipos com código.", lockedError.code);
+      return { error: RESTRICTED_CHECK_FAILED_MESSAGE };
+    }
     const locked = (lockedTypes ?? []).filter((row) => row.unlock_code_hash);
     if (locked.length) {
       const unlock = await readUnlockCookie(event.id);
@@ -371,18 +378,28 @@ export async function unlockTicketTypes(
       .maybeSingle();
     if (!event) throw new ActionError(UNLOCK_FAILED_MESSAGE);
 
-    const codeHash = hashUnlockCode(normalized);
-    const { data: types } = await admin
+    // HMAC com segredo (formato novo) ou SHA-256 antigo, até o código ser salvo de novo.
+    const candidates = unlockCodeHashCandidates(normalized);
+    const { data: types, error: typesError } = await admin
       .from("ticket_types")
       .select("id, unlock_code_hash")
       .eq("event_id", event.id)
-      .eq("unlock_code_hash", codeHash)
+      .in("unlock_code_hash", candidates)
       .neq("kind", "cortesia")
       .is("archived_at", null)
       .eq("active", true);
+    if (typesError) {
+      console.error("[checkout] Falha ao conferir código de ingresso.", typesError.code);
+      throw new ActionError(UNLOCK_FAILED_MESSAGE);
+    }
 
-    const unlocked = types?.length ?? 0;
-    if (unlocked === 0) throw new ActionError(UNLOCK_FAILED_MESSAGE);
+    const codeHash = candidates.find((hash) =>
+      (types ?? []).some((type) => type.unlock_code_hash === hash),
+    );
+    const unlocked = codeHash
+      ? (types ?? []).filter((type) => type.unlock_code_hash === codeHash).length
+      : 0;
+    if (!codeHash || unlocked === 0) throw new ActionError(UNLOCK_FAILED_MESSAGE);
     if (!(await writeUnlockCookie(event.id, codeHash))) {
       console.error("[checkout] Falha ao gravar cookie de código de ingresso.");
       throw new ActionError(UNLOCK_FAILED_MESSAGE);

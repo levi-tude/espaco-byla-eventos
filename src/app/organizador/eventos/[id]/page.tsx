@@ -45,6 +45,7 @@ import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { lockedFieldsFor } from "@/lib/organizer/post-approval";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllPages } from "@/lib/supabase/paginate";
 import { createServerClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
@@ -181,11 +182,16 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
       admin.rpc("organizer_event_requests", { p_actor: actor.userId, p_event_id: event.id }),
       loadOrganizerEventFinance(actor.userId, event.id),
       availabilitiesPromise,
-      admin
-        .from("tickets")
-        .select("session_id, ticket_type_id, price_cents")
-        .eq("event_id", event.id)
-        .in("status", ["pago", "check_in"]),
+      fetchAllPages<{ session_id: string | null; ticket_type_id: string; price_cents: number }>(
+        (from, to) =>
+          admin
+            .from("tickets")
+            .select("session_id, ticket_type_id, price_cents")
+            .eq("event_id", event.id)
+            .in("status", ["pago", "check_in"])
+            .order("id")
+            .range(from, to),
+      ),
     ]);
   if (buyerOrders.error) console.error("[organizador] Falha ao ler os pedidos do evento.", buyerOrders.error.code);
   if (opsRequests.error) console.error("[organizador] Falha ao ler os pedidos à equipe.", opsRequests.error.code);

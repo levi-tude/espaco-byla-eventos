@@ -1,8 +1,9 @@
 import "server-only";
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
+import { hashUnlockCode, unlockCodeHashCandidates, unlockCookieKey } from "@/lib/tickets/unlock-code-crypto";
 import {
   normalizeUnlockCodePlaintext,
   UNLOCK_CODE_MAX_LENGTH,
@@ -13,6 +14,7 @@ import {
 export const TICKET_UNLOCK_COOKIE = "byla_ticket_unlock";
 export const TICKET_UNLOCK_TTL_SECONDS = 2 * 60 * 60;
 export { UNLOCK_CODE_MAX_LENGTH, UNLOCK_CODE_MIN_LENGTH };
+export { hashUnlockCode, unlockCodeHashCandidates };
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -22,19 +24,11 @@ export function normalizeUnlockCode(raw: unknown): string | null {
   return normalizeUnlockCodePlaintext(raw);
 }
 
-export function hashUnlockCode(code: string): string {
-  return createHash("sha256").update(code, "utf8").digest("hex");
-}
-
-function signingSecret(): string | null {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  return key && key.length >= 16 ? key : null;
-}
-
+/** Assina com a chave derivada de `UNLOCK_CODE_SECRET`; sem segredo, não assina (falha fechada). */
 function sign(payload: string): string | null {
-  const secret = signingSecret();
-  if (!secret) return null;
-  return createHmac("sha256", secret).update(payload, "utf8").digest("base64url");
+  const key = unlockCookieKey();
+  if (!key) return null;
+  return createHmac("sha256", key).update(payload, "utf8").digest("base64url");
 }
 
 function safeEqual(a: string, b: string): boolean {

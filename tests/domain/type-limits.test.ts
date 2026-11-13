@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   limitedTypesFromRpcItems,
   limitPeople,
+  meiaMinimum,
+  meiaShareError,
   type LimitedType,
   typeLimitsError,
   typeLimitsSummary,
@@ -107,9 +109,9 @@ describe("limites dos tipos em ingressos", () => {
       ]),
     ).toBeNull();
     expect(
-      typeLimitsError(75, { inteiraQuota: 50, meiaQuota: 25 }, [
-        type({ maxUnits: 50 }),
-        type({ name: "Meia-entrada", kind: "meia", maxUnits: 25 }),
+      typeLimitsError(75, { inteiraQuota: 45, meiaQuota: 30 }, [
+        type({ maxUnits: 45 }),
+        type({ name: "Meia-entrada", kind: "meia", maxUnits: 30 }),
         type({
           name: "Projeto Capacitação",
           maxUnits: 12,
@@ -144,5 +146,48 @@ describe("limites dos tipos em ingressos", () => {
       "Limites dos tipos: 7 de 10 ingressos. Sobram 3 que nenhum tipo pode vender (só cortesias).",
     );
     expect(typeLimitsSummary(Number.NaN, [type({ maxUnits: 7 })])).toBeNull();
+  });
+
+  it("tipo com código precisa de limite por sessão", () => {
+    expect(
+      typeLimitsError(70, { inteiraQuota: null, meiaQuota: null }, [
+        type({}),
+        type({ name: "Projeto Capacitação", maxUnits: null, outsideCategoryQuota: true }),
+      ]),
+    ).toMatch(/Informe o limite de “Projeto Capacitação”/);
+  });
+
+  it("meia-entrada precisa de pelo menos 40% do total regular (Lei 12.933)", () => {
+    const meia = type({ name: "Meia-entrada", kind: "meia", maxUnits: null });
+    expect(meiaMinimum(70)).toBe(28);
+    expect(meiaMinimum(75)).toBe(30);
+    expect(meiaMinimum(10)).toBe(4);
+    // Situação atual de Cápsulas do Tempo: 50 inteiras + 20 meias em 70.
+    expect(typeLimitsError(70, { inteiraQuota: 50, meiaQuota: 20 }, [type({}), meia])).toMatch(
+      /pelo menos 28 meias \(hoje: 20\)/,
+    );
+    expect(typeLimitsError(70, { inteiraQuota: 42, meiaQuota: 28 }, [type({}), meia])).toBeNull();
+    // Inteiras demais deixam pouco espaço para meia, mesmo sem cota de meia.
+    expect(typeLimitsError(70, { inteiraQuota: 50, meiaQuota: null }, [type({}), meia])).toMatch(
+      /inteiras podem ser no máximo 42/,
+    );
+    // Limites de todos os tipos de meia somando menos que 40%.
+    expect(
+      typeLimitsError(70, { inteiraQuota: null, meiaQuota: null }, [
+        type({}),
+        type({ name: "Meia-entrada", kind: "meia", maxUnits: 20 }),
+      ]),
+    ).toMatch(/precisam somar pelo menos 28 \(hoje: 20\)/);
+    // Extras com código não entram na conta.
+    expect(
+      typeLimitsError(70, { inteiraQuota: 42, meiaQuota: 28 }, [
+        type({}),
+        meia,
+        type({ name: "Projeto Capacitação", maxUnits: 12, outsideCategoryQuota: true }),
+      ]),
+    ).toBeNull();
+    // Sem tipo de meia à venda, a regra não se aplica.
+    expect(typeLimitsError(70, { inteiraQuota: 50, meiaQuota: 20 }, [type({})])).toBeNull();
+    expect(meiaShareError(70, { inteiraQuota: null, meiaQuota: null }, [type({}), meia])).toBeNull();
   });
 });

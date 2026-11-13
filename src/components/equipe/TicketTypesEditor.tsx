@@ -475,6 +475,7 @@ export function TicketTypesEditor({
                   <input
                     checked={row.requiresCode}
                     className="mt-0.5 h-5 w-5 shrink-0 accent-byla-action"
+                    disabled={rowSales?.hasSales}
                     onChange={(event) =>
                       setCustom(row.key, {
                         requiresCode: event.target.checked,
@@ -487,8 +488,11 @@ export function TicketTypesEditor({
                     <span className="block text-base font-semibold">Só com código</span>
                     <span className="block text-sm text-byla-muted">
                       Quem compra precisa digitar o código (ex.: bolsistas). Esse tipo é
-                      extra: não conta no total nem nas cotas de inteira/meia — só no
-                      limite abaixo ou na sessão.
+                      extra: não conta no total nem nas cotas de inteira/meia, por isso
+                      precisa de um limite em cada sessão.
+                      {rowSales?.hasSales
+                        ? " Já tem vendas: não dá para ligar ou desligar o código (dá para trocar o código)."
+                        : ""}
                     </span>
                   </span>
                 </label>
