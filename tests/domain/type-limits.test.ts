@@ -95,6 +95,51 @@ describe("limites dos tipos em ingressos", () => {
     );
   });
 
+  it("tipo com código não entra na cota de inteira/meia, só no total", () => {
+    // 15 casadinhas = 30 pessoas na cota de inteira; Capacitação 12 não soma nessa cota.
+    expect(
+      typeLimitsError(75, { inteiraQuota: 50, meiaQuota: 20 }, [
+        type({ name: "Casadinha", peoplePerUnit: 2, maxUnits: 15 }),
+        type({
+          name: "Projeto Capacitação",
+          maxUnits: 5,
+          outsideCategoryQuota: true,
+        }),
+      ]),
+    ).toBeNull();
+    expect(
+      typeLimitsError(75, { inteiraQuota: 50, meiaQuota: 25 }, [
+        type({ maxUnits: 50 }),
+        type({ name: "Meia-entrada", kind: "meia", maxUnits: 25 }),
+        type({
+          name: "Projeto Capacitação",
+          maxUnits: 12,
+          outsideCategoryQuota: true,
+        }),
+      ]),
+    ).toBe("A soma dos limites dos tipos (87 ingressos) passa do total (75). Diminua algum limite ou aumente o total.");
+    expect(
+      typeLimitsError(75, { inteiraQuota: 50, meiaQuota: 20 }, [
+        type({
+          name: "Projeto Capacitação",
+          maxUnits: 12,
+          outsideCategoryQuota: true,
+        }),
+      ]),
+    ).toBe(
+      "Inteiras (50) + meias (20) + tipos com código (12) passam do total (75). Diminua alguma cota/limite ou aumente o total.",
+    );
+    expect(
+      typeLimitsError(75, { inteiraQuota: 43, meiaQuota: 20 }, [
+        type({
+          name: "Projeto Capacitação",
+          maxUnits: 12,
+          outsideCategoryQuota: true,
+        }),
+      ]),
+    ).toBeNull();
+  });
+
   it("resumo ao vivo mostra o que os tipos sem limite dividem", () => {
     expect(typeLimitsSummary(10, [type({})])).toBeNull();
     expect(

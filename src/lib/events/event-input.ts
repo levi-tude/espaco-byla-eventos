@@ -90,7 +90,9 @@ function sessionTypeInfos(types: unknown): SessionTypeInfo[] {
       throw new ActionError("Tipo de ingresso inválido.");
     }
     const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : "tipo novo";
-    return { name, kind: "inteira", peoplePerUnit: people };
+    const unlockOp = item.unlockCodeOp;
+    const outsideCategoryQuota = unlockOp === "set" || unlockOp === "keep";
+    return { name, kind: "inteira", peoplePerUnit: people, outsideCategoryQuota };
   });
 }
 

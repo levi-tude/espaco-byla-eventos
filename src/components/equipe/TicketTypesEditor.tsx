@@ -121,6 +121,7 @@ export function draftTypesFromState(state: TicketTypesState): DraftType[] {
       name: row.name.trim() || "tipo novo",
       kind: "inteira",
       peoplePerUnit: row.peoplePerUnit,
+      outsideCategoryQuota: row.requiresCode || row.hasUnlockCode,
     });
   }
   return types;
