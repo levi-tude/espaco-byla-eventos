@@ -486,8 +486,9 @@ export function TicketTypesEditor({
                   <span>
                     <span className="block text-base font-semibold">Só com código</span>
                     <span className="block text-sm text-byla-muted">
-                      Quem compra precisa digitar o código (ex.: bolsistas). Use o limite
-                      abaixo ou na sessão para a quantidade.
+                      Quem compra precisa digitar o código (ex.: bolsistas). Esse tipo é
+                      extra: não conta no total nem nas cotas de inteira/meia — só no
+                      limite abaixo ou na sessão.
                     </span>
                   </span>
                 </label>
