@@ -142,7 +142,7 @@ export default async function EventoEquipePage({
     supabase.from("events").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("ticket_types")
-      .select("id, preset, name, kind, people_per_unit")
+      .select("id, preset, name, kind, people_per_unit, unlock_code_hash")
       .eq("event_id", id)
       .neq("kind", "cortesia")
       .is("archived_at", null)
@@ -251,6 +251,7 @@ export default async function EventoEquipePage({
       hasSales: current?.hasSales ?? true,
       unitsSold: current?.unitsSold ?? 0,
       unitsTaken: current?.unitsTaken ?? 0,
+      hasUnlockCode: Boolean(type.unlock_code_hash),
     };
   });
 

@@ -90,7 +90,14 @@ const input: EventInput = {
 const rpcTypes = [
   { preset: "inteira", price_cents: 5000, max_units: null },
   { preset: "casadinha", price_cents: 9000, max_units: null },
-  { id: customId, name: "Mesa", people_per_unit: 6, price_cents: 30000, max_units: null },
+  {
+    id: customId,
+    name: "Mesa",
+    people_per_unit: 6,
+    price_cents: 30000,
+    max_units: null,
+    unlock_code_op: "clear",
+  },
 ];
 
 const rpcSession = {

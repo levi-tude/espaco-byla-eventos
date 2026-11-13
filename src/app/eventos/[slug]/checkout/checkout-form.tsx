@@ -46,7 +46,7 @@ import { CHECKOUT_ACCEPTANCE_REQUIRED_MESSAGE, TERMS_PATH } from "@/lib/legal/te
 import { useMounted } from "@/lib/use-mounted";
 import type { Enums } from "@/types/database";
 
-import { findPendingOrder, startCheckout } from "./actions";
+import { findPendingOrder, startCheckout, unlockTicketTypes } from "./actions";
 import { PendingOrderBanner } from "./pending-order-banner";
 
 export type CheckoutTicketType = {
@@ -58,6 +58,8 @@ export type CheckoutTicketType = {
   peoplePerUnit: number;
   /** Unidades restantes do limite próprio do tipo; `null` = sem limite. */
   remainingUnits: number | null;
+  /** Liberado nesta compra com código (ex.: bolsista). */
+  unlockedWithCode?: boolean;
 };
 
 /** Sessão da compra, sempre à vista do comprador. */
@@ -85,6 +87,8 @@ type CheckoutFormProps = {
   resume: CheckoutResume | null;
   /** Taxa vigente, só para exibir; o banco recalcula e confere os termos enviados. */
   feePolicy: ServiceFeePolicy;
+  /** Há tipos só com código neste evento (mesmo que ainda ocultos). */
+  hasRestrictedTypes?: boolean;
 };
 
 const EMPTY_BUYER: Buyer = { name: "", email: "", phone: "" };
@@ -122,14 +126,19 @@ function CheckoutFormFields({
   categoryRemaining: initialCategoryRemaining,
   resume,
   feePolicy,
+  hasRestrictedTypes = false,
   restoreCart,
 }: CheckoutFormProps & { restoreCart: boolean }) {
+  const router = useRouter();
   const ids = ticketTypes.map(({ id }) => id);
   const [remaining, setRemaining] = useState(initialRemaining);
   const [categoryRemaining, setCategoryRemaining] = useState(initialCategoryRemaining);
   const [typeRemaining, setTypeRemaining] = useState<Record<string, number | null>>(
     () => Object.fromEntries(ticketTypes.map((type) => [type.id, type.remainingUnits])),
   );
+  const [unlockCode, setUnlockCode] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+  const [unlockPending, startUnlock] = useTransition();
   const capacityLeft = remaining ?? MAX_PEOPLE_PER_ORDER;
   const selectable = (limits: Record<string, number | null>): SelectableType[] =>
     ticketTypes.map((type) => ({
@@ -208,7 +217,6 @@ function CheckoutFormFields({
   const [checkingPending, setCheckingPending] = useState(
     restoreCart && initial.pendingToken !== null && initial.pendingUntil === null,
   );
-  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const humanCheck = useHumanCheck("checkout");
@@ -428,12 +436,64 @@ function CheckoutFormFields({
           </Notice>
         ) : null}
 
+        {hasRestrictedTypes ? (
+          <div className="grid gap-3 rounded-2xl border border-byla-border bg-byla-surface p-4">
+            <p className="text-base font-semibold text-foreground">Tenho um código</p>
+            <p className="text-sm text-byla-muted">
+              Se a organização passou um código (por exemplo para bolsistas), digite aqui para
+              liberar esses ingressos nesta compra.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field
+                autoComplete="off"
+                label="Código"
+                name="unlockCode"
+                onChange={(event) => setUnlockCode(event.target.value)}
+                spellCheck={false}
+                type="text"
+                value={unlockCode}
+                wrapperClassName="min-w-0 flex-1"
+              />
+              <Button
+                className="sm:w-auto"
+                disabled={awaitingPayment || unlockPending || !unlockCode.trim()}
+                loading={unlockPending}
+                loadingLabel="Liberando…"
+                onClick={() => {
+                  setUnlockError("");
+                  startUnlock(async () => {
+                    const result = await unlockTicketTypes(slug, unlockCode).catch(() => null);
+                    if (!result?.ok) {
+                      setUnlockError(result?.error ?? "Não foi possível liberar com este código.");
+                      return;
+                    }
+                    setUnlockCode("");
+                    router.refresh();
+                  });
+                }}
+                type="button"
+                variant="secondary"
+              >
+                Liberar
+              </Button>
+            </div>
+            {unlockError ? <Notice tone="danger">{unlockError}</Notice> : null}
+          </div>
+        ) : null}
+
         <fieldset className="grid gap-3" disabled={awaitingPayment}>
           <legend className="mb-1 text-xl font-semibold text-foreground">
             Escolha seus ingressos
           </legend>
           {notice ? (
             <p className="-mt-2 text-base font-semibold text-byla-accent-text">{notice}</p>
+          ) : null}
+          {ticketTypes.length === 0 ? (
+            <Notice live={false} tone="neutral">
+              {hasRestrictedTypes
+                ? "Informe o código acima para ver os ingressos disponíveis com acesso restrito."
+                : "Nenhum ingresso à venda nesta sessão."}
+            </Notice>
           ) : null}
           <ul className="divide-y divide-byla-border rounded-2xl border border-byla-border bg-byla-surface">
             {ticketTypes.map((type) => {
@@ -472,6 +532,9 @@ function CheckoutFormFields({
                       <p className="text-sm text-byla-muted">
                         Meia-entrada: apresente documento que comprove o direito na entrada (Lei 12.933/2013).
                       </p>
+                    ) : null}
+                    {type.unlockedWithCode ? (
+                      <p className="text-sm text-byla-muted">Liberado com o seu código.</p>
                     ) : null}
                     {typeNotice ? (
                       <p className="mt-0.5 text-sm font-semibold text-byla-accent-text">

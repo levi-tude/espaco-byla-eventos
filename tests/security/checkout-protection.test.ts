@@ -53,11 +53,17 @@ const pendingOrder = {
 };
 
 function selectResult(data: unknown) {
-  const chain = {
+  const chain: Record<string, unknown> = {
     select: () => chain,
     eq: () => chain,
+    in: () => chain,
+    not: () => chain,
+    neq: () => chain,
+    is: () => chain,
     maybeSingle: async () => ({ data, error: null }),
     single: async () => ({ data, error: null }),
+    then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve({ data: [], error: null }).then(resolve, reject),
   };
   return chain;
 }

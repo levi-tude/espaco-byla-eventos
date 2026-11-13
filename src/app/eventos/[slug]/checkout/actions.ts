@@ -1,5 +1,6 @@
 "use server";
 
+import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
 import {
   capacityRefusalMessage,
   categoryRefusalMessage,
@@ -26,6 +27,13 @@ import {
   RATE_LIMITS,
 } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  hashUnlockCode,
+  normalizeUnlockCode,
+  readUnlockCookie,
+  unlockedTypeIds,
+  writeUnlockCookie,
+} from "@/lib/tickets/unlock-code";
 
 export type CheckoutInput = {
   slug: string;
@@ -52,6 +60,10 @@ const LIMIT_MESSAGE = `Selecione no máximo ${MAX_PEOPLE_PER_ORDER} pessoas por 
 const SESSION_CHOICE_MESSAGE = "Escolha a sessão na página do evento e tente de novo.";
 const UNAVAILABLE_MESSAGE =
   "Um dos tipos de ingresso escolhidos não está mais à venda. Atualize a página e escolha de novo.";
+const UNLOCK_FAILED_MESSAGE =
+  "Não foi possível liberar com este código. Confira e tente de novo.";
+const RESTRICTED_TYPE_MESSAGE =
+  "Um dos tipos escolhidos precisa de código de acesso. Informe o código e tente de novo.";
 
 async function activeSessionCount(
   admin: ReturnType<typeof createAdminClient>,
@@ -167,6 +179,32 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutResul
     .maybeSingle();
 
   if (eventError || !event) return { error: "Evento não encontrado." };
+
+  const selectedIds = [...quantities.entries()]
+    .filter(([, qty]) => qty > 0)
+    .map(([ticketTypeId]) => ticketTypeId);
+  if (selectedIds.length) {
+    const { data: lockedTypes } = await admin
+      .from("ticket_types")
+      .select("id, unlock_code_hash")
+      .eq("event_id", event.id)
+      .in("id", selectedIds)
+      .not("unlock_code_hash", "is", null);
+    const locked = (lockedTypes ?? []).filter((row) => row.unlock_code_hash);
+    if (locked.length) {
+      const unlock = await readUnlockCookie(event.id);
+      const allowed = unlock
+        ? unlockedTypeIds(
+            locked.map((row) => ({ id: row.id, unlock_code_hash: row.unlock_code_hash })),
+            unlock.codeHash,
+          )
+        : new Set<string>();
+      if (locked.some((row) => !allowed.has(row.id))) {
+        return { error: RESTRICTED_TYPE_MESSAGE };
+      }
+    }
+  }
+
   const publicToken = createPublicToken();
   const provider = getPaymentProvider();
   const items = [...quantities.entries()]
@@ -304,4 +342,51 @@ export async function findPendingOrder(
     return { state: "awaiting_payment", expiresAt: order.expires_at };
   }
   return { state: "none" };
+}
+
+/**
+ * Libera tipos com código compartilhado neste navegador (cookie HttpOnly).
+ * Sempre a mesma mensagem se o código não bater — não revela quais tipos existem.
+ */
+export async function unlockTicketTypes(
+  slug: string,
+  code: string,
+): Promise<ActionResult<{ unlocked: number }>> {
+  return runAction(async () => {
+    if (typeof slug !== "string" || !slug.trim() || slug.length > 200) {
+      throw new ActionError(UNLOCK_FAILED_MESSAGE);
+    }
+    const normalized = normalizeUnlockCode(code);
+    if (!normalized) throw new ActionError(UNLOCK_FAILED_MESSAGE);
+
+    const admin = createAdminClient();
+    if (!(await consumeRateLimit(admin, RATE_LIMITS.ticketUnlockPerIp, await clientIp()))) {
+      throw new ActionError(RATE_LIMIT_MESSAGE);
+    }
+
+    const { data: event } = await admin
+      .from("events")
+      .select("id")
+      .eq("slug", slug.trim())
+      .maybeSingle();
+    if (!event) throw new ActionError(UNLOCK_FAILED_MESSAGE);
+
+    const codeHash = hashUnlockCode(normalized);
+    const { data: types } = await admin
+      .from("ticket_types")
+      .select("id, unlock_code_hash")
+      .eq("event_id", event.id)
+      .eq("unlock_code_hash", codeHash)
+      .neq("kind", "cortesia")
+      .is("archived_at", null)
+      .eq("active", true);
+
+    const unlocked = types?.length ?? 0;
+    if (unlocked === 0) throw new ActionError(UNLOCK_FAILED_MESSAGE);
+    if (!(await writeUnlockCookie(event.id, codeHash))) {
+      console.error("[checkout] Falha ao gravar cookie de código de ingresso.");
+      throw new ActionError(UNLOCK_FAILED_MESSAGE);
+    }
+    return { unlocked };
+  }, UNLOCK_FAILED_MESSAGE);
 }

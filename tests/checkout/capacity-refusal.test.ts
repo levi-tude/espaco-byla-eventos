@@ -65,11 +65,27 @@ function tableChain(table: string) {
     table === "ticket_types"
       ? { name: "Casadinha" }
       : { id: "00000000-0000-4000-8000-000000000001", capacity: 10 };
-  const chain = {
+  const chain: Record<string, unknown> = {
     select: () => chain,
     eq: () => chain,
+    in: () => chain,
+    not: () => chain,
+    neq: () => chain,
+    is: () => chain,
     maybeSingle: async () => ({ data, error: null }),
+    then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve(
+        table === "ticket_types" && data && "name" in (data as object)
+          ? { data: [], error: null }
+          : { data, error: null },
+      ).then(resolve, reject),
   };
+  // Consulta de nome do tipo (maybeSingle) vs checagem de código (await da lista).
+  if (table === "ticket_types") {
+    chain.maybeSingle = async () => ({ data: { name: "Casadinha" }, error: null });
+    chain.then = (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve({ data: [], error: null }).then(resolve, reject);
+  }
   return chain;
 }
 

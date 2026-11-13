@@ -91,6 +91,9 @@ export function unitContentsLabel(peoplePerUnit: number, kind: TicketKind): stri
     : `${peoplePerUnit} ingressos ${category}`;
 }
 
+/** Código compartilhado: keep = mantém o hash; set = novo; clear = remove. */
+export type UnlockCodeOp = "keep" | "set" | "clear";
+
 export type TicketTypeInput =
   | { preset: TicketPreset; priceCents: number; maxUnits: number | null }
   | {
@@ -100,6 +103,12 @@ export type TicketTypeInput =
       peoplePerUnit: number;
       priceCents: number;
       maxUnits: number | null;
+      /** Só no caminho do editor → servidor; omitido = clear. */
+      unlockCodeOp?: UnlockCodeOp;
+      /** Texto do código novo quando `unlockCodeOp === "set"` (hasheado no servidor). */
+      unlockCode?: string | null;
+      /** Preenchido no servidor antes do RPC. */
+      unlockCodeHash?: string | null;
     };
 
 /** Formato de `save_event_ticket_types` / `update_event_with_capacity`. */
@@ -111,6 +120,8 @@ export type TicketTypeRpcItem =
       people_per_unit: number;
       price_cents: number;
       max_units: number | null;
+      unlock_code_op?: UnlockCodeOp;
+      unlock_code_hash?: string | null;
     };
 
 type NormalizeResult =
@@ -197,12 +208,32 @@ export function normalizeTicketTypes(input: unknown): NormalizeResult {
         return { ok: false, error: "Tipo de ingresso inválido." };
       }
       if (id) ids.add(id);
+      const unlockCodeOp =
+        item.unlockCodeOp === "keep" || item.unlockCodeOp === "set" || item.unlockCodeOp === "clear"
+          ? item.unlockCodeOp
+          : "clear";
+      let unlock_code_hash: string | null | undefined;
+      if (unlockCodeOp === "set") {
+        const hash =
+          typeof item.unlockCodeHash === "string" && /^[0-9a-f]{64}$/.test(item.unlockCodeHash)
+            ? item.unlockCodeHash
+            : null;
+        if (!hash) {
+          return {
+            ok: false,
+            error: `Informe um código de 6 a 64 caracteres para “${name}”.`,
+          };
+        }
+        unlock_code_hash = hash;
+      }
       items.push({
         id,
         name,
         people_per_unit: item.peoplePerUnit,
         price_cents: item.priceCents,
         max_units: maxUnits,
+        unlock_code_op: unlockCodeOp,
+        ...(unlockCodeOp === "set" ? { unlock_code_hash } : {}),
       });
     }
     names.add(normalizedName(name));
@@ -234,6 +265,9 @@ export function ticketTypesErrorMessage(message: string | undefined): string | n
   }
   if (message.includes("TIPOS_QUANTIDADE")) {
     return `Marque de 1 a ${TICKET_TYPE_LIMITS.maxTypes} tipos de ingresso para vender.`;
+  }
+  if (message.includes("TIPOS_CODIGO")) {
+    return "Confira o código de acesso do tipo restrito e tente de novo.";
   }
   return "Confira os tipos de ingresso e tente de novo.";
 }
