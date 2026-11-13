@@ -51,6 +51,7 @@ import { loadEventFinance } from "@/lib/finance/load";
 import { loadOrganizerEventFinance } from "@/lib/organizer/load-finance";
 import { loadEventGallery } from "@/lib/media/gallery";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllPages } from "@/lib/supabase/paginate";
 import { createServerClient } from "@/lib/supabase/server";
 
 const teamSales: Record<ReturnType<typeof salesState>, { label: string; tone: Tone }> = {
@@ -154,13 +155,18 @@ export default async function EventoEquipePage({
       .eq("event_id", id)
       .is("archived_at", null)
       .order("starts_at"),
-    supabase
-      .from("tickets")
-      .select(
-        "id, order_id, session_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
-      )
-      .eq("event_id", id)
-      .order("created_at", { ascending: false }),
+    // Paginado: evento grande passa de 1000 ingressos (limite por resposta do Supabase).
+    fetchAllPages((from, to) =>
+      supabase
+        .from("tickets")
+        .select(
+          "id, order_id, session_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
+        )
+        .eq("event_id", id)
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to),
+    ),
     supabase
       .from("orders")
       .select(

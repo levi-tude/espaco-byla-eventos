@@ -189,6 +189,12 @@ describe("erros do banco ao salvar tipos", () => {
     expect(ticketTypesErrorMessage("TIPOS_LIMITE_MENOR:7:Casadinha")).toBe(
       "O limite de “Casadinha” não pode ser menor que 7 (já vendidos ou reservados).",
     );
+    expect(ticketTypesErrorMessage("TIPOS_CODIGO_COM_VENDAS:Projeto capacitação")).toContain(
+      "“Projeto capacitação” já tem vendas, então não dá para ligar ou desligar o código",
+    );
+    expect(ticketTypesErrorMessage("TIPOS_CODIGO_SEM_LIMITE:Bolsista")).toContain(
+      "Informe o limite de “Bolsista” em cada sessão",
+    );
     expect(ticketTypesErrorMessage("TIPOS_NOME_RESERVADO:Inteira")).toContain("tipo pronto");
     expect(ticketTypesErrorMessage("TIPOS_DESATUALIZADO")).toContain("Recarregue a página");
     expect(ticketTypesErrorMessage("TIPOS_OUTRO")).toBe(

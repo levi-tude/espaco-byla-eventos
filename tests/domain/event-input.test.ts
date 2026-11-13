@@ -1,7 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActionError } from "@/lib/action-result";
-import { isHttpsUrl, normalizeEventInput, saveErrorMessage, UUID_PATTERN } from "@/lib/events/event-input";
+import {
+  isHttpsUrl,
+  normalizeEventInput,
+  saveErrorMessage,
+  UNLOCK_SECRET_MISSING_MESSAGE,
+  UUID_PATTERN,
+} from "@/lib/events/event-input";
+import { hashUnlockCode } from "@/lib/tickets/unlock-code-crypto";
 
 const input = {
   name: "  Show de teste ",
@@ -68,3 +77,56 @@ describe("auxiliares", () => {
     expect(UUID_PATTERN.test("x")).toBe(false);
   });
 });
+
+describe("tipo com código de acesso", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const withCode = (maxUnits: number | null) => ({
+    ...input,
+    ticketTypes: [
+      { preset: "inteira" as const, priceCents: 5000, maxUnits: null },
+      {
+        preset: null,
+        id: null,
+        name: "Projeto Capacitação",
+        peoplePerUnit: 1,
+        priceCents: 2500,
+        maxUnits: null,
+        unlockCodeOp: "set" as const,
+        unlockCode: "bolsista2026",
+      },
+    ],
+    sessions: [
+      {
+        ...input.sessions[0],
+        prices: [
+          { typeIndex: 0, priceCents: 5000, maxUnits: null, onSale: true },
+          { typeIndex: 1, priceCents: 2500, maxUnits, onSale: true },
+        ],
+      },
+    ],
+  });
+
+  it("grava HMAC com o segredo do servidor, não SHA-256 puro", () => {
+    vi.stubEnv("UNLOCK_CODE_SECRET", "segredo-de-teste-com-mais-de-32-caracteres");
+    const normalized = normalizeEventInput(withCode(12));
+    const custom = normalized.ticketTypes[1] as { unlock_code_hash?: string };
+    expect(custom.unlock_code_hash).toBe(hashUnlockCode("bolsista2026"));
+    expect(custom.unlock_code_hash).not.toBe(
+      createHash("sha256").update("bolsista2026", "utf8").digest("hex"),
+    );
+  });
+
+  it("sem UNLOCK_CODE_SECRET não salva o código", () => {
+    vi.stubEnv("UNLOCK_CODE_SECRET", "");
+    expect(() => normalizeEventInput(withCode(12))).toThrow(UNLOCK_SECRET_MISSING_MESSAGE);
+  });
+
+  it("exige limite por sessão para o tipo com código", () => {
+    vi.stubEnv("UNLOCK_CODE_SECRET", "segredo-de-teste-com-mais-de-32-caracteres");
+    expect(() => normalizeEventInput(withCode(null))).toThrow(/Informe o limite de “Projeto Capacitação”/);
+  });
+});
+

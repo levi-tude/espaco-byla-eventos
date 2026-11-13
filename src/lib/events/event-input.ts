@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { ActionError } from "@/lib/action-result";
 import { quotaDbErrorMessage } from "@/lib/domain/quotas";
 import {
@@ -20,17 +18,23 @@ import {
   ticketTypesErrorMessage,
 } from "@/lib/domain/ticket-types";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
+import { hashUnlockCode } from "@/lib/tickets/unlock-code-crypto";
 import { normalizeUnlockCodePlaintext } from "@/lib/tickets/unlock-code-hash";
+
+export const UNLOCK_SECRET_MISSING_MESSAGE =
+  "Não foi possível salvar o código de acesso agora. Avise a equipe da ACDH.";
 
 function withUnlockHashes(types: TicketTypeInput[]): TicketTypeInput[] {
   return types.map((type) => {
     if (type.preset !== null || type.unlockCodeOp !== "set") return type;
     const code = normalizeUnlockCodePlaintext(type.unlockCode);
     if (!code) return type;
-    return {
-      ...type,
-      unlockCodeHash: createHash("sha256").update(code, "utf8").digest("hex"),
-    };
+    const unlockCodeHash = hashUnlockCode(code);
+    if (!unlockCodeHash) {
+      console.error("[eventos] UNLOCK_CODE_SECRET ausente ou curto: código de acesso não salvo.");
+      throw new ActionError(UNLOCK_SECRET_MISSING_MESSAGE);
+    }
+    return { ...type, unlockCodeHash };
   });
 }
 

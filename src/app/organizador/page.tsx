@@ -12,6 +12,7 @@ import { Notice } from "@/components/ui/Notice";
 import { getActor } from "@/lib/auth/actor";
 import { organizerAreaEnabled } from "@/lib/organizer/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllPages } from "@/lib/supabase/paginate";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -34,11 +35,16 @@ const byStart = (a: { starts_at: string }, b: { starts_at: string }) =>
 /** Ingressos pagos ou já usados na portaria, por evento (uma consulta para todos os cards). */
 async function soldByEvent(eventIds: string[]): Promise<Map<string, number> | null> {
   if (!eventIds.length) return new Map();
-  const { data, error } = await createAdminClient()
-    .from("tickets")
-    .select("event_id")
-    .in("event_id", eventIds)
-    .in("status", ["pago", "check_in"]);
+  const admin = createAdminClient();
+  const { data, error } = await fetchAllPages<{ event_id: string }>((from, to) =>
+    admin
+      .from("tickets")
+      .select("event_id")
+      .in("event_id", eventIds)
+      .in("status", ["pago", "check_in"])
+      .order("id")
+      .range(from, to),
+  );
   if (error) {
     console.error("[organizador] Falha ao contar ingressos vendidos.", error.code);
     return null;

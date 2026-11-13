@@ -35,6 +35,7 @@ vi.mock("@/lib/payments/provider", () => ({
 
 import { startCheckout, unlockTicketTypes } from "@/app/eventos/[slug]/checkout/actions";
 import { hashUnlockCode } from "@/lib/tickets/unlock-code";
+import { legacyUnlockCodeHash } from "@/lib/tickets/unlock-code-crypto";
 import { RATE_LIMIT_MESSAGE } from "@/lib/security/rate-limit";
 
 const EVENT_ID = "00000000-0000-4000-8000-0000000000e1";
@@ -57,6 +58,7 @@ function query(result: { data: unknown; error: unknown }) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "chave-de-teste-bem-longa");
+  vi.stubEnv("UNLOCK_CODE_SECRET", "segredo-de-teste-com-mais-de-32-caracteres");
   mocks.writeUnlockCookie.mockResolvedValue(true);
   mocks.readUnlockCookie.mockResolvedValue(null);
   mocks.rpc.mockImplementation(async (fn: string) => {
@@ -85,6 +87,28 @@ describe("unlockTicketTypes", () => {
       data: { unlocked: 1 },
     });
     expect(mocks.writeUnlockCookie).toHaveBeenCalledWith(EVENT_ID, hashUnlockCode(CODE));
+  });
+
+  it("código salvo no formato antigo (SHA-256) ainda libera", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "events") return query({ data: { id: EVENT_ID }, error: null });
+      return query({
+        data: [{ id: TYPE_ID, unlock_code_hash: legacyUnlockCodeHash(CODE) }],
+        error: null,
+      });
+    });
+    expect(await unlockTicketTypes("capsulas", CODE)).toEqual({ ok: true, data: { unlocked: 1 } });
+    expect(mocks.writeUnlockCookie).toHaveBeenCalledWith(EVENT_ID, legacyUnlockCodeHash(CODE));
+  });
+
+  it("erro ao ler os tipos: não libera", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "events") return query({ data: { id: EVENT_ID }, error: null });
+      return query({ data: null, error: { code: "XX000", message: "falha" } });
+    });
+    const result = await unlockTicketTypes("capsulas", CODE);
+    expect(result.ok).toBe(false);
+    expect(mocks.writeUnlockCookie).not.toHaveBeenCalled();
   });
 
   it("código errado: mesma mensagem genérica", async () => {
@@ -131,5 +155,57 @@ describe("startCheckout com tipo restrito", () => {
     });
     expect(result).toMatchObject({ error: expect.stringMatching(/código/i) });
     expect(mocks.rpc.mock.calls.some(([fn]) => fn === "create_checkout_order")).toBe(false);
+  });
+
+  it("falha fechada: erro ao conferir tipos com código bloqueia a compra", async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "events") {
+        return query({ data: { id: EVENT_ID, capacity: 100 }, error: null });
+      }
+      if (table === "ticket_types") {
+        return query({ data: null, error: { code: "57014", message: "timeout" } });
+      }
+      return query({ data: null, error: null });
+    });
+    const result = await startCheckout({
+      slug: "capsulas",
+      items: [{ ticketTypeId: TYPE_ID, qty: 1 }],
+      buyer: { name: "Ana", email: "ana@exemplo.com" },
+      acceptedPrivacy: true,
+      acceptedTerms: true,
+    });
+    expect(result).toMatchObject({ error: expect.stringMatching(/conferir os ingressos/i) });
+    expect(mocks.rpc.mock.calls.some(([fn]) => fn === "create_checkout_order")).toBe(false);
+  });
+
+  it("com cookie do código certo, segue para criar o pedido", async () => {
+    mocks.readUnlockCookie.mockResolvedValue({
+      eventId: EVENT_ID,
+      codeHash: hashUnlockCode(CODE),
+      exp: Math.floor(Date.now() / 1000) + 60,
+    });
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "events") {
+        return query({ data: { id: EVENT_ID, capacity: 100 }, error: null });
+      }
+      if (table === "ticket_types") {
+        return query({ data: [{ id: TYPE_ID, unlock_code_hash: hashUnlockCode(CODE) }], error: null });
+      }
+      return query({ data: null, error: null });
+    });
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "consume_rate_limit") return Promise.resolve({ data: true, error: null });
+      const result = Promise.resolve({ data: { order_id: "order" }, error: null });
+      return Object.assign(result, { single: () => result });
+    });
+    const result = await startCheckout({
+      slug: "capsulas",
+      items: [{ ticketTypeId: TYPE_ID, qty: 1 }],
+      buyer: { name: "Ana", email: "ana@exemplo.com" },
+      acceptedPrivacy: true,
+      acceptedTerms: true,
+    });
+    expect(mocks.rpc.mock.calls.some(([fn]) => fn === "create_checkout_order")).toBe(true);
+    expect(result).toMatchObject({ publicToken: expect.any(String) });
   });
 });

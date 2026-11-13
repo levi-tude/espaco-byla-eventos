@@ -246,6 +246,14 @@ export function normalizeTicketTypes(input: unknown): NormalizeResult {
 export function ticketTypesErrorMessage(message: string | undefined): string | null {
   if (!message || !message.includes("TIPOS_")) return null;
 
+  const codeWithSales = message.match(/TIPOS_CODIGO_COM_VENDAS:(.+)$/);
+  if (codeWithSales) {
+    return `“${codeWithSales[1].trim()}” já tem vendas, então não dá para ligar ou desligar o código de acesso. Crie um tipo novo se precisar.`;
+  }
+  const codeWithoutLimit = message.match(/TIPOS_CODIGO_SEM_LIMITE:(.+)$/);
+  if (codeWithoutLimit) {
+    return `Informe o limite de “${codeWithoutLimit[1].trim()}” em cada sessão: tipo com código é extra (fora do total) e precisa de limite.`;
+  }
   const withSales = message.match(/TIPOS_PESSOAS_COM_VENDAS:(.+)$/);
   if (withSales) {
     return `“${withSales[1].trim()}” já tem vendas, então o número de pessoas não pode mudar. Crie um tipo novo se precisar.`;

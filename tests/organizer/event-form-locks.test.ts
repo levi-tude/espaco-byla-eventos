@@ -76,10 +76,10 @@ function session(id: string, overrides: Partial<EditorSession> = {}): EditorSess
     endsAt: null,
     capacity: 80,
     inteiraQuota: null,
-    meiaQuota: 30,
+    meiaQuota: 32,
     prices: {
       "preset:inteira": { priceCents: 5000, maxUnits: null, onSale: true },
-      "preset:meia": { priceCents: 2500, maxUnits: 10, onSale: true },
+      "preset:meia": { priceCents: 2500, maxUnits: 32, onSale: true },
     },
     sold: 3,
     occupied: 3,
