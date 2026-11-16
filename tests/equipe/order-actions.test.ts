@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   refundPaidOrder: vi.fn(),
   notifyOrganizerOrderRefunded: vi.fn(),
   captureOrderFee: vi.fn(),
+  resendOrderTicketsOrThrow: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -35,8 +36,12 @@ vi.mock("@/lib/payments/refund", () => ({ refundPaidOrder: mocks.refundPaidOrder
 vi.mock("@/lib/organizer/refund-notice", () => ({
   notifyOrganizerOrderRefunded: mocks.notifyOrganizerOrderRefunded,
 }));
+vi.mock("@/lib/email/resend-order-tickets", () => ({
+  RESEND_TICKETS_FALLBACK: "Não foi possível reenviar o e-mail do ingresso.",
+  resendOrderTicketsOrThrow: mocks.resendOrderTicketsOrThrow,
+}));
 
-import { acceptPaidOrder, refundOrder } from "@/app/equipe/eventos/order-actions";
+import { acceptPaidOrder, refundOrder, resendOrderTickets } from "@/app/equipe/eventos/order-actions";
 import { ActionError } from "@/lib/action-result";
 
 const orderId = "00000000-0000-4000-8000-000000000010";
@@ -301,5 +306,31 @@ describe("refundOrder", () => {
       error: "Pedido não encontrado.",
     });
     expect(mocks.refundPaidOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("resendOrderTickets (equipe)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } }, error: null });
+    mocks.serverRpc.mockResolvedValue({ data: true, error: null });
+    mocks.resendOrderTicketsOrThrow.mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ["sem login", () => mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })],
+    ["logado mas fora da equipe", () => mocks.serverRpc.mockResolvedValue({ data: false, error: null })],
+  ])("%s é recusado antes de reenviar", async (_caso, arrange) => {
+    arrange();
+    expect(await resendOrderTickets(orderId)).toEqual({
+      ok: false,
+      error: "Acesso restrito à equipe.",
+    });
+    expect(mocks.resendOrderTicketsOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("equipe autenticada reenvia o ingresso", async () => {
+    expect(await resendOrderTickets(orderId)).toEqual({ ok: true, data: undefined });
+    expect(mocks.resendOrderTicketsOrThrow).toHaveBeenCalledWith(orderId);
   });
 });

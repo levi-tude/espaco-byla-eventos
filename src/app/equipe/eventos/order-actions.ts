@@ -3,13 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
-import { requireActor } from "@/lib/auth/actor";
 import { requireStaffUser } from "@/lib/auth/staff-user";
+import { normalizeRefundReason } from "@/lib/domain/refund";
 import {
   RESEND_TICKETS_FALLBACK,
   resendOrderTicketsOrThrow,
 } from "@/lib/email/resend-order-tickets";
-import { normalizeRefundReason } from "@/lib/domain/refund";
 import { notifyOrganizerOrderRefunded } from "@/lib/organizer/refund-notice";
 import { captureOrderFee } from "@/lib/payments/capture-fee";
 import { sendOrderTicketsEmail } from "@/lib/payments/confirm-order";
@@ -139,7 +138,7 @@ async function refundOrderOrThrow(orderId: unknown, reason: unknown): Promise<Re
 /** Reenvia o e-mail dos ingressos de um pedido pago ao comprador. */
 export async function resendOrderTickets(orderId: string): Promise<ActionResult> {
   return runAction(async () => {
-    await requireActor();
+    await requireStaffUser();
     return resendOrderTicketsOrThrow(orderId);
   }, RESEND_TICKETS_FALLBACK);
 }

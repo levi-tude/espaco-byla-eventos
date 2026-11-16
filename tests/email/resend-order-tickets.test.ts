@@ -37,12 +37,13 @@ vi.mock("@/lib/payments/confirm-order", () => ({
 import { ActionError } from "@/lib/action-result";
 import { ACCESS_DENIED_MESSAGE, EVENT_NOT_FOUND_MESSAGE } from "@/lib/auth/actor";
 import {
+  RESEND_TICKETS_DAILY_LIMITED,
   RESEND_TICKETS_FALLBACK,
   RESEND_TICKETS_NOT_PAID,
   RESEND_TICKETS_RATE_LIMITED,
   resendOrderTicketsOrThrow,
 } from "@/lib/email/resend-order-tickets";
-import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { RATE_LIMIT_MESSAGE, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const ORDER_ID = "00000000-0000-4000-8000-000000000010";
 const EVENT_ID = "00000000-0000-4000-8000-000000000001";
@@ -71,6 +72,7 @@ describe("resendOrderTicketsOrThrow", () => {
     mocks.tryConsumeRateLimit.mockResolvedValue("allowed");
     mocks.releaseRateLimit.mockResolvedValue(true);
     mocks.sendOrderTicketsEmail.mockResolvedValue(true);
+    vi.spyOn(console, "info").mockImplementation(() => {});
   });
 
   it("recusa quem não está autenticado antes de buscar o pedido", async () => {
@@ -109,6 +111,7 @@ describe("resendOrderTicketsOrThrow", () => {
   it("respeita o limite de 1 reenvio a cada 2 minutos por pedido", async () => {
     mocks.tryConsumeRateLimit.mockResolvedValue("limited");
     await expect(resendOrderTicketsOrThrow(ORDER_ID)).rejects.toThrow(RESEND_TICKETS_RATE_LIMITED);
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledTimes(1);
     expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
       expect.anything(),
       RATE_LIMITS.resendTicketsPerOrder,
@@ -118,10 +121,57 @@ describe("resendOrderTicketsOrThrow", () => {
     expect(mocks.sendOrderTicketsEmail).not.toHaveBeenCalled();
   });
 
+  it("respeita o teto de 5 reenvios por dia por pedido, além da janela de 2 minutos", async () => {
+    mocks.tryConsumeRateLimit.mockImplementation(async (_admin, rule) =>
+      rule === RATE_LIMITS.resendTicketsPerOrderDay ? "limited" : "allowed",
+    );
+    await expect(resendOrderTicketsOrThrow(ORDER_ID)).rejects.toThrow(RESEND_TICKETS_DAILY_LIMITED);
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrder,
+      ORDER_ID,
+    );
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrderDay,
+      ORDER_ID,
+    );
+    expect(RATE_LIMITS.resendTicketsPerOrderDay).toMatchObject({ limit: 5, windowSeconds: 86_400 });
+    expect(mocks.releaseRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrder,
+      ORDER_ID,
+    );
+    expect(mocks.sendOrderTicketsEmail).not.toHaveBeenCalled();
+  });
+
+  it("se a consulta do teto diário falha, libera a janela curta e não envia", async () => {
+    mocks.tryConsumeRateLimit.mockImplementation(async (_admin, rule) =>
+      rule === RATE_LIMITS.resendTicketsPerOrderDay ? "error" : "allowed",
+    );
+    await expect(resendOrderTicketsOrThrow(ORDER_ID)).rejects.toThrow(RATE_LIMIT_MESSAGE);
+    expect(mocks.releaseRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrder,
+      ORDER_ID,
+    );
+    expect(mocks.sendOrderTicketsEmail).not.toHaveBeenCalled();
+  });
+
   it("equipe reenvia o e-mail do pedido pago", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     await expect(resendOrderTicketsOrThrow(ORDER_ID)).resolves.toBeUndefined();
     expect(mocks.requireEventAccess).toHaveBeenCalledWith(EVENT_ID);
     expect(mocks.sendOrderTicketsEmail).toHaveBeenCalledWith(expect.anything(), ORDER_ID);
+    expect(mocks.tryConsumeRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrderDay,
+      ORDER_ID,
+    );
+    expect(JSON.stringify(info.mock.calls)).toContain(ORDER_ID);
+    expect(JSON.stringify(info.mock.calls)).toContain("staff-1");
+    expect(JSON.stringify(info.mock.calls)).not.toMatch(/@/);
+    info.mockRestore();
   });
 
   it("dono do evento também pode reenviar", async () => {
@@ -134,13 +184,18 @@ describe("resendOrderTicketsOrThrow", () => {
     expect(mocks.sendOrderTicketsEmail).toHaveBeenCalledWith(expect.anything(), ORDER_ID);
   });
 
-  it("se o envio falha, libera o limite e não vaza PII no log", async () => {
+  it("se o envio falha, libera os dois limites e não vaza PII no log", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.sendOrderTicketsEmail.mockResolvedValue(false);
     await expect(resendOrderTicketsOrThrow(ORDER_ID)).rejects.toThrow(RESEND_TICKETS_FALLBACK);
     expect(mocks.releaseRateLimit).toHaveBeenCalledWith(
       expect.anything(),
       RATE_LIMITS.resendTicketsPerOrder,
+      ORDER_ID,
+    );
+    expect(mocks.releaseRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      RATE_LIMITS.resendTicketsPerOrderDay,
       ORDER_ID,
     );
     expect(JSON.stringify(error.mock.calls)).not.toMatch(/@/);
