@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 
 import { resendOrderTickets } from "@/app/organizador/eventos/order-actions";
 import { REFUND_REQUEST_SENT_MESSAGE, RequestRefundDialog } from "@/components/organizer/RequestRefundDialog";
+import { ResendTicketsControl } from "@/components/tickets/ResendTicketsControl";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -57,9 +58,6 @@ export function OrganizerOrderList({ orders }: { orders: OrganizerOrder[] }) {
   const [query, setQuery] = useState("");
   const [refunding, setRefunding] = useState<OrganizerOrder | null>(null);
   const [sent, setSent] = useState(false);
-  const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
-  const [resendingId, setResendingId] = useState<string | null>(null);
-  const [isResending, startResend] = useTransition();
 
   const shown = useMemo(() => {
     const term = searchable(query.trim()).replace(/^n[º°]\s*/, "");
@@ -75,7 +73,6 @@ export function OrganizerOrderList({ orders }: { orders: OrganizerOrder[] }) {
       <p className="text-base text-byla-muted">Precisa de cortesias? Peça à equipe da ACDH Eventos pelo WhatsApp.</p>
 
       {sent ? <Notice tone="success">{REFUND_REQUEST_SENT_MESSAGE}</Notice> : null}
-      {notice ? <Notice tone={notice.ok ? "success" : "danger"}>{notice.text}</Notice> : null}
 
       {orders.length === 0 ? (
         <p className="text-base text-byla-muted">Nenhum pedido ainda.</p>
@@ -125,36 +122,11 @@ export function OrganizerOrderList({ orders }: { orders: OrganizerOrder[] }) {
                     {order.status === "pago" || canRequestRefund(order) ? (
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         {order.status === "pago" ? (
-                          <Button
-                            className="sm:w-auto"
-                            disabled={isResending && resendingId === order.orderId}
-                            fullWidth
-                            loading={isResending && resendingId === order.orderId}
-                            loadingLabel="Reenviando..."
-                            onClick={() => {
-                              setSent(false);
-                              setNotice(null);
-                              setResendingId(order.orderId);
-                              startResend(async () => {
-                                try {
-                                  const result = await resendOrderTickets(order.orderId);
-                                  setNotice(
-                                    result.ok
-                                      ? { text: "Reenviamos o e-mail do ingresso para o comprador.", ok: true }
-                                      : { text: result.error, ok: false },
-                                  );
-                                } catch {
-                                  setNotice({
-                                    text: "Não foi possível reenviar o e-mail do ingresso.",
-                                    ok: false,
-                                  });
-                                }
-                              });
-                            }}
-                            variant="secondary"
-                          >
-                            Reenviar ingresso
-                          </Button>
+                          <ResendTicketsControl
+                            orderId={order.orderId}
+                            send={resendOrderTickets}
+                            variant="button"
+                          />
                         ) : null}
                         {canRequestRefund(order) ? (
                           <Button
@@ -162,7 +134,6 @@ export function OrganizerOrderList({ orders }: { orders: OrganizerOrder[] }) {
                             fullWidth
                             onClick={() => {
                               setSent(false);
-                              setNotice(null);
                               setRefunding(order);
                             }}
                             variant="secondary"

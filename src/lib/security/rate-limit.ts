@@ -46,6 +46,7 @@ export const RATE_LIMITS = {
   organizerSubmitNotice: { bucket: "org-notice:submit", limit: 1, windowSeconds: 21_600 },
   /** Reenvio do e-mail de ingressos pelo painel (equipe ou organizador). */
   resendTicketsPerOrder: { bucket: "resend-tickets:order", limit: 1, windowSeconds: 120 },
+  resendTicketsPerOrderDay: { bucket: "resend-tickets:order-day", limit: 5, windowSeconds: 86_400 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export const RATE_LIMIT_MESSAGE =

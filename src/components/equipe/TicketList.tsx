@@ -13,6 +13,7 @@ import {
   RefundOrderButton,
   type RefundOrderSummary,
 } from "@/components/equipe/RefundOrderButton";
+import { ResendTicketsControl } from "@/components/tickets/ResendTicketsControl";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -586,7 +587,14 @@ function TicketActions({
           <ExternalLink aria-hidden className="h-4 w-4" />
         </Link>
       ) : null}
-      {showResend ? <ResendTicketsButton onDone={onRefundDone} orderId={ticket.orderId} /> : null}
+      {showResend ? (
+        <ResendTicketsControl
+          className={cx(actionLinkClass, "text-left text-byla-link")}
+          orderId={ticket.orderId}
+          send={resendOrderTickets}
+          variant="link"
+        />
+      ) : null}
       {canCancel ? (
         <button
           className={cx(actionLinkClass, "text-left text-byla-danger")}
@@ -605,40 +613,5 @@ function TicketActions({
         />
       ) : null}
     </div>
-  );
-}
-
-function ResendTicketsButton({
-  orderId,
-  onDone,
-}: {
-  orderId: string;
-  onDone: (message: string, ok?: boolean) => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-
-  function resend() {
-    startTransition(async () => {
-      try {
-        const result = await resendOrderTickets(orderId);
-        onDone(
-          result.ok ? "Reenviamos o e-mail do ingresso para o comprador." : result.error,
-          result.ok,
-        );
-      } catch {
-        onDone("Não foi possível reenviar o e-mail do ingresso.", false);
-      }
-    });
-  }
-
-  return (
-    <button
-      className={cx(actionLinkClass, "text-left text-byla-link")}
-      disabled={isPending}
-      onClick={resend}
-      type="button"
-    >
-      {isPending ? "Reenviando…" : "Reenviar ingresso"}
-    </button>
   );
 }
