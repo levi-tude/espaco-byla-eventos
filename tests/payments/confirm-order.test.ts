@@ -40,6 +40,7 @@ function fakeAdmin(
       const chain = {
         select: () => chain,
         eq: () => chain,
+        in: () => chain,
         order: () => chain,
         maybeSingle: async () => result,
         single: async () => result,
@@ -486,6 +487,30 @@ describe("sendOrderTicketsEmail", () => {
       "email_nao_enviado",
       orderId,
       expect.stringContaining("ingressos não encontrados"),
+    );
+  });
+
+  it("inclui ingressos já com check-in no e-mail reenviado", async () => {
+    mocks.sendTicketsEmail.mockResolvedValue("sent");
+    await expect(
+      sendOrderTicketsEmail(
+        fakeAdmin({
+          ...paidOrderRows,
+          tickets: [
+            { code: "codigo-1", buyer_name: "Comprador Teste", kind: "inteira" },
+            { code: "codigo-2", buyer_name: "Comprador Teste", kind: "meia" },
+          ],
+        }),
+        orderId,
+      ),
+    ).resolves.toBe(true);
+    expect(mocks.sendTicketsEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tickets: [
+          expect.objectContaining({ code: "codigo-1", kind: "inteira" }),
+          expect.objectContaining({ code: "codigo-2", kind: "meia" }),
+        ],
+      }),
     );
   });
 });

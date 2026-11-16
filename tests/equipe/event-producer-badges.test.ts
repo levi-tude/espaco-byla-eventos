@@ -61,7 +61,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/auth/actor", () => ({ getActor: mocks.getActor }));
 vi.mock("@/app/equipe/eventos/actions", () => ({ cancelTicket: vi.fn(), issueCourtesy: vi.fn() }));
-vi.mock("@/app/equipe/eventos/order-actions", () => ({ refundOrder: vi.fn(), acceptPaidOrder: vi.fn() }));
+vi.mock("@/app/equipe/eventos/order-actions", () => ({ refundOrder: vi.fn(), acceptPaidOrder: vi.fn(), resendOrderTickets: vi.fn() }));
 vi.mock("@/app/equipe/aprovacoes/actions", () => ({
   decideEventApproval: vi.fn(),
   finishEventChange: vi.fn(),
@@ -264,6 +264,32 @@ describe("página do evento: pedidos de estorno do organizador", () => {
   it("pedido sem pedido de estorno: lista igual a antes", () => {
     const html = text(render(createElement(TicketList, { eventId: ID(1), tickets: [baseTicket] })));
     expect(html).not.toContain("Estorno pedido pelo organizador");
+  });
+
+  it("mostra Reenviar ingresso uma vez por pedido pago, ao lado de Abrir ingresso", () => {
+    const html = text(
+      render(
+        createElement(TicketList, {
+          eventId: ID(2),
+          tickets: ["t1", "t2"].map((id) => ({ ...baseTicket, id })),
+        }),
+      ),
+    );
+    expect(html).toContain("Abrir ingresso");
+    // Cartões do celular e tabela do computador: 1 botão por superfície.
+    expect(html.match(/Reenviar ingresso/g)).toHaveLength(2);
+  });
+
+  it("não oferece reenvio em pedido que não está pago", () => {
+    const html = text(
+      render(
+        createElement(TicketList, {
+          eventId: ID(2),
+          tickets: [{ ...baseTicket, orderStatus: "aguardando_decisao", status: "nao_pago" }],
+        }),
+      ),
+    );
+    expect(html).not.toContain("Reenviar ingresso");
   });
 });
 

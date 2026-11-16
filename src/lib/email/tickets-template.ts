@@ -137,17 +137,52 @@ function summaryBlock(summary: TicketsEmailOrderSummary) {
             </tr>`;
 }
 
+/** Rótulo curto do tipo no assunto: INTEIRA, MEIA, CORTESIA ou o nome do tipo. */
+export function ticketSubjectKindTag(kindLabel: string): string {
+  const clean = kindLabel.trim();
+  const normalized = clean.toLocaleLowerCase("pt-BR");
+  if (normalized === "inteira") return "INTEIRA";
+  if (normalized === "meia" || normalized === "meia-entrada") return "MEIA";
+  if (normalized === "cortesia") return "CORTESIA";
+  const namePart = clean.split("—")[0]?.trim() || clean;
+  return namePart.toLocaleUpperCase("pt-BR");
+}
+
+/** Ex.: "INTEIRA" ou "2 MEIA + 1 INTEIRA", na ordem em que os ingressos aparecem. */
+export function ticketSubjectKindSummary(tickets: { kindLabel: string }[]): string {
+  const counts = new Map<string, number>();
+  const order: string[] = [];
+  for (const ticket of tickets) {
+    const tag = ticketSubjectKindTag(ticket.kindLabel);
+    if (!counts.has(tag)) order.push(tag);
+    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return order.map((tag) => `${counts.get(tag)} ${tag}`).join(" + ");
+}
+
+/** Assunto único por pedido, para o Gmail não juntar e-mails de compras diferentes. */
+export function buildTicketsEmailSubject(data: Pick<TicketsEmailData, "eventName" | "startsAt" | "orderNumber" | "tickets">): string {
+  const when = formatSessionSubject(data.startsAt);
+  const whenPart = when ? ` · ${when}` : "";
+  const orderPart = data.orderNumber.trim() ? ` · Pedido ${data.orderNumber.trim()}` : "";
+  const eventPart = `${data.eventName}${whenPart}${orderPart}`;
+  const total = data.tickets.length;
+  if (total === 1) {
+    return `Seu ingresso ${ticketSubjectKindTag(data.tickets[0].kindLabel)} — ${eventPart}`;
+  }
+  if (total > 1) {
+    return `Seus ingressos (${ticketSubjectKindSummary(data.tickets)}) — ${eventPart}`;
+  }
+  return `Seus ingressos — ${eventPart}`;
+}
+
 export function buildTicketsEmail(data: TicketsEmailData): TicketsEmailContent {
   const name = firstName(data.buyerName);
   const when = formatSessionWhen(data.startsAt, data.endsAt);
-  const subjectWhen = formatSessionSubject(data.startsAt);
   const total = data.tickets.length;
   const count = total === 1 ? "1 ingresso" : `${total} ingressos`;
   const producer = data.producerName?.trim() || null;
-
-  const subject = subjectWhen
-    ? `Seus ingressos — ${data.eventName} · ${subjectWhen}`
-    : `Seus ingressos — ${data.eventName}`;
+  const subject = buildTicketsEmailSubject(data);
 
   const details = [
     `<strong>Pedido nº</strong> ${escapeHtml(data.orderNumber)}`,

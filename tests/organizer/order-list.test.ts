@@ -6,6 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: 
 vi.mock("@/app/organizador/eventos/order-actions", () => ({
   requestOrderRefund: vi.fn(),
   cancelOpsRequest: vi.fn(),
+  resendOrderTickets: vi.fn(),
 }));
 vi.mock("@/app/organizador/eventos/actions", () => ({
   deleteOwnEvent: vi.fn(),
@@ -99,6 +100,14 @@ describe("OrganizerOrderList", () => {
 
   it("sem pedidos mostra mensagem simples", () => {
     expect(renderOrders([])).toContain("Nenhum pedido ainda.");
+  });
+
+  it("mostra Reenviar ingresso só em pedido pago, inclusive cortesia e com check-in", () => {
+    expect(renderOrders([order()])).toContain("Reenviar ingresso");
+    expect(renderOrders([order({ isCourtesy: true })])).toContain("Reenviar ingresso");
+    expect(renderOrders([order({ ticketsCheckedIn: 1 })])).toContain("Reenviar ingresso");
+    expect(renderOrders([order({ status: "estornado" })])).not.toContain("Reenviar ingresso");
+    expect(renderOrders([order({ status: "aguardando_decisao" })])).not.toContain("Reenviar ingresso");
   });
 });
 

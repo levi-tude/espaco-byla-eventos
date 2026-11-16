@@ -23,7 +23,7 @@ describe("buildTicketsEmail", () => {
   it("monta assunto com a data da sessão, detalhes e link dos ingressos", () => {
     const email = buildTicketsEmail(base);
 
-    expect(email.subject).toBe("Seus ingressos — Noite de Forró · sáb 10/10 às 19h00");
+    expect(email.subject).toBe("Seus ingressos (1 INTEIRA + 1 MEIA) — Noite de Forró · sáb 10/10 às 19h00 · Pedido A1B2C3D4");
     expect(email.html).toContain("Olá, Maria!");
     expect(email.html).toContain("2 ingressos");
     expect(email.html).toContain("Sábado, 10 de outubro de 2026 · 19h00");
@@ -178,5 +178,45 @@ describe("buildTicketsEmail", () => {
     expect(email.html).not.toContain("<script>");
     expect(email.html).not.toContain("<b>Sessão</b>");
     expect(email.html).toContain("Show &quot;A&amp;B&quot;");
+  });
+
+  it("assunto de um ingresso traz o tipo e o número do pedido", () => {
+    const email = buildTicketsEmail({
+      ...base,
+      eventName: "Cápsulas do Tempo",
+      startsAt: "2026-11-28T20:00:00.000Z",
+      orderNumber: "F1C09337",
+      tickets: [ticket(1)],
+    });
+    expect(email.subject).toBe(
+      "Seu ingresso INTEIRA — Cápsulas do Tempo · sáb 28/11 às 17h00 · Pedido F1C09337",
+    );
+  });
+
+  it("assunto de vários tipos agrupa as quantidades e evita o mesmo assunto entre pedidos", () => {
+    const meia = ticket(2);
+    const email = buildTicketsEmail({
+      ...base,
+      tickets: [meia, meia, ticket(1)],
+      orderNumber: "6C9CE20A",
+    });
+    expect(email.subject).toBe(
+      "Seus ingressos (2 MEIA + 1 INTEIRA) — Noite de Forró · sáb 10/10 às 19h00 · Pedido 6C9CE20A",
+    );
+  });
+
+  it("assunto de tipo nomeado usa o nome curto em maiúsculas", () => {
+    const email = buildTicketsEmail({
+      ...base,
+      tickets: [{ ...ticket(1), kindLabel: "Casadinha — Inteira" }, { ...ticket(1), kindLabel: "Casadinha — Inteira" }],
+    });
+    expect(email.subject).toBe(
+      "Seus ingressos (2 CASADINHA) — Noite de Forró · sáb 10/10 às 19h00 · Pedido A1B2C3D4",
+    );
+  });
+
+  it("assunto sem data da sessão ainda inclui o pedido", () => {
+    const email = buildTicketsEmail({ ...base, startsAt: "data-invalida", tickets: [ticket(1)] });
+    expect(email.subject).toBe("Seu ingresso INTEIRA — Noite de Forró · Pedido A1B2C3D4");
   });
 });
