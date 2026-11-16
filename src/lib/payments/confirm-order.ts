@@ -174,7 +174,7 @@ export async function sendOrderTicketsEmail(
       .from("tickets")
       .select("code, buyer_name, kind, order_items(name)")
       .eq("order_id", orderId)
-      .eq("status", "pago")
+      .in("status", ["pago", "check_in"])
       .order("created_at"),
     admin
       .from("order_items")

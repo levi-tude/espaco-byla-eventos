@@ -81,6 +81,7 @@ export async function sendTicketsEmail({
         subject,
         html,
         text,
+        headers: { "X-Entity-Ref-ID": details.orderNumber },
         attachments,
       }),
     });

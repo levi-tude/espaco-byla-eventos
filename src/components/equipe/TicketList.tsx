@@ -8,6 +8,7 @@ import {
   cancelTicket,
   issueCourtesy,
 } from "@/app/equipe/eventos/actions";
+import { resendOrderTickets } from "@/app/equipe/eventos/order-actions";
 import {
   RefundOrderButton,
   type RefundOrderSummary,
@@ -265,7 +266,7 @@ export function TicketList({
   className,
 }: SectionProps & { eventId: string; tickets: TicketListItem[] }) {
   const [search, setSearch] = useState("");
-  const [listMessage, setListMessage] = useState("");
+  const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const filteredTickets = useMemo(() => {
@@ -301,15 +302,17 @@ export function TicketList({
       return;
     }
 
-    setListMessage("");
+    setListMessage(null);
     startTransition(async () => {
       try {
         const result = await cancelTicket(eventId, ticket.id);
         setListMessage(
-          result.ok ? "Cortesia cancelada. A vaga foi liberada." : result.error,
+          result.ok
+            ? { text: "Cortesia cancelada. A vaga foi liberada.", ok: true }
+            : { text: result.error, ok: false },
         );
       } catch {
-        setListMessage("Não foi possível cancelar.");
+        setListMessage({ text: "Não foi possível cancelar.", ok: false });
       }
     });
   }
@@ -321,7 +324,7 @@ export function TicketList({
         isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
         isPending={isPending}
         onCancel={() => requestCancellation(ticket)}
-        onRefundDone={setListMessage}
+        onRefundDone={(message, ok = true) => setListMessage({ text: message, ok })}
         order={orders.get(ticket.orderId)}
         ticket={ticket}
       />
@@ -364,8 +367,8 @@ export function TicketList({
       </div>
 
       {listMessage ? (
-        <Notice className="mt-4" tone="info">
-          {listMessage}
+        <Notice className="mt-4" tone={listMessage.ok ? "success" : "danger"}>
+          {listMessage.text}
         </Notice>
       ) : null}
 
@@ -548,12 +551,13 @@ function TicketActions({
   isFirstRowOfOrder: boolean;
   isPending: boolean;
   onCancel: () => void;
-  onRefundDone: (message: string) => void;
+  onRefundDone: (message: string, ok?: boolean) => void;
 }) {
   const valid = ticket.status === "pago" || ticket.status === "check_in";
   const isCourtesy =
     ticket.kind === "cortesia" || ticket.paymentProvider === COURTESY_PROVIDER;
   const canCancel = isCourtesy && ticket.status === "pago";
+  const showResend = ticket.orderStatus === "pago" && isFirstRowOfOrder;
   const showRefund =
     !isCourtesy && ticket.orderStatus === "pago" && valid && isFirstRowOfOrder && order;
   const block = order
@@ -564,7 +568,7 @@ function TicketActions({
       })
     : null;
 
-  if (!valid && !showRefund) {
+  if (!valid && !showRefund && !showResend) {
     return hideWhenEmpty ? null : (
       <span className="inline-flex min-h-11 items-center text-byla-muted">—</span>
     );
@@ -582,6 +586,7 @@ function TicketActions({
           <ExternalLink aria-hidden className="h-4 w-4" />
         </Link>
       ) : null}
+      {showResend ? <ResendTicketsButton onDone={onRefundDone} orderId={ticket.orderId} /> : null}
       {canCancel ? (
         <button
           className={cx(actionLinkClass, "text-left text-byla-danger")}
@@ -600,5 +605,40 @@ function TicketActions({
         />
       ) : null}
     </div>
+  );
+}
+
+function ResendTicketsButton({
+  orderId,
+  onDone,
+}: {
+  orderId: string;
+  onDone: (message: string, ok?: boolean) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+
+  function resend() {
+    startTransition(async () => {
+      try {
+        const result = await resendOrderTickets(orderId);
+        onDone(
+          result.ok ? "Reenviamos o e-mail do ingresso para o comprador." : result.error,
+          result.ok,
+        );
+      } catch {
+        onDone("Não foi possível reenviar o e-mail do ingresso.", false);
+      }
+    });
+  }
+
+  return (
+    <button
+      className={cx(actionLinkClass, "text-left text-byla-link")}
+      disabled={isPending}
+      onClick={resend}
+      type="button"
+    >
+      {isPending ? "Reenviando…" : "Reenviar ingresso"}
+    </button>
   );
 }

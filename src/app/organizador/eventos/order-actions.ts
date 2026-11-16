@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { ActionError, type ActionResult, runAction } from "@/lib/action-result";
-import { EVENT_NOT_FOUND_MESSAGE, requireOrganizer } from "@/lib/auth/actor";
+import { EVENT_NOT_FOUND_MESSAGE, requireActor, requireOrganizer } from "@/lib/auth/actor";
+import {
+  RESEND_TICKETS_FALLBACK,
+  resendOrderTicketsOrThrow,
+} from "@/lib/email/resend-order-tickets";
 import { UUID_PATTERN } from "@/lib/events/event-input";
 import { organizerErrorMessage } from "@/lib/organizer/errors";
 import { notifyTeam, organizerNoticeLink } from "@/lib/organizer/notify";
@@ -93,4 +97,13 @@ async function cancelOpsRequestOrThrow(requestId: unknown): Promise<undefined> {
   revalidatePath("/equipe/eventos/[id]", "page");
   revalidatePath("/equipe/aprovacoes");
   revalidatePath("/equipe");
+}
+
+
+/** Reenvia o e-mail dos ingressos de um pedido pago do próprio evento. */
+export async function resendOrderTickets(orderId: string): Promise<ActionResult> {
+  return runAction(async () => {
+    await requireActor();
+    return resendOrderTicketsOrThrow(orderId);
+  }, RESEND_TICKETS_FALLBACK);
 }
