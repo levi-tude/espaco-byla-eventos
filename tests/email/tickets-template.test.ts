@@ -219,4 +219,21 @@ describe("buildTicketsEmail", () => {
     const email = buildTicketsEmail({ ...base, startsAt: "data-invalida", tickets: [ticket(1)] });
     expect(email.subject).toBe("Seu ingresso INTEIRA — Noite de Forró · Pedido A1B2C3D4");
   });
+
+  it("assunto de cortesia usa BÔNUS, inclusive com o nome antigo gravado", () => {
+    const bonus = buildTicketsEmail({
+      ...base,
+      tickets: [{ ...ticket(1), kindLabel: "Bônus" }],
+    });
+    expect(bonus.subject).toBe("Seu ingresso BÔNUS — Noite de Forró · sáb 10/10 às 19h00 · Pedido A1B2C3D4");
+    expect(bonus.html).toContain("Bônus");
+    expect(bonus.html).not.toContain("Cortesia");
+    expect(bonus.text).toContain("Bônus");
+
+    const legacy = buildTicketsEmail({
+      ...base,
+      tickets: [{ ...ticket(1), kindLabel: "Cortesia" }],
+    });
+    expect(legacy.subject).toBe("Seu ingresso BÔNUS — Noite de Forró · sáb 10/10 às 19h00 · Pedido A1B2C3D4");
+  });
 });

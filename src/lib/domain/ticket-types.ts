@@ -5,7 +5,7 @@ type TicketKind = Enums<"ticket_kind">;
 export const ticketKindLabels: Record<TicketKind, string> = {
   inteira: "Inteira",
   meia: "Meia-entrada",
-  cortesia: "Cortesia",
+  cortesia: "Bônus",
 };
 
 export type TicketPreset = "inteira" | "meia" | "casadinha" | "familia";
@@ -35,6 +35,8 @@ export const TICKET_TYPE_LIMITS = {
 
 const RESERVED_NAMES = new Set([
   "cortesia",
+  "bônus",
+  "bonus",
   "inteira",
   "meia",
   "meia-entrada",
@@ -68,8 +70,15 @@ export function isReservedTypeName(name: string): boolean {
 export function ticketTypeLabel(name: string | null | undefined, kind: TicketKind): string {
   const kindLabel = ticketKindLabels[kind];
   const clean = name?.trim();
-  if (!clean || normalizedName(clean) === normalizedName(kindLabel)) return kindLabel;
+  if (!clean || isKindDisplayName(clean, kind, kindLabel)) return kindLabel;
   return `${clean} — ${kindLabel}`;
+}
+
+/** Nome gravado no tipo/pedido que já representa a categoria (ex.: "Cortesia" → "Bônus"). */
+function isKindDisplayName(name: string, kind: TicketKind, kindLabel: string): boolean {
+  const normalized = normalizedName(name);
+  if (normalized === normalizedName(kindLabel)) return true;
+  return kind === "cortesia" && (normalized === "cortesia" || normalized === "bonus");
 }
 
 /** Nome gravado no item do pedido; o embed do PostgREST pode vir como objeto ou lista. */
