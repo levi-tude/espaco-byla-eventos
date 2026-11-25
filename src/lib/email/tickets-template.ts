@@ -137,13 +137,13 @@ function summaryBlock(summary: TicketsEmailOrderSummary) {
             </tr>`;
 }
 
-/** Rótulo curto do tipo no assunto: INTEIRA, MEIA, CORTESIA ou o nome do tipo. */
+/** Rótulo curto do tipo no assunto: INTEIRA, MEIA, BÔNUS ou o nome do tipo. */
 export function ticketSubjectKindTag(kindLabel: string): string {
   const clean = kindLabel.trim();
   const normalized = clean.toLocaleLowerCase("pt-BR");
   if (normalized === "inteira") return "INTEIRA";
   if (normalized === "meia" || normalized === "meia-entrada") return "MEIA";
-  if (normalized === "cortesia") return "CORTESIA";
+  if (normalized === "cortesia" || normalized === "bônus" || normalized === "bonus") return "BÔNUS";
   const namePart = clean.split("—")[0]?.trim() || clean;
   return namePart.toLocaleUpperCase("pt-BR");
 }

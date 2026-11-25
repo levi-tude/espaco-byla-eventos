@@ -35,8 +35,14 @@ describe("nome do tipo nos ingressos", () => {
   });
 
   it("ingresso antigo, sem item de pedido, continua com a categoria", () => {
-    expect(ticketTypeLabel(null, "cortesia")).toBe("Cortesia");
+    expect(ticketTypeLabel(null, "cortesia")).toBe("Bônus");
     expect(ticketTypeLabel(orderItemName(null), "meia")).toBe("Meia-entrada");
+  });
+
+  it("cortesia gravada como Cortesia no pedido aparece só como Bônus", () => {
+    expect(ticketTypeLabel("Cortesia", "cortesia")).toBe("Bônus");
+    expect(ticketTypeLabel("Bônus", "cortesia")).toBe("Bônus");
+    expect(unitContentsLabel(1, "cortesia")).toBe("1 ingresso bônus");
   });
 
   it("lê o nome do item vindo como objeto ou lista", () => {
@@ -148,7 +154,7 @@ describe("validação dos tipos do evento", () => {
     expect(normalizeTicketTypes([custom({ peoplePerUnit: 0 })])).toMatchObject({ ok: false });
   });
 
-  it.each(["Inteira", "meia-entrada", "CASADINHA", "Pacote familia", "Cortesia"])(
+  it.each(["Inteira", "meia-entrada", "CASADINHA", "Pacote familia", "Cortesia", "Bônus", "Bonus"])(
     "nome reservado “%s” não vale para tipo novo",
     (name) => {
       expect(normalizeTicketTypes([custom({ name })])).toEqual({
