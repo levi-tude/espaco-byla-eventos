@@ -9,6 +9,7 @@ import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
   INSTALLMENT_INTEREST_NOTE,
+  MEIA_ENTRADA_SECTION_ID,
   REFUND_PROCESSING_DAYS,
   SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE,
   TERMS_UPDATED_LABEL,
@@ -166,18 +167,25 @@ export default function TermsPage() {
 
         <TicketTransferSection />
 
-        <Section title="Meia-entrada">
+        <Section id={MEIA_ENTRADA_SECTION_ID} title="Meia-entrada">
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              Têm direito, conforme a lei: estudantes, pessoas com deficiência (e
-              o acompanhante, quando necessário), jovens de 15 a 29 anos de baixa
-              renda inscritos no CadÚnico e pessoas com 60 anos ou mais.
+              Têm direito, conforme a lei: estudantes, com a Carteira de
+              Identificação Estudantil (CIE) oficial; pessoas com deficiência (e
+              o acompanhante, quando necessário); jovens de 15 a 29 anos de baixa
+              renda inscritos no CadÚnico, com ID Jovem; pessoas com 60 anos ou
+              mais, pelo Estatuto da Pessoa Idosa (Lei nº 10.741/2003); e
+              professores e profissionais da educação (magistério e profissionais
+              de escolas de todos os níveis, da rede pública ou privada, na ativa
+              ou aposentados), com contracheque ou identidade funcional e RG,
+              conforme a Lei estadual da Bahia nº 14.765/2024 e a Lei municipal
+              de Salvador nº 9.763/2023.
             </li>
             <li>
               Na entrada, quem usar ingresso de meia-entrada deve apresentar o
-              documento que comprova o direito (por exemplo, carteira de
-              estudante, ID Jovem ou cartão do benefício), junto com um documento
-              oficial com foto.
+              documento que comprova o direito (por exemplo, CIE, ID Jovem,
+              cartão do benefício, contracheque ou identidade funcional), junto
+              com um documento oficial com foto.
             </li>
             <li>
               Sem o comprovante, a entrada só é liberada mediante o pagamento da
@@ -185,8 +193,10 @@ export default function TermsPage() {
               paga, a entrada não é liberada e não há reembolso.
             </li>
             <li>
-              A oferta de meia-entrada segue a lei (Lei nº 12.933/2013 e Decreto
-              nº 8.537/2015). Quando os ingressos de meia-entrada de uma sessão
+              A oferta de meia-entrada segue a lei (Lei nº 12.933/2013, Decreto
+              nº 8.537/2015, Estatuto da Pessoa Idosa — Lei nº 10.741/2003, Lei
+              estadual da Bahia nº 14.765/2024 e Lei municipal de Salvador nº
+              9.763/2023). Quando os ingressos de meia-entrada de uma sessão
               acabam, a página de compra avisa.
             </li>
             <li>

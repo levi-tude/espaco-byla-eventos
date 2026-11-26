@@ -1,11 +1,15 @@
 import { legalVersionLabel } from "./version-label";
 
 /** Data da versão em vigor; muda sempre que o texto dos termos mudar. */
-export const TERMS_VERSION = "2026-10-19";
+export const TERMS_VERSION = "2026-11-26";
 
 export const TERMS_UPDATED_LABEL = legalVersionLabel(TERMS_VERSION);
 
 export const TERMS_PATH = "/termos";
+
+export const MEIA_ENTRADA_SECTION_ID = "meia-entrada";
+
+export const MEIA_ENTRADA_TERMS_HREF = `${TERMS_PATH}#${MEIA_ENTRADA_SECTION_ID}`;
 
 /**
  * Taxa descrita nos termos; o valor cobrado de fato vem do banco e aparece antes do pagamento.

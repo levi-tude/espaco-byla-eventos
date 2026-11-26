@@ -18,6 +18,7 @@ import { SiteFooter } from "@/components/brand/SiteFooter";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
   INSTALLMENT_INTEREST_NOTE,
+  MEIA_ENTRADA_SECTION_ID,
   TERMS_PATH,
   TERMS_UPDATED_LABEL,
   TERMS_VERSION,
@@ -113,6 +114,20 @@ describe("página Termos de compra", () => {
     for (const word of ["mercado pago", "mercadopago", "supabase", "vercel", "resend", "google", "cloudflare", "todo:", "xxx", "a definir", "pendente"]) {
       expect(page).not.toContain(word);
     }
+  });
+
+  it("atualiza a meia-entrada com CIE, professores e o Estatuto da Pessoa Idosa", () => {
+    const html = renderToStaticMarkup(TermsPage());
+    const page = text(html);
+    expect(html).toContain(`id="${MEIA_ENTRADA_SECTION_ID}"`);
+    expect(MEIA_ENTRADA_SECTION_ID).toBe("meia-entrada");
+    expect(page).toContain("Carteira de Identificação Estudantil (CIE) oficial");
+    expect(page).not.toContain("carteira de estudante");
+    expect(page).toContain("Estatuto da Pessoa Idosa (Lei nº 10.741/2003)");
+    expect(page).toContain("professores e profissionais da educação");
+    expect(page).toContain("Lei estadual da Bahia nº 14.765/2024");
+    expect(page).toContain("Lei municipal de Salvador nº 9.763/2023");
+    expect(page).toContain("contracheque ou identidade funcional");
   });
 
   it("usa o e-mail de contato configurado e, sem ele, um texto neutro", () => {
