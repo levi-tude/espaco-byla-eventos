@@ -83,7 +83,7 @@ describe("página Termos de compra", () => {
     expect(page).toContain("100% do valor pago, incluindo a taxa de serviço");
     expect(page).toContain("Pedidos com algum ingresso já usado na entrada não podem ser reembolsados");
     expect(page).toContain("reembolso de 100% (com a taxa) até 24 horas antes do novo horário");
-    expect(page).toContain("Se a diferença não for paga, a entrada não é liberada e não há reembolso");
+    expect(page).toContain("Se não pagar, não entra e não há reembolso");
     expect(page).toContain("segue a lei");
     expect(page).not.toMatch(/\d+\s*% dos ingressos/);
     expect(page).toContain("não há garantia de reembolso");
@@ -116,18 +116,28 @@ describe("página Termos de compra", () => {
     }
   });
 
-  it("atualiza a meia-entrada com CIE, professores e o Estatuto da Pessoa Idosa", () => {
+  it("traz o texto vigente da meia-entrada, com CIE, carteira oficial da Bahia e professores", () => {
     const html = renderToStaticMarkup(TermsPage());
     const page = text(html);
     expect(html).toContain(`id="${MEIA_ENTRADA_SECTION_ID}"`);
     expect(MEIA_ENTRADA_SECTION_ID).toBe("meia-entrada");
-    expect(page).toContain("Carteira de Identificação Estudantil (CIE) oficial");
-    expect(page).not.toContain("carteira de estudante");
-    expect(page).toContain("Estatuto da Pessoa Idosa (Lei nº 10.741/2003)");
-    expect(page).toContain("professores e profissionais da educação");
+    expect(page).toContain("Estudantes do ensino fundamental, médio ou superior, com a CIE ou com a carteira de estudante oficial da Bahia");
+    expect(page).toContain("Pessoas com deficiência e 1 acompanhante, quando necessário");
+    expect(page).toContain("Pessoas com 60 anos ou mais, com RG");
+    expect(page).toContain("Professores e profissionais da educação, de escola pública ou privada, na ativa ou aposentados, com contracheque ou crachá funcional + RG");
+    expect(page).toContain("Regras para crianças, quando houver, estão na descrição de cada evento");
+    expect(page).toContain("Na entrada: leve o comprovante e um documento com foto");
+    expect(page).toContain("A meia é metade da inteira e não se soma a outras promoções");
+    expect(page).toContain("Lei nº 12.933/2013");
+    expect(page).toContain("Decreto nº 8.537/2015");
+    expect(page).toContain("Lei nº 10.741/2003");
+    expect(page).toContain("Lei estadual da Bahia nº 10.029/2006");
     expect(page).toContain("Lei estadual da Bahia nº 14.765/2024");
     expect(page).toContain("Lei municipal de Salvador nº 9.763/2023");
-    expect(page).toContain("contracheque ou identidade funcional");
+    expect(page).not.toContain("ID Jovem");
+    expect(page).not.toContain("jovens de 15 a 29");
+    expect(page).not.toContain("CadÚnico");
+    expect(page).not.toContain("não valem boleto");
   });
 
   it("usa o e-mail de contato configurado e, sem ele, um texto neutro", () => {

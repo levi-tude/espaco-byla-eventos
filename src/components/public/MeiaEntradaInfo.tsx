@@ -15,49 +15,44 @@ export function MeiaEntradaInfo() {
         Meia-entrada
       </h2>
       <p className="mt-3 text-base leading-7 text-byla-muted">
-        A meia custa metade da inteira da mesma sessão e não se soma a outras promoções, como
-        Casadinha ou Pacote família.
+        A meia é metade da inteira e não se soma a outras promoções.
       </p>
-      <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-foreground">
+      <p className="mt-4 text-base font-semibold text-foreground">Têm direito:</p>
+      <ul className="mt-2 list-disc space-y-2 pl-5 text-base leading-7 text-foreground">
         <li>
-          Estudantes, <span className="text-byla-muted">com a CIE oficial</span>
+          Estudantes do ensino fundamental, médio ou superior,{" "}
+          <span className="text-byla-muted">com a CIE ou com a carteira de estudante oficial da Bahia</span>
         </li>
         <li>
           Pessoas com deficiência{" "}
           <span className="text-byla-muted">e 1 acompanhante, quando necessário</span>
         </li>
         <li>
-          Jovens de 15 a 29 anos de baixa renda,{" "}
-          <span className="text-byla-muted">com ID Jovem (CadÚnico)</span>
+          Pessoas com 60 anos ou mais, <span className="text-byla-muted">com RG</span>
         </li>
         <li>
-          Pessoas com 60 anos ou mais,{" "}
-          <span className="text-byla-muted">com RG ou documento oficial com foto</span>
-        </li>
-        <li>
-          Professores e profissionais da educação,{" "}
-          <span className="text-byla-muted">com contracheque ou identidade funcional + RG</span>
-          <span className="mt-1 block text-sm leading-6 text-byla-muted">
-            Magistério e profissionais de escolas de todos os níveis, da rede pública ou privada, na
-            ativa ou aposentados. Lei BA 14.765/2024 e Lei Salvador 9.763/2023.
-          </span>
+          Professores e profissionais da educação, de escola pública ou privada, na ativa ou
+          aposentados,{" "}
+          <span className="text-byla-muted">com contracheque ou crachá funcional + RG</span>
         </li>
       </ul>
+      <p className="mt-4 text-base leading-7 text-foreground">
+        Regras para crianças, quando houver, estão na descrição de cada evento.
+      </p>
       <div className="mt-5 rounded-xl border border-byla-border bg-byla-overlay px-4 py-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-byla-accent-text">
-          Documento obrigatório na entrada
+          Na entrada
         </p>
         <p className="mt-1 text-base leading-7 text-foreground">
-          Leve o comprovante do direito e um documento oficial com foto.
+          Leve o comprovante e um documento com foto.
         </p>
       </div>
       <div className="mt-3 rounded-xl bg-byla-warning-bg px-4 py-3 text-foreground">
         <p className="text-sm font-semibold uppercase tracking-wide text-byla-warning">
-          Sem o comprovante
+          Sem comprovante
         </p>
         <p className="mt-1 text-base leading-7">
-          A entrada só é liberada se você pagar a diferença da inteira no local. Sem o pagamento,
-          não entra e não há reembolso.
+          Você paga a diferença da inteira no local. Se não pagar, não entra e não há reembolso.
         </p>
       </div>
       <p className="mt-5 text-base">
