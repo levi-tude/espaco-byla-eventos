@@ -145,3 +145,27 @@ describe("página do evento: Produção", () => {
   });
 });
 
+describe("página do evento: meia-entrada", () => {
+  it("mostra o bloco genérico depois de Sobre o evento, sem regra de um espetáculo", async () => {
+    mocks.event = {
+      ...mocks.event,
+      description: "Texto do espetáculo.",
+    };
+    const html = await renderPage();
+    const page = text(html);
+    expect(page).toContain("Sobre o evento");
+    expect(page).toContain("Texto do espetáculo.");
+    expect(page).toContain("Meia-entrada");
+    expect(page).toContain("Professores e profissionais da educação");
+    expect(page).not.toContain("Cápsulas do Tempo");
+    expect(html).toContain('href="/termos#meia-entrada"');
+    expect(page.indexOf("Sobre o evento")).toBeLessThan(page.indexOf("Professores e profissionais da educação"));
+    expect(page.indexOf("Texto do espetáculo.")).toBeLessThan(page.indexOf("Professores e profissionais da educação"));
+  });
+
+  it("aparece mesmo quando o evento não tem descrição", async () => {
+    const page = text(await renderPage());
+    expect(page).toContain("Meia-entrada");
+    expect(page).not.toContain("Sobre o evento");
+  });
+});

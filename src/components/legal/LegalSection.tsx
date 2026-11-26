@@ -1,11 +1,18 @@
 import type { ReactNode } from "react";
 
-export function LegalSection({ title, children }: { title: string; children: ReactNode }) {
+export function LegalSection({
+  title,
+  children,
+  id,
+}: {
+  title: string;
+  children: ReactNode;
+  /** Âncora opcional (ex.: /termos#meia-entrada). */
+  id?: string;
+}) {
   return (
-    <section className="mt-8">
-      <h2 className="font-display text-2xl tracking-wide text-foreground">
-        {title}
-      </h2>
+    <section className={id ? "mt-8 scroll-mt-24" : "mt-8"} id={id}>
+      <h2 className="font-display text-2xl tracking-wide text-foreground">{title}</h2>
       <div className="mt-3 grid gap-3 text-base leading-relaxed text-byla-muted">
         {children}
       </div>

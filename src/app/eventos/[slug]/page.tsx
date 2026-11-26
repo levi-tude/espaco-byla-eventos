@@ -6,6 +6,7 @@ import { cache } from "react";
 import { PublicSiteHeader } from "@/components/brand/PublicSiteHeader";
 import { EventEndedNotice } from "@/components/public/EventEndedNotice";
 import { EventGallery } from "@/components/public/EventGallery";
+import { MeiaEntradaInfo } from "@/components/public/MeiaEntradaInfo";
 import { FeeNote } from "@/components/public/FeeNote";
 import { SessionPicker } from "@/components/public/SessionPicker";
 import { BackLink } from "@/components/ui/BackLink";
@@ -361,6 +362,7 @@ export default async function EventoPublicoPage({
                 </p>
               </section>
             ) : null}
+            <MeiaEntradaInfo />
             <EventGallery eventName={event.name} images={gallery} />
           </div>
         </div>

@@ -9,6 +9,7 @@ import { SESSION_SALES_CLOSE_MINUTES } from "@/lib/domain/sessions";
 import { COMPANY } from "@/lib/legal/privacy";
 import {
   INSTALLMENT_INTEREST_NOTE,
+  MEIA_ENTRADA_SECTION_ID,
   REFUND_PROCESSING_DAYS,
   SCHEDULE_CHANGE_REFUND_MIN_HOURS_BEFORE,
   TERMS_UPDATED_LABEL,
@@ -166,34 +167,34 @@ export default function TermsPage() {
 
         <TicketTransferSection />
 
-        <Section title="Meia-entrada">
+        <Section id={MEIA_ENTRADA_SECTION_ID} title="Meia-entrada">
+          <p>Têm direito:</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              Têm direito, conforme a lei: estudantes, pessoas com deficiência (e
-              o acompanhante, quando necessário), jovens de 15 a 29 anos de baixa
-              renda inscritos no CadÚnico e pessoas com 60 anos ou mais.
+              Estudantes do ensino fundamental, médio ou superior, com a CIE ou
+              com a carteira de estudante oficial da Bahia.
             </li>
+            <li>Pessoas com deficiência e 1 acompanhante, quando necessário.</li>
+            <li>Pessoas com 60 anos ou mais, com RG.</li>
             <li>
-              Na entrada, quem usar ingresso de meia-entrada deve apresentar o
-              documento que comprova o direito (por exemplo, carteira de
-              estudante, ID Jovem ou cartão do benefício), junto com um documento
-              oficial com foto.
-            </li>
-            <li>
-              Sem o comprovante, a entrada só é liberada mediante o pagamento da
-              diferença para o valor da inteira, no local. Se a diferença não for
-              paga, a entrada não é liberada e não há reembolso.
-            </li>
-            <li>
-              A oferta de meia-entrada segue a lei (Lei nº 12.933/2013 e Decreto
-              nº 8.537/2015). Quando os ingressos de meia-entrada de uma sessão
-              acabam, a página de compra avisa.
-            </li>
-            <li>
-              A meia-entrada custa metade da inteira da mesma sessão e não se soma
-              a outras promoções, como Casadinha ou Pacote família.
+              Professores e profissionais da educação, de escola pública ou
+              privada, na ativa ou aposentados, com contracheque ou crachá
+              funcional + RG.
             </li>
           </ul>
+          <p>Regras para crianças, quando houver, estão na descrição de cada evento.</p>
+          <p>
+            Na entrada: leve o comprovante e um documento com foto. Sem
+            comprovante, você paga a diferença da inteira no local. Se não
+            pagar, não entra e não há reembolso.
+          </p>
+          <p>A meia é metade da inteira e não se soma a outras promoções.</p>
+          <p>
+            A oferta de meia-entrada segue a lei (Lei nº 12.933/2013, Decreto nº
+            8.537/2015, Lei nº 10.741/2003, Lei estadual da Bahia nº 10.029/2006,
+            Lei estadual da Bahia nº 14.765/2024 e Lei municipal de Salvador nº
+            9.763/2023).
+          </p>
         </Section>
 
         <Section title="Sessões, troca de horário e cancelamento">
