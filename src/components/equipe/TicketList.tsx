@@ -3,7 +3,7 @@
 import { ExternalLink, LogIn, SearchX, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState, useTransition } from "react";
+import { FormEvent, useCallback, useMemo, useState, useTransition } from "react";
 
 import {
   cancelTicket,
@@ -30,6 +30,7 @@ import {
 } from "@/lib/domain/refund";
 import { MeiaCheckButtons, type MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
 import { MeiaCheckSummary } from "@/components/equipe/MeiaCheckSummary";
+import { MeiaRefuseDialog } from "@/components/equipe/MeiaRefuseDialog";
 import {
   manualCheckInPrompt,
   manualCheckInResult,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/domain/check-in";
 import {
   MEIA_REFUSE_CONFIRM,
+  meiaRefuseSecondConfirm,
   MEIA_RESULT_LABELS,
   MEIA_RESULTS,
   MEIA_SKIP_CONFIRM,
@@ -307,6 +309,8 @@ export function TicketList({
   const [markingId, setMarkingId] = useState<string | null>(null);
   /** Meia que acabou de entrar pela lista: conferência em destaque até marcar. */
   const [pendingMeia, setPendingMeia] = useState<{ ticket: TicketListItem; state: MeiaPanelState } | null>(null);
+  const [refuseTicket, setRefuseTicket] = useState<TicketListItem | null>(null);
+  const closeRefuse = useCallback(() => setRefuseTicket(null), []);
 
   const filteredTickets = useMemo(() => {
     if (!search.trim()) return tickets;
@@ -399,9 +403,19 @@ export function TicketList({
   }
 
   /** Conferência da meia (lista ou painel em destaque), pela rota com a sessão do usuário. */
-  async function markMeia(ticket: TicketListItem, mark: MeiaResult) {
+  /** "Recusado" pede duas confirmações: o confirm do navegador e o diálogo explicativo. */
+  function markMeia(ticket: TicketListItem, mark: MeiaResult) {
     if (markingId) return;
-    if (mark === "recusado" && !window.confirm(MEIA_REFUSE_CONFIRM)) return;
+    if (mark === "recusado") {
+      if (!window.confirm(MEIA_REFUSE_CONFIRM)) return;
+      setRefuseTicket(ticket);
+      return;
+    }
+    void sendMeiaMark(ticket, mark);
+  }
+
+  async function sendMeiaMark(ticket: TicketListItem, mark: MeiaResult) {
+    if (markingId) return;
     const fromPanel = pendingMeia?.ticket.id === ticket.id;
     setMarkingId(ticket.id);
     if (fromPanel) setPendingMeia((p) => (p ? { ...p, state: { ...p.state, busy: true, error: null } } : p));
@@ -460,7 +474,7 @@ export function TicketList({
         meiaEnabled={meiaFeature}
         meiaBusy={markingId !== null}
         onCheckIn={() => void requestCheckIn(ticket)}
-        onMeiaMark={(mark) => void markMeia(ticket, mark)}
+        onMeiaMark={(mark) => markMeia(ticket, mark)}
         onRefundDone={(message, ok = true) => setListMessage({ text: message, ok })}
         order={orders.get(ticket.orderId)}
         ticket={ticket}
@@ -511,6 +525,25 @@ export function TicketList({
         </Notice>
       ) : null}
 
+      {refuseTicket ? (
+        <MeiaRefuseDialog
+          onBack={closeRefuse}
+          onConfirm={() => {
+            const ticket = refuseTicket;
+            setRefuseTicket(null);
+            void sendMeiaMark(ticket, "recusado");
+          }}
+          prompt={meiaRefuseSecondConfirm({
+            buyerName: refuseTicket.buyerName,
+            sessionLabel: refuseTicket.entrySessionLabel ?? refuseTicket.sessionLabel ?? null,
+            diffCents:
+              pendingMeia?.ticket.id === refuseTicket.id
+                ? pendingMeia.state.diffCents
+                : (refuseTicket.meiaCheck?.diffCents ?? null),
+          })}
+        />
+      ) : null}
+
       {pendingMeia ? (
         <div
           aria-label="Conferência da meia"
@@ -536,7 +569,7 @@ export function TicketList({
             <p className="text-base">Se ela voltar com o comprovante, use “Dar entrada” de novo.</p>
           ) : (
             <MeiaCheckButtons
-              onMark={(mark) => void markMeia(pendingMeia.ticket, mark)}
+              onMark={(mark) => markMeia(pendingMeia.ticket, mark)}
               state={pendingMeia.state}
               surface={pendingMeia.state.mark ? "dark" : "light"}
             />
