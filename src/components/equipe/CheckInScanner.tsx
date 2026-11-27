@@ -18,6 +18,7 @@ import {
   type FeedbackTone,
 } from "@/components/equipe/check-in-feedback";
 import type { MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
+import { MeiaRefuseDialog } from "@/components/equipe/MeiaRefuseDialog";
 import { Button } from "@/components/ui/Button";
 import { controlClasses } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -25,6 +26,7 @@ import { cx } from "@/components/ui/cx";
 import {
   MEIA_REFUSE_CONFIRM,
   MEIA_SKIP_CONFIRM,
+  meiaRefuseSecondConfirm,
   type MeiaResult,
 } from "@/lib/domain/meia-check";
 
@@ -56,6 +58,8 @@ export function CheckInScanner({
   const [awaitingNext, setAwaitingNext] = useState(false);
   const [result, setResult] = useState<CheckInResult>({ tone: "idle" });
   const [meia, setMeia] = useState<MeiaPanelState | null>(null);
+  const [refusePrompt, setRefusePrompt] = useState(false);
+  const closeRefusePrompt = useCallback(() => setRefusePrompt(false), []);
   // Ref (e não estado) para não reiniciar a câmera quando a conferência for desligada.
   const meiaFeatureRef = useRef(meiaChecks);
 
@@ -117,9 +121,19 @@ export function CheckInScanner({
     [eventId, sessionId, pauseForNext, router],
   );
 
-  async function markMeia(mark: MeiaResult) {
+  /** "Recusado" pede duas confirmações: o confirm do navegador e o diálogo explicativo. */
+  function markMeia(mark: MeiaResult) {
     if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
-    if (mark === "recusado" && !window.confirm(MEIA_REFUSE_CONFIRM)) return;
+    if (mark === "recusado") {
+      if (!window.confirm(MEIA_REFUSE_CONFIRM)) return;
+      setRefusePrompt(true);
+      return;
+    }
+    void sendMeiaMark(mark);
+  }
+
+  async function sendMeiaMark(mark: MeiaResult) {
+    if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
     setMeia({ ...meia, busy: true, error: null });
     try {
       const response = await fetch("/api/check-in/meia", {
@@ -232,6 +246,7 @@ export function CheckInScanner({
   function scanNextTicket() {
     if (meia?.enabled && meia.mark === null && !window.confirm(MEIA_SKIP_CONFIRM)) return;
     setMeia(null);
+    setRefusePrompt(false);
     setAwaitingNext(false);
     setResult({ tone: "idle" });
     processingRef.current = false;
@@ -269,11 +284,26 @@ export function CheckInScanner({
             ) : null
           }
           meia={meia ?? undefined}
-          onMeiaMark={(mark) => void markMeia(mark)}
+          onMeiaMark={markMeia}
           onRedoEntry={() => void redoEntry()}
           result={result}
         />
       </section>
+
+      {refusePrompt && result.tone === "meia" ? (
+        <MeiaRefuseDialog
+          onBack={closeRefusePrompt}
+          onConfirm={() => {
+            setRefusePrompt(false);
+            void sendMeiaMark("recusado");
+          }}
+          prompt={meiaRefuseSecondConfirm({
+            buyerName: result.buyerName,
+            sessionLabel: result.sessionLine,
+            diffCents: meia?.diffCents ?? result.meiaDiffCents ?? null,
+          })}
+        />
+      ) : null}
 
       {cameraError ? <Notice tone="warning">{cameraError}</Notice> : null}
 

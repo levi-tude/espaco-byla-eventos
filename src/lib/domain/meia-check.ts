@@ -162,3 +162,36 @@ export function meiaDiffCents(candidates: InteiraCandidate[], meiaPriceCents: nu
     )[0];
   return full ? Math.max(full.priceCents - meiaPriceCents, 0) : null;
 }
+
+/** "sáb, 28/11 · 17h00 · Evento" → "17h"; "19h30" → "19h30". Sem horário: null. */
+export function shortSessionTime(label: string | null | undefined): string | null {
+  const m = label?.match(/(\d{1,2})h(\d{2})/);
+  if (!m) return null;
+  return m[2] === "00" ? `${Number(m[1])}h` : `${Number(m[1])}h${m[2]}`;
+}
+
+export type MeiaRefuseSecondConfirm = { title: string; body: string[] };
+
+/** Segunda confirmação do "Recusado": explica o que acontece antes de desfazer a entrada. */
+export function meiaRefuseSecondConfirm(input: {
+  buyerName?: string | null;
+  sessionLabel?: string | null;
+  diffCents?: number | null;
+}): MeiaRefuseSecondConfirm {
+  const name = input.buyerName?.trim() || "esta pessoa";
+  const time = shortSessionTime(input.sessionLabel);
+  const diff =
+    typeof input.diffCents === "number" && input.diffCents > 0
+      ? `pagar a diferença (${formatCents(input.diffCents)})`
+      : "pagar a diferença";
+  return {
+    title: `Confirmar recusa de ${name} – meia${time ? `, sessão ${time}` : ""}?`,
+    body: [
+      "A entrada será desfeita e a pessoa NÃO entra. Não há reembolso.",
+      `Ela só pode entrar se voltar com o comprovante ou ${diff}.`,
+    ],
+  };
+}
+
+export const MEIA_REFUSE_BACK = "Voltar";
+export const MEIA_REFUSE_YES = "Sim, recusar";
