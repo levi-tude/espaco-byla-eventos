@@ -56,6 +56,15 @@ function loginState(status: string) {
   };
 }
 
+/** Consulta extra sem resultado: a rota responde só com o card básico. */
+function emptyQuery() {
+  const builder: Record<string, unknown> = {};
+  for (const method of ["select", "eq", "in", "order"]) builder[method] = () => builder;
+  builder.maybeSingle = async () => ({ data: null, error: null });
+  builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null });
+  return builder;
+}
+
 const rejected = {
   buyer_name: null,
   ticket_kind: null,
@@ -69,7 +78,7 @@ describe("POST /api/check-in", () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } } });
     mocks.loginState.mockResolvedValue(loginState("verificado"));
     mocks.adminRpc.mockReturnValue({ maybeSingle: mocks.maybeSingle });
-    mocks.createAdminClient.mockReturnValue({ rpc: mocks.adminRpc });
+    mocks.createAdminClient.mockReturnValue({ rpc: mocks.adminRpc, from: () => emptyQuery() });
   });
 
   it("sem login responde 401 sem chamar o banco", async () => {
@@ -171,6 +180,7 @@ describe("POST /api/check-in", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: false,
+      reason: "sessao_errada",
       message: "Sessão errada — este ingresso é da sessão das 20h30 (sáb, 10/10)",
     });
   });
@@ -180,6 +190,7 @@ describe("POST /api/check-in", () => {
     const response = await post({ eventId, sessionId, code });
     expect(await response.json()).toEqual({
       ok: false,
+      reason: "sessao_cancelada",
       message: "Sessão cancelada — não liberar entrada",
     });
   });
@@ -196,22 +207,24 @@ describe("POST /api/check-in", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: false,
+      reason: "evento_errado",
       message: "Ingresso de outro evento: Festa Junina",
     });
   });
 
   it.each([
-    ["ja_usado", "Já utilizado", 200],
-    ["estornado", "Estornado — não liberar entrada", 200],
-    ["nao_pago", "Ingresso não pago", 200],
-    ["cancelado", "Cancelado", 200],
-    ["nao_encontrado", "Ingresso não encontrado", 404],
-    ["algo_novo", "Ingresso inválido — não liberar entrada", 200],
-  ])("%s vira mensagem clara", async (outcome, message, status) => {
+    ["ja_usado", "ja_usado", "Já utilizado", 200],
+    ["estornado", "estornado", "Estornado — não liberar entrada", 200],
+    ["nao_pago", "nao_pago", "Ingresso não pago", 200],
+    ["cancelado", "cancelado", "Cancelado", 200],
+    ["nao_encontrado", "nao_encontrado", "Ingresso não encontrado", 404],
+    ["algo_novo", "invalido", "Ingresso inválido — não liberar entrada", 200],
+  ])("%s vira mensagem clara", async (outcome, reason, message, status) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     rpcReturns({ ...rejected, outcome });
     const response = await post({ eventId, sessionId, code });
     expect(response.status).toBe(status);
-    expect(await response.json()).toEqual({ ok: false, message });
+    expect(await response.json()).toEqual({ ok: false, reason, message });
   });
 
   it("equipe removida entre a checagem e a função responde 403", async () => {
@@ -256,7 +269,11 @@ describe("POST /api/check-in", () => {
       rpcReturns({ ...rejected, outcome: "evento_errado", other_event_name: null });
       const response = await post({ eventId, sessionId, code });
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ ok: false, message: "Ingresso de outro evento" });
+      expect(await response.json()).toEqual({
+        ok: false,
+        reason: "evento_errado",
+        message: "Ingresso de outro evento",
+      });
     });
 
     it("evento de outro organizador responde 403", async () => {

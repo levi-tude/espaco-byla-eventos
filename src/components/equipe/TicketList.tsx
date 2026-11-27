@@ -1,7 +1,8 @@
 "use client";
 
-import { ExternalLink, SearchX, Ticket } from "lucide-react";
+import { ExternalLink, LogIn, SearchX, Ticket } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState, useTransition } from "react";
 
 import {
@@ -27,6 +28,11 @@ import {
   refundBlock,
   refundBlockMessage,
 } from "@/lib/domain/refund";
+import {
+  manualCheckInPrompt,
+  manualCheckInResult,
+  ticketMatchesSearch,
+} from "@/lib/domain/check-in";
 import { decisionLabel } from "@/lib/domain/status";
 import type { Enums } from "@/types/database";
 
@@ -53,6 +59,10 @@ export type TicketListItem = {
   sessionLabel?: string | null;
   /** Motivo do pedido de estorno pendente feito pelo organizador do evento. */
   refundRequestReason?: string | null;
+  /** Sessão do ingresso: com ela aparece "Dar entrada" (mesma função do leitor de QR). */
+  sessionId?: string | null;
+  /** Sessão por extenso, mostrada na confirmação de "Dar entrada". */
+  entrySessionLabel?: string | null;
 };
 
 type SectionProps = {
@@ -266,17 +276,15 @@ export function TicketList({
   id,
   className,
 }: SectionProps & { eventId: string; tickets: TicketListItem[] }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
   const filteredTickets = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    if (!term) return tickets;
-
-    return tickets.filter((ticket) =>
-      ticket.buyerName.toLocaleLowerCase("pt-BR").includes(term),
-    );
+    if (!search.trim()) return tickets;
+    return tickets.filter((ticket) => ticketMatchesSearch(ticket, search));
   }, [search, tickets]);
 
   const orders = useMemo(() => groupOrders(tickets), [tickets]);
@@ -318,13 +326,50 @@ export function TicketList({
     });
   }
 
+  /** Entrada sem QR: confirma e usa a mesma rota/função do leitor (mesmas regras e trava). */
+  async function requestCheckIn(ticket: TicketListItem) {
+    if (!ticket.sessionId || checkingInId) return;
+    if (
+      !window.confirm(
+        manualCheckInPrompt({
+          buyerName: ticket.buyerName,
+          typeLabel: ticket.typeLabel,
+          kind: ticket.kind,
+          sessionLabel: ticket.entrySessionLabel ?? ticket.sessionLabel,
+        }),
+      )
+    ) {
+      return;
+    }
+
+    setListMessage(null);
+    setCheckingInId(ticket.id);
+    try {
+      const response = await fetch("/api/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, sessionId: ticket.sessionId, ticketId: ticket.id }),
+      });
+      const data = await response.json();
+      setListMessage(manualCheckInResult(data));
+      router.refresh();
+    } catch {
+      setListMessage({ text: "Falha de conexão. Tente novamente.", ok: false });
+    } finally {
+      setCheckingInId(null);
+    }
+  }
+
   function actionsFor(ticket: TicketListItem, inCard = false) {
     return (
       <TicketActions
+        checkingIn={checkingInId === ticket.id}
+        checkInBusy={checkingInId !== null}
         hideWhenEmpty={inCard}
         isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
         isPending={isPending}
         onCancel={() => requestCancellation(ticket)}
+        onCheckIn={() => void requestCheckIn(ticket)}
         onRefundDone={(message, ok = true) => setListMessage({ text: message, ok })}
         order={orders.get(ticket.orderId)}
         ticket={ticket}
@@ -357,9 +402,9 @@ export function TicketList({
         </div>
         {tickets.length ? (
           <Field
-            label="Buscar por nome"
+            label="Buscar por nome ou e-mail"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Nome do participante"
+            placeholder="Nome ou e-mail"
             type="search"
             value={search}
             wrapperClassName="w-full sm:w-72"
@@ -383,7 +428,7 @@ export function TicketList({
       ) : filteredTickets.length === 0 ? (
         <EmptyState
           className="mt-4"
-          description="Confira o nome digitado na busca."
+          description="Confira o nome ou e-mail digitado na busca."
           icon={SearchX}
           title="Nenhum ingresso encontrado."
         />
@@ -543,10 +588,16 @@ function TicketActions({
   isFirstRowOfOrder,
   isPending,
   hideWhenEmpty,
+  checkingIn,
+  checkInBusy,
   onCancel,
+  onCheckIn,
   onRefundDone,
 }: {
   hideWhenEmpty: boolean;
+  checkingIn: boolean;
+  checkInBusy: boolean;
+  onCheckIn: () => void;
   ticket: TicketListItem;
   order: OrderRefundInfo | undefined;
   isFirstRowOfOrder: boolean;
@@ -575,8 +626,22 @@ function TicketActions({
     );
   }
 
+  const canCheckIn =
+    ticket.status === "pago" && ticket.orderStatus === "pago" && Boolean(ticket.sessionId);
+
   return (
     <div className="flex flex-wrap items-start gap-x-4 gap-y-1 md:flex-col md:gap-1">
+      {canCheckIn ? (
+        <button
+          className={cx(actionLinkClass, "text-left font-semibold text-byla-success")}
+          disabled={checkInBusy}
+          onClick={onCheckIn}
+          type="button"
+        >
+          <LogIn aria-hidden className="h-4 w-4" />
+          {checkingIn ? "Dando entrada..." : "Dar entrada"}
+        </button>
+      ) : null}
       {valid ? (
         <Link
           className={cx(actionLinkClass, "text-byla-link")}

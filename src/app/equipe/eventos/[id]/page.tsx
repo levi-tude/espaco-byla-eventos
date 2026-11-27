@@ -323,6 +323,8 @@ export default async function EventoEquipePage({
         publicToken: order.public_token,
         sessionLabel: multi && !selected ? (labels.get(ticket.session_id) ?? null) : null,
         refundRequestReason: refundReasonByOrder.get(ticket.order_id) ?? null,
+        sessionId: ticket.session_id,
+        entrySessionLabel: labels.get(ticket.session_id) ?? null,
       };
     });
   const validTickets = listItems.filter(
