@@ -766,9 +766,46 @@ export type Database = {
           },
         ];
       };
+      meia_checks: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          event_id: string;
+          session_id: string;
+          result: string;
+          diff_cents: number | null;
+          actor_user_id: string | null;
+          actor_kind: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      record_meia_check: {
+        Args: { p_event_id: string; p_ticket_id: string; p_result: string };
+        Returns: {
+          outcome: string;
+          result: string | null;
+          diff_cents: number | null;
+          checked_at: string | null;
+          checked_in: boolean | null;
+        }[];
+      };
+      meia_check_summary: {
+        Args: { p_event_id: string; p_session_id: string | null };
+        Returns: {
+          meias_lidas: number;
+          comprovante_ok: number;
+          pagou_diferenca: number;
+          diferenca_total_cents: number;
+          recusadas: number;
+          nao_registradas: number;
+        }[];
+      };
       accept_paid_order: {
         Args: { p_order_id: string; p_staff_user_id: string };
         Returns: string;

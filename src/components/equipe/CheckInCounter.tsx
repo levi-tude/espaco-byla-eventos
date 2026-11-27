@@ -1,5 +1,7 @@
+import { MeiaCheckSummary } from "@/components/equipe/MeiaCheckSummary";
 import { cx } from "@/components/ui/cx";
 import type { CheckInCounts } from "@/lib/domain/check-in";
+import type { MeiaSummary } from "@/lib/domain/meia-check";
 
 function Stat({
   label,
@@ -29,7 +31,14 @@ function Stat({
  * Contador grande da sessão na portaria: presentes, vendidos, capacidade e meias que
  * entraram. Os números vêm do servidor; a página recarrega sozinha (AutoRefresh).
  */
-export function CheckInCounter({ counts }: { counts: CheckInCounts }) {
+export function CheckInCounter({
+  counts,
+  meia = null,
+}: {
+  counts: CheckInCounts;
+  /** Conferência de meia da sessão (null = banco sem a migration ou indisponível). */
+  meia?: MeiaSummary | null;
+}) {
   const percent = counts.sold > 0 ? Math.round((counts.present / counts.sold) * 100) : 0;
   return (
     <section aria-label="Contador da sessão" aria-live="polite" className="mb-4 grid gap-2">
@@ -51,6 +60,7 @@ export function CheckInCounter({ counts }: { counts: CheckInCounts }) {
         <span className="tabular-nums">{counts.meiaSold}</span>
         <span className="text-byla-muted"> · faltam {Math.max(counts.sold - counts.present, 0)} pessoas</span>
       </p>
+      {meia ? <MeiaCheckSummary summary={meia} /> : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { readLoginState } from "@/lib/auth/login-verification";
 import {
   findEventTicket,
+  loadMeiaDiff,
   loadOrderSummary,
   validatorName,
   type CurrentTicket,
@@ -197,6 +198,18 @@ export async function POST(request: Request) {
   // A entrada já foi registrada: nunca responder erro daqui em diante.
   const kind = data?.ticket_kind ?? null;
   const extra = await details(false);
+  // Meia: a tela precisa do ingresso para registrar a conferência (o id não dá acesso a
+  // nada sozinho; a função da conferência confere tudo de novo) e do valor da diferença.
+  let meia: { ticketId: string; meiaDiffCents: number | null } | null = null;
+  if (kind === "meia" && extra) {
+    let diff: number | null = null;
+    try {
+      diff = await loadMeiaDiff(admin, eventId, extra.ticket.id);
+    } catch (diffError) {
+      console.error("[check-in] Diferença da meia indisponível.", String(diffError));
+    }
+    meia = { ticketId: extra.ticket.id, meiaDiffCents: diff };
+  }
   return NextResponse.json({
     ok: true,
     buyerName: data?.buyer_name ?? "",
@@ -208,5 +221,6 @@ export async function POST(request: Request) {
       data?.event_name,
     ),
     ...(extra ? { order: extra.order } : {}),
+    ...(meia ?? {}),
   });
 }

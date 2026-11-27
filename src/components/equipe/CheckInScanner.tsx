@@ -17,10 +17,16 @@ import {
   unlockAudio,
   type FeedbackTone,
 } from "@/components/equipe/check-in-feedback";
+import type { MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
 import { Button } from "@/components/ui/Button";
 import { controlClasses } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { cx } from "@/components/ui/cx";
+import {
+  MEIA_REFUSE_CONFIRM,
+  MEIA_SKIP_CONFIRM,
+  type MeiaResult,
+} from "@/lib/domain/meia-check";
 
 function feedbackTone(result: CheckInResult): FeedbackTone {
   if (result.tone === "success") return "success";
@@ -28,7 +34,20 @@ function feedbackTone(result: CheckInResult): FeedbackTone {
   return "error";
 }
 
-export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessionId: string }) {
+type MeiaMarkResponse =
+  | { ok: true; result: MeiaResult; diffCents: number | null; checkedIn: boolean }
+  | { ok: false; message: string; unavailable?: boolean };
+
+export function CheckInScanner({
+  eventId,
+  sessionId,
+  meiaChecks = false,
+}: {
+  eventId: string;
+  sessionId: string;
+  /** Banco com a conferência da meia: mostra os 3 botões depois de ler uma meia. */
+  meiaChecks?: boolean;
+}) {
   const router = useRouter();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
@@ -36,6 +55,9 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
   const [manualCode, setManualCode] = useState("");
   const [awaitingNext, setAwaitingNext] = useState(false);
   const [result, setResult] = useState<CheckInResult>({ tone: "idle" });
+  const [meia, setMeia] = useState<MeiaPanelState | null>(null);
+  // Ref (e não estado) para não reiniciar a câmera quando a conferência for desligada.
+  const meiaFeatureRef = useRef(meiaChecks);
 
   // Tela acesa enquanto a portaria está aberta; o som é liberado no primeiro toque (iPhone).
   useEffect(() => {
@@ -83,12 +105,75 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
         next = { tone: "error", message: "Falha de conexão. Tente novamente." };
       }
       setResult(next);
+      setMeia(
+        meiaFeatureRef.current && next.tone === "meia" && next.ticketId
+          ? { enabled: true, mark: null, busy: false, error: null, diffCents: next.meiaDiffCents ?? null }
+          : null,
+      );
       playFeedback(feedbackTone(next));
       // Pausa após qualquer resposta para não reler o mesmo QR em loop
       pauseForNext();
     },
     [eventId, sessionId, pauseForNext, router],
   );
+
+  async function markMeia(mark: MeiaResult) {
+    if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
+    if (mark === "recusado" && !window.confirm(MEIA_REFUSE_CONFIRM)) return;
+    setMeia({ ...meia, busy: true, error: null });
+    try {
+      const response = await fetch("/api/check-in/meia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, ticketId: result.ticketId, result: mark }),
+      });
+      const data = (await response.json()) as MeiaMarkResponse;
+      if (data.ok) {
+        setMeia({
+          ...meia,
+          busy: false,
+          error: null,
+          mark: data.result,
+          diffCents: data.diffCents ?? meia.diffCents,
+        });
+        playFeedback(data.result === "recusado" ? "error" : "success");
+        router.refresh();
+      } else if (data.unavailable) {
+        // Banco ainda sem a migration: some com os botões, a entrada continua valendo.
+        meiaFeatureRef.current = false;
+        setMeia(null);
+        setCameraError(data.message);
+      } else {
+        setMeia({ ...meia, busy: false, error: data.message });
+      }
+    } catch {
+      setMeia({ ...meia, busy: false, error: "Falha de conexão. Tente de novo." });
+    }
+  }
+
+  /** "Foi engano" depois de recusar: dá entrada de novo pela mesma função do check-in. */
+  async function redoEntry() {
+    if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
+    setMeia({ ...meia, busy: true, error: null });
+    try {
+      const response = await fetch("/api/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, sessionId, ticketId: result.ticketId }),
+      });
+      const data = (await response.json()) as CheckInResponse;
+      if (data.ok) {
+        setResult(toCheckInResult(data));
+        setMeia({ ...meia, busy: false, error: null, mark: null });
+        playFeedback("meia");
+        router.refresh();
+      } else {
+        setMeia({ ...meia, busy: false, error: data.message });
+      }
+    } catch {
+      setMeia({ ...meia, busy: false, error: "Falha de conexão. Tente de novo." });
+    }
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -145,6 +230,8 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
   }
 
   function scanNextTicket() {
+    if (meia?.enabled && meia.mark === null && !window.confirm(MEIA_SKIP_CONFIRM)) return;
+    setMeia(null);
     setAwaitingNext(false);
     setResult({ tone: "idle" });
     processingRef.current = false;
@@ -181,6 +268,9 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
               </button>
             ) : null
           }
+          meia={meia ?? undefined}
+          onMeiaMark={(mark) => void markMeia(mark)}
+          onRedoEntry={() => void redoEntry()}
           result={result}
         />
       </section>
@@ -225,6 +315,7 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
             )}
           >
             {resultSummary(result)}
+            {meia?.enabled && meia.mark === null ? " · conferência da meia pendente" : ""}
           </p>
         ) : null}
       </form>

@@ -44,6 +44,7 @@ import {
 import { parseSessionOpsSummary } from "@/lib/domain/session-ops";
 import { sessionSalesClosesAt } from "@/lib/domain/sessions";
 import { isRecentlyPaid } from "@/lib/domain/status";
+import { loadMeiaChecks, loadMeiaSummary } from "@/lib/check-in/meia";
 import { orderItemName as itemName, ticketTypeLabel } from "@/lib/domain/ticket-types";
 import { todayKey } from "@/lib/domain/fee-payout";
 import { eventShareModel, publicAppBaseUrl } from "@/lib/events/share-link";
@@ -293,6 +294,13 @@ export default async function EventoEquipePage({
     };
   });
 
+  // Conferência de meia (sem a migration no banco, fica desligada e a lista segue igual).
+  const [meiaChecks, meiaSummary] = await Promise.all([
+    loadMeiaChecks(supabase, event.id),
+    loadMeiaSummary(supabase, event.id, multi && selected ? selected.id : null),
+  ]);
+  const meiaEnabled = meiaChecks.available && meiaSummary.available;
+
   const inScope = (sessionId: string | null | undefined) =>
     !multi || !selected || sessionId === selected.id;
 
@@ -325,6 +333,7 @@ export default async function EventoEquipePage({
         refundRequestReason: refundReasonByOrder.get(ticket.order_id) ?? null,
         sessionId: ticket.session_id,
         entrySessionLabel: labels.get(ticket.session_id) ?? null,
+        ...(meiaEnabled ? { meiaCheck: meiaChecks.checks.get(ticket.id) ?? null } : {}),
       };
     });
   const validTickets = listItems.filter(
@@ -741,7 +750,14 @@ export default async function EventoEquipePage({
             />
           ) : null}
 
-          <TicketList className={sectionClass} eventId={event.id} id="participantes" tickets={listItems} />
+          <TicketList
+            className={sectionClass}
+            eventId={event.id}
+            id="participantes"
+            meiaChecksEnabled={meiaEnabled}
+            meiaSummary={meiaSummary.summary}
+            tickets={listItems}
+          />
         </div>
 
         <div className="grid min-w-0 gap-10">

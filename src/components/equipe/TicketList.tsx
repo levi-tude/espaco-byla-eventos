@@ -28,11 +28,23 @@ import {
   refundBlock,
   refundBlockMessage,
 } from "@/lib/domain/refund";
+import { MeiaCheckButtons, type MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
+import { MeiaCheckSummary } from "@/components/equipe/MeiaCheckSummary";
 import {
   manualCheckInPrompt,
   manualCheckInResult,
   ticketMatchesSearch,
 } from "@/lib/domain/check-in";
+import {
+  MEIA_REFUSE_CONFIRM,
+  MEIA_RESULT_LABELS,
+  MEIA_RESULTS,
+  MEIA_SKIP_CONFIRM,
+  meiaBadge,
+  type MeiaCheckState,
+  type MeiaResult,
+  type MeiaSummary,
+} from "@/lib/domain/meia-check";
 import { decisionLabel } from "@/lib/domain/status";
 import type { Enums } from "@/types/database";
 
@@ -63,6 +75,8 @@ export type TicketListItem = {
   sessionId?: string | null;
   /** Sessão por extenso, mostrada na confirmação de "Dar entrada". */
   entrySessionLabel?: string | null;
+  /** Última conferência da meia (comprovante ok / pagou a diferença / recusado). */
+  meiaCheck?: MeiaCheckState | null;
 };
 
 type SectionProps = {
@@ -275,12 +289,24 @@ export function TicketList({
   tickets,
   id,
   className,
-}: SectionProps & { eventId: string; tickets: TicketListItem[] }) {
+  meiaChecksEnabled = false,
+  meiaSummary = null,
+}: SectionProps & {
+  eventId: string;
+  tickets: TicketListItem[];
+  /** Banco com a conferência de meia: mostra o status e os botões de conferência. */
+  meiaChecksEnabled?: boolean;
+  meiaSummary?: MeiaSummary | null;
+}) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [isPending, startTransition] = useTransition();
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
+  const [meiaFeature, setMeiaFeature] = useState(meiaChecksEnabled);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  /** Meia que acabou de entrar pela lista: conferência em destaque até marcar. */
+  const [pendingMeia, setPendingMeia] = useState<{ ticket: TicketListItem; state: MeiaPanelState } | null>(null);
 
   const filteredTickets = useMemo(() => {
     if (!search.trim()) return tickets;
@@ -352,12 +378,74 @@ export function TicketList({
       });
       const data = await response.json();
       setListMessage(manualCheckInResult(data));
+      if (data?.ok && ticket.kind === "meia" && meiaFeature) {
+        setPendingMeia({
+          ticket,
+          state: {
+            enabled: true,
+            mark: null,
+            busy: false,
+            error: null,
+            diffCents: typeof data.meiaDiffCents === "number" ? data.meiaDiffCents : null,
+          },
+        });
+      }
       router.refresh();
     } catch {
       setListMessage({ text: "Falha de conexão. Tente novamente.", ok: false });
     } finally {
       setCheckingInId(null);
     }
+  }
+
+  /** Conferência da meia (lista ou painel em destaque), pela rota com a sessão do usuário. */
+  async function markMeia(ticket: TicketListItem, mark: MeiaResult) {
+    if (markingId) return;
+    if (mark === "recusado" && !window.confirm(MEIA_REFUSE_CONFIRM)) return;
+    const fromPanel = pendingMeia?.ticket.id === ticket.id;
+    setMarkingId(ticket.id);
+    if (fromPanel) setPendingMeia((p) => (p ? { ...p, state: { ...p.state, busy: true, error: null } } : p));
+    try {
+      const response = await fetch("/api/check-in/meia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, ticketId: ticket.id, result: mark }),
+      });
+      const data = await response.json();
+      if (data?.ok) {
+        setListMessage({
+          ok: mark !== "recusado",
+          text:
+            mark === "recusado"
+              ? `Meia de ${ticket.buyerName} recusada: a entrada foi desfeita.`
+              : `Conferência registrada: ${ticket.buyerName} · ${MEIA_RESULT_LABELS[mark]}.`,
+        });
+        if (fromPanel) {
+          setPendingMeia((p) =>
+            p ? { ...p, state: { ...p.state, busy: false, error: null, mark, diffCents: data.diffCents ?? p.state.diffCents } } : p,
+          );
+        }
+        router.refresh();
+      } else {
+        if (data?.unavailable) {
+          setMeiaFeature(false);
+          setPendingMeia(null);
+        }
+        const text = typeof data?.message === "string" ? data.message : "Não foi possível registrar a conferência.";
+        setListMessage({ ok: false, text });
+        if (fromPanel) setPendingMeia((p) => (p ? { ...p, state: { ...p.state, busy: false, error: text } } : p));
+      }
+    } catch {
+      setListMessage({ ok: false, text: "Falha de conexão. Tente de novo." });
+      if (fromPanel) setPendingMeia((p) => (p ? { ...p, state: { ...p.state, busy: false } } : p));
+    } finally {
+      setMarkingId(null);
+    }
+  }
+
+  function closePendingMeia() {
+    if (pendingMeia && pendingMeia.state.mark === null && !window.confirm(MEIA_SKIP_CONFIRM)) return;
+    setPendingMeia(null);
   }
 
   function actionsFor(ticket: TicketListItem, inCard = false) {
@@ -369,7 +457,10 @@ export function TicketList({
         isFirstRowOfOrder={firstRowOfOrder.has(ticket.id)}
         isPending={isPending}
         onCancel={() => requestCancellation(ticket)}
+        meiaEnabled={meiaFeature}
+        meiaBusy={markingId !== null}
         onCheckIn={() => void requestCheckIn(ticket)}
+        onMeiaMark={(mark) => void markMeia(ticket, mark)}
         onRefundDone={(message, ok = true) => setListMessage({ text: message, ok })}
         order={orders.get(ticket.orderId)}
         ticket={ticket}
@@ -412,10 +503,52 @@ export function TicketList({
         ) : null}
       </div>
 
+      {meiaFeature && meiaSummary ? <MeiaCheckSummary className="mt-4" summary={meiaSummary} /> : null}
+
       {listMessage ? (
         <Notice className="mt-4" tone={listMessage.ok ? "success" : "danger"}>
           {listMessage.text}
         </Notice>
+      ) : null}
+
+      {pendingMeia ? (
+        <div
+          aria-label="Conferência da meia"
+          className={cx(
+            "mt-4 grid gap-3 rounded-2xl p-4",
+            pendingMeia.state.mark === "recusado"
+              ? "bg-byla-danger-solid text-white"
+              : pendingMeia.state.mark
+                ? "bg-byla-success-solid text-white"
+                : "bg-[#ffbd38] text-black",
+          )}
+          role="region"
+        >
+          <p className="text-lg font-black uppercase">
+            {pendingMeia.state.mark === "recusado"
+              ? "Meia recusada · entrada desfeita"
+              : pendingMeia.state.mark
+                ? "Conferência registrada"
+                : "Meia – conferir comprovante"}
+          </p>
+          <p className="text-2xl font-bold">{pendingMeia.ticket.buyerName}</p>
+          {pendingMeia.state.mark === "recusado" ? (
+            <p className="text-base">Se ela voltar com o comprovante, use “Dar entrada” de novo.</p>
+          ) : (
+            <MeiaCheckButtons
+              onMark={(mark) => void markMeia(pendingMeia.ticket, mark)}
+              state={pendingMeia.state}
+              surface={pendingMeia.state.mark ? "dark" : "light"}
+            />
+          )}
+          <button
+            className="min-h-11 justify-self-start rounded-lg px-3 text-base font-semibold underline"
+            onClick={closePendingMeia}
+            type="button"
+          >
+            Fechar
+          </button>
+        </div>
       ) : null}
 
       {tickets.length === 0 ? (
@@ -537,6 +670,7 @@ function TicketBadges({
   className?: string;
 }) {
   const badge = statusBadge(ticket);
+  const meia = ticket.meiaCheck !== undefined ? meiaBadge(ticket, ticket.meiaCheck) : null;
   return (
     <span className={cx("flex flex-wrap items-center gap-1.5", className)}>
       <StatusBadge
@@ -552,6 +686,11 @@ function TicketBadges({
         >
           Novo
         </span>
+      ) : null}
+      {meia ? (
+        <StatusBadge className="whitespace-normal text-left" tone={meia.tone}>
+          {meia.label}
+        </StatusBadge>
       ) : null}
       {showRefundRequest && ticket.refundRequestReason ? (
         <StatusBadge className="whitespace-normal break-words text-left" tone="warning">
@@ -590,14 +729,20 @@ function TicketActions({
   hideWhenEmpty,
   checkingIn,
   checkInBusy,
+  meiaEnabled,
+  meiaBusy,
   onCancel,
   onCheckIn,
+  onMeiaMark,
   onRefundDone,
 }: {
   hideWhenEmpty: boolean;
   checkingIn: boolean;
   checkInBusy: boolean;
+  meiaEnabled: boolean;
+  meiaBusy: boolean;
   onCheckIn: () => void;
+  onMeiaMark: (mark: MeiaResult) => void;
   ticket: TicketListItem;
   order: OrderRefundInfo | undefined;
   isFirstRowOfOrder: boolean;
@@ -641,6 +786,32 @@ function TicketActions({
           <LogIn aria-hidden className="h-4 w-4" />
           {checkingIn ? "Dando entrada..." : "Dar entrada"}
         </button>
+      ) : null}
+      {meiaEnabled && ticket.kind === "meia" && ticket.status === "check_in" ? (
+        <div className="grid gap-0.5" role="group" aria-label={`Conferência da meia de ${ticket.buyerName}`}>
+          <span className="text-sm text-byla-muted">Conferência da meia:</span>
+          {MEIA_RESULTS.map((result) => {
+            const selected = ticket.meiaCheck?.result === result;
+            return (
+              <button
+                aria-pressed={selected}
+                className={cx(
+                  actionLinkClass,
+                  "min-h-9 text-left",
+                  result === "recusado" ? "text-byla-danger" : "text-byla-link",
+                  selected && "font-bold underline",
+                )}
+                disabled={meiaBusy || selected}
+                key={result}
+                onClick={() => onMeiaMark(result)}
+                type="button"
+              >
+                {MEIA_RESULT_LABELS[result]}
+                {selected ? " ✓" : ""}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
       {valid ? (
         <Link

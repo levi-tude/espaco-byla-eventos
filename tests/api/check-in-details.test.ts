@@ -87,6 +87,9 @@ const currentTicket = {
   buyer_name: "Maria Souza",
   checked_in_at: "2026-11-28T20:04:00.000Z",
   checked_in_by: otherStaffId,
+  kind: "meia",
+  price_cents: 2500,
+  session_id: sessionId,
 };
 
 const orderTickets = [
@@ -103,6 +106,14 @@ describe("POST /api/check-in — detalhes do pedido", () => {
       tickets: { single: currentTicket, list: orderTickets },
       staff_profiles: { single: { display_name: "Ana Portaria" } },
       events: { single: { organizer_id: "org" } },
+      ticket_types: {
+        list: [
+          { id: "tp", kind: "inteira", preset: null, people_per_unit: 1, archived_at: null, sort_order: 0, price_cents: 2500 },
+          { id: "ti", kind: "inteira", preset: "inteira", people_per_unit: 1, archived_at: null, sort_order: 1, price_cents: 4000 },
+          { id: "tc", kind: "inteira", preset: "casadinha", people_per_unit: 2, archived_at: null, sort_order: 2, price_cents: 8000 },
+        ],
+      },
+      session_ticket_types: { list: [{ ticket_type_id: "ti", price_cents: 5000 }] },
     };
     mocks.getUser.mockResolvedValue({ data: { user: { id: staffUserId } } });
     mocks.loginState.mockResolvedValue({
@@ -127,11 +138,33 @@ describe("POST /api/check-in — detalhes do pedido", () => {
         { typeLabel: "Inteira", kind: "inteira", entered: true, enteredAt: "16h58", current: false },
       ],
     });
-    // Nunca devolve o código do QR, e-mail ou ids internos.
+    // Meia: devolve o ingresso (para a conferência) e a diferença inteira (sessão) − meia.
+    expect(body.ticketId).toBe(ticketId);
+    expect(body.meiaDiffCents).toBe(2500);
+    // Nunca devolve o código do QR, e-mail ou token.
     const raw = JSON.stringify(body);
     expect(raw).not.toContain(code);
-    expect(raw).not.toContain(ticketId);
     expect(raw).not.toMatch(/@|token/i);
+  });
+
+  it("inteira não devolve o id do ingresso nem diferença", async () => {
+    mocks.maybeSingle.mockResolvedValue({
+      data: { ...okRow, ticket_kind: "inteira", type_name: "Inteira" },
+      error: null,
+    });
+    const body = await (await post({ eventId, sessionId, code })).json();
+    expect(body.ok).toBe(true);
+    expect(body.ticketId).toBeUndefined();
+    expect(body.meiaDiffCents).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain(ticketId);
+  });
+
+  it("diferença indisponível não atrapalha a entrada da meia", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.tables.ticket_types = { error: { code: "XX000" } };
+    mocks.maybeSingle.mockResolvedValue({ data: okRow, error: null });
+    const body = await (await post({ eventId, sessionId, code })).json();
+    expect(body).toMatchObject({ ok: true, ticketId, meiaDiffCents: null });
   });
 
   it("consultas extras ficam presas ao evento e ao pedido do ingresso lido", async () => {

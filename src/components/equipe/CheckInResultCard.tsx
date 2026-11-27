@@ -1,10 +1,13 @@
+import { formatCents } from "@/lib/domain/meia-check";
 import { Ban, CircleCheck, CircleX, Clock, LoaderCircle, ScanLine, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { MeiaCheckButtons, type MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
 import { cx } from "@/components/ui/cx";
 import {
   orderSummaryLine,
   successTone,
+  type CheckInOrderTicket,
   type CheckInOrderSummary,
   type CheckInTicketKind,
 } from "@/lib/domain/check-in";
@@ -19,6 +22,9 @@ export type CheckInResult =
       kind: CheckInTicketKind | null;
       sessionLine: string;
       order?: CheckInOrderSummary;
+      /** Só meia: ingresso para registrar a conferência e a diferença a cobrar. */
+      ticketId?: string;
+      meiaDiffCents?: number | null;
     }
   | {
       tone: "used";
@@ -135,11 +141,62 @@ function OrderList({ order, dark }: { order: CheckInOrderSummary; dark: boolean 
   );
 }
 
+type VisualTone = CheckInResult["tone"];
+
+/** Com a conferência ligada, a meia muda de cor conforme a marcação. */
+function visualTone(result: CheckInResult, meia: MeiaPanelState | undefined): VisualTone {
+  if (result.tone !== "meia" || !meia?.enabled || !meia.mark) return result.tone;
+  return meia.mark === "recusado" ? "used" : "success";
+}
+
+/** Recusado desfaz a entrada: a lista do pedido mostra o ingresso lido como "não entrou". */
+function orderAfterRefusal(order: CheckInOrderSummary): CheckInOrderSummary {
+  const tickets: CheckInOrderTicket[] = order.tickets.map((ticket) =>
+    ticket.current && ticket.entered ? { ...ticket, entered: false, enteredAt: null } : ticket,
+  );
+  return { ...order, tickets, entered: tickets.filter((ticket) => ticket.entered).length };
+}
+
+function meiaHeadline(mark: MeiaPanelState["mark"]): string {
+  if (mark === "recusado") return "Recusado";
+  if (mark) return "Pode entrar";
+  return "Conferir comprovante";
+}
+
+function meiaBand(meia: MeiaPanelState): ReactNode {
+  if (meia.mark === "comprovante_ok") {
+    return <Band className="bg-white text-byla-success-solid">Meia · comprovante ok</Band>;
+  }
+  if (meia.mark === "pagou_diferenca") {
+    const value = meia.diffCents != null && meia.diffCents > 0 ? ` ${formatCents(meia.diffCents)}` : "";
+    return <Band className="bg-white text-byla-success-solid">Meia · pagou a diferença{value}</Band>;
+  }
+  if (meia.mark === "recusado") {
+    return <Band className="bg-white text-byla-danger-solid">Entrada desfeita · não liberar</Band>;
+  }
+  return <Band className="bg-black text-[#ffbd38]">Meia – conferir comprovante</Band>;
+}
+
 /** Tela de resultado da leitura (mesma para equipe e organizador). Sem estado: só desenha. */
-export function CheckInResultCard({ result, action }: { result: CheckInResult; action?: ReactNode }) {
-  const Icon = toneIcons[result.tone];
+export function CheckInResultCard({
+  result,
+  action,
+  meia,
+  onMeiaMark,
+  onRedoEntry,
+}: {
+  result: CheckInResult;
+  action?: ReactNode;
+  /** Conferência da meia (só quando o resultado é meia). */
+  meia?: MeiaPanelState;
+  onMeiaMark?: (mark: NonNullable<MeiaPanelState["mark"]>) => void;
+  onRedoEntry?: () => void;
+}) {
+  const visual = visualTone(result, meia);
+  const Icon = toneIcons[visual];
   const idle = result.tone === "idle";
-  const dark = result.tone === "meia";
+  const meiaOn = result.tone === "meia" && Boolean(meia?.enabled);
+  const dark = visual === "meia";
 
   if (idle) {
     return (
@@ -151,8 +208,20 @@ export function CheckInResultCard({ result, action }: { result: CheckInResult; a
     );
   }
 
+  const order =
+    (result.tone === "success" || result.tone === "meia" || result.tone === "used") && result.order
+      ? meiaOn && meia?.mark === "recusado"
+        ? orderAfterRefusal(result.order)
+        : result.order
+      : null;
+
   return (
-    <div aria-live="assertive" className={cx("flex", toneStyles[result.tone])} data-tone={result.tone}>
+    <div
+      aria-live="assertive"
+      className={cx("flex", toneStyles[visual])}
+      data-meia={meiaOn ? (meia?.mark ?? "pendente") : undefined}
+      data-tone={result.tone}
+    >
       <div className="m-auto flex w-full max-w-md flex-col items-center gap-3 p-4 text-center sm:p-6">
         <Icon
           aria-hidden
@@ -161,10 +230,12 @@ export function CheckInResultCard({ result, action }: { result: CheckInResult; a
             result.tone === "loading" && "animate-spin motion-reduce:animate-none",
           )}
         />
-        <p className="text-3xl font-black uppercase leading-tight">{headline(result)}</p>
+        <p className="text-3xl font-black uppercase leading-tight">
+          {meiaOn && meia ? meiaHeadline(meia.mark) : headline(result)}
+        </p>
 
         {result.tone === "meia" ? (
-          <Band className="bg-black text-[#ffbd38]">Meia – conferir comprovante</Band>
+          meiaOn && meia ? meiaBand(meia) : <Band className="bg-black text-[#ffbd38]">Meia – conferir comprovante</Band>
         ) : null}
         {result.tone === "success" && result.kind === "cortesia" ? (
           <Band className="bg-violet-700 text-white">Bônus</Band>
@@ -177,6 +248,23 @@ export function CheckInResultCard({ result, action }: { result: CheckInResult; a
           <>
             <p className="text-xl font-semibold">{result.typeLabel}</p>
             {result.sessionLine ? <p className="text-base">{result.sessionLine}</p> : null}
+          </>
+        ) : null}
+
+        {meiaOn && meia ? (
+          <>
+            {meia.mark === "recusado" ? (
+              <p className="text-base font-semibold">
+                A pessoa não entra agora. O ingresso volta a valer se ela voltar com o comprovante ou
+                pagar a diferença (ler o QR de novo).
+              </p>
+            ) : null}
+            <MeiaCheckButtons
+              onMark={onMeiaMark}
+              onRedoEntry={onRedoEntry}
+              state={meia}
+              surface={dark ? "light" : "dark"}
+            />
           </>
         ) : null}
 
@@ -197,11 +285,7 @@ export function CheckInResultCard({ result, action }: { result: CheckInResult; a
           </>
         ) : null}
 
-        {(result.tone === "success" || result.tone === "meia" || result.tone === "used") &&
-        result.order &&
-        result.order.total > 0 ? (
-          <OrderList dark={dark} order={result.order} />
-        ) : null}
+        {order && order.total > 0 ? <OrderList dark={dark} order={order} /> : null}
 
         {action}
       </div>
@@ -218,6 +302,8 @@ export type CheckInResponse =
       typeLabel?: string;
       sessionLine?: string;
       order?: CheckInOrderSummary;
+      ticketId?: string;
+      meiaDiffCents?: number | null;
     }
   | {
       ok: false;
@@ -253,6 +339,12 @@ export function toCheckInResult(data: CheckInResponse): CheckInResult {
       kind,
       sessionLine: data.sessionLine ?? "",
       order: validOrder(data.order),
+      ...(kind === "meia" && typeof data.ticketId === "string"
+        ? {
+            ticketId: data.ticketId,
+            meiaDiffCents: typeof data.meiaDiffCents === "number" ? data.meiaDiffCents : null,
+          }
+        : {}),
     };
   }
   if (data.reason === "ja_usado") {

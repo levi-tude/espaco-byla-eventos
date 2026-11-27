@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { getActor, requireEventAccess } from "@/lib/auth/actor";
 import { formatSessionShort } from "@/lib/datetime";
+import { loadMeiaSummary } from "@/lib/check-in/meia";
 import { checkInCounts } from "@/lib/domain/check-in";
 import { sessionName, suggestCheckInSession, type SessionSummary } from "@/lib/domain/sessions";
 import { UUID_PATTERN } from "@/lib/events/event-input";
@@ -76,6 +77,10 @@ export default async function PortariaOrganizadorPage({ params, searchParams }: 
     : { data: [] };
   const capacity = (rows ?? []).find((row) => row.id === current?.id)?.capacity ?? null;
   const counts = checkInCounts(validTickets ?? [], capacity);
+  // Conferência de meia com a sessão do próprio usuário; sem a migration, fica desligada.
+  const meia = current
+    ? await loadMeiaSummary(supabase, event.id, current.id)
+    : { available: false, summary: null };
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6 sm:py-8">
@@ -104,8 +109,13 @@ export default async function PortariaOrganizadorPage({ params, searchParams }: 
             </nav>
           ) : null}
           <p className="mb-3 text-2xl font-bold text-foreground">{sessionLabel(current)}</p>
-          <CheckInCounter counts={counts} />
-          <CheckInScanner eventId={event.id} key={current.id} sessionId={current.id} />
+          <CheckInCounter counts={counts} meia={meia.summary} />
+          <CheckInScanner
+            eventId={event.id}
+            key={current.id}
+            meiaChecks={meia.available}
+            sessionId={current.id}
+          />
         </>
       ) : (
         <Notice tone="warning">Este evento não tem sessão ativa para a portaria.</Notice>
