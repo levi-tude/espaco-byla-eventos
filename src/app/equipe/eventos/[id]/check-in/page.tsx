@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/equipe/AutoRefresh";
+import { CheckInCounter } from "@/components/equipe/CheckInCounter";
 import { CheckInScanner } from "@/components/equipe/CheckInScanner";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { formatSessionShort } from "@/lib/datetime";
+import { loadMeiaSummary } from "@/lib/check-in/meia";
+import { checkInCounts } from "@/lib/domain/check-in";
 import { sessionName, suggestCheckInSession, type SessionSummary } from "@/lib/domain/sessions";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -31,7 +34,7 @@ export default async function CheckInPage({
 
   const { data: rows } = await supabase
     .from("event_sessions")
-    .select("id, name, starts_at, ends_at, status")
+    .select("id, name, starts_at, ends_at, status, capacity")
     .eq("event_id", event.id)
     .eq("status", "ativa")
     .is("archived_at", null)
@@ -51,16 +54,20 @@ export default async function CheckInPage({
   const { data: validTickets } = current
     ? await supabase
         .from("tickets")
-        .select("status")
+        .select("kind, status")
         .eq("session_id", current.id)
         .in("status", ["pago", "check_in"])
     : { data: [] };
-  const expected = validTickets?.length ?? 0;
-  const entered = (validTickets ?? []).filter(({ status }) => status === "check_in").length;
+  const capacity = (rows ?? []).find((row) => row.id === current?.id)?.capacity ?? null;
+  const counts = checkInCounts(validTickets ?? [], capacity);
+  // Conferência de meia com a sessão do próprio usuário; sem a migration, fica desligada.
+  const meia = current
+    ? await loadMeiaSummary(supabase, event.id, current.id)
+    : { available: false, summary: null };
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6 sm:py-8">
-      <AutoRefresh />
+      <AutoRefresh intervalMs={10_000} />
       <BackLink href={`/equipe/eventos/${event.id}`}>Voltar ao evento</BackLink>
       <div className="mb-4 mt-2 flex flex-wrap items-baseline gap-x-3">
         <h1 className="font-display text-4xl tracking-wide text-foreground">Check-in</h1>
@@ -84,15 +91,14 @@ export default async function CheckInPage({
               ))}
             </nav>
           ) : null}
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <p className="text-2xl font-bold text-foreground">{sessionLabel(current)}</p>
-            <p aria-live="polite" className="text-lg text-byla-muted">
-              Entraram{" "}
-              <span className="font-semibold tabular-nums text-foreground">{entered}</span> de{" "}
-              <span className="tabular-nums">{expected}</span>
-            </p>
-          </div>
-          <CheckInScanner eventId={event.id} key={current.id} sessionId={current.id} />
+          <p className="mb-3 text-2xl font-bold text-foreground">{sessionLabel(current)}</p>
+          <CheckInCounter counts={counts} meia={meia.summary} />
+          <CheckInScanner
+            eventId={event.id}
+            key={current.id}
+            meiaChecks={meia.available}
+            sessionId={current.id}
+          />
         </>
       ) : (
         <Notice tone="warning">Este evento não tem sessão ativa para check-in.</Notice>

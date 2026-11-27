@@ -1,62 +1,73 @@
 "use client";
 
-import { CircleCheck, CircleX, LoaderCircle, ScanLine } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/navigation";
 
+import {
+  CheckInResultCard,
+  resultSummary,
+  toCheckInResult,
+  type CheckInResponse,
+  type CheckInResult,
+} from "@/components/equipe/CheckInResultCard";
+import {
+  keepScreenOn,
+  playFeedback,
+  unlockAudio,
+  type FeedbackTone,
+} from "@/components/equipe/check-in-feedback";
+import type { MeiaPanelState } from "@/components/equipe/MeiaCheckButtons";
 import { Button } from "@/components/ui/Button";
 import { controlClasses } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { cx } from "@/components/ui/cx";
-import { ticketKindLabels } from "@/lib/domain/ticket-types";
-import type { Enums } from "@/types/database";
+import {
+  MEIA_REFUSE_CONFIRM,
+  MEIA_SKIP_CONFIRM,
+  type MeiaResult,
+} from "@/lib/domain/meia-check";
 
-type CheckInResponse =
-  | {
-      ok: true;
-      buyerName: string;
-      kind: Enums<"ticket_kind">;
-      typeLabel?: string;
-      sessionLine?: string;
-    }
-  | {
-      ok: false;
-      message: string;
-    };
+function feedbackTone(result: CheckInResult): FeedbackTone {
+  if (result.tone === "success") return "success";
+  if (result.tone === "meia") return "meia";
+  return "error";
+}
 
-type Result =
-  | { tone: "idle"; message: "Aponte a câmera para o QR Code" }
-  | { tone: "loading"; message: "Verificando ingresso..." }
-  | { tone: "success"; message: "Pode entrar"; detail: string; sessionLine: string }
-  | { tone: "error"; message: string };
+type MeiaMarkResponse =
+  | { ok: true; result: MeiaResult; diffCents: number | null; checkedIn: boolean }
+  | { ok: false; message: string; unavailable?: boolean };
 
-/** O resultado cobre a câmera para a equipe ver de longe; o leitor já fica pausado nesse momento. */
-const resultStyles: Record<Result["tone"], string> = {
-  idle: "px-3 pb-2 pt-3 text-white/90",
-  loading: "absolute inset-0 z-10 bg-black/75 text-white",
-  success: "absolute inset-0 z-10 bg-byla-success-solid/95 text-white",
-  error: "absolute inset-0 z-10 bg-byla-danger-solid/95 text-white",
-};
-
-const resultIcons: Record<Result["tone"], typeof ScanLine> = {
-  idle: ScanLine,
-  loading: LoaderCircle,
-  success: CircleCheck,
-  error: CircleX,
-};
-
-export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessionId: string }) {
+export function CheckInScanner({
+  eventId,
+  sessionId,
+  meiaChecks = false,
+}: {
+  eventId: string;
+  sessionId: string;
+  /** Banco com a conferência da meia: mostra os 3 botões depois de ler uma meia. */
+  meiaChecks?: boolean;
+}) {
   const router = useRouter();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
   const [manualCode, setManualCode] = useState("");
   const [awaitingNext, setAwaitingNext] = useState(false);
-  const [result, setResult] = useState<Result>({
-    tone: "idle",
-    message: "Aponte a câmera para o QR Code",
-  });
+  const [result, setResult] = useState<CheckInResult>({ tone: "idle" });
+  const [meia, setMeia] = useState<MeiaPanelState | null>(null);
+  // Ref (e não estado) para não reiniciar a câmera quando a conferência for desligada.
+  const meiaFeatureRef = useRef(meiaChecks);
+
+  // Tela acesa enquanto a portaria está aberta; o som é liberado no primeiro toque (iPhone).
+  useEffect(() => {
+    const release = keepScreenOn();
+    window.addEventListener("pointerdown", unlockAudio);
+    return () => {
+      release();
+      window.removeEventListener("pointerdown", unlockAudio);
+    };
+  }, []);
 
   const pauseForNext = useCallback(() => {
     if (scannerRef.current?.isScanning) {
@@ -75,8 +86,9 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
       if (!code || processingRef.current) return;
 
       processingRef.current = true;
-      setResult({ tone: "loading", message: "Verificando ingresso..." });
+      setResult({ tone: "loading" });
 
+      let next: CheckInResult;
       try {
         const response = await fetch("/api/check-in", {
           method: "POST",
@@ -84,31 +96,84 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
           body: JSON.stringify({ eventId, sessionId, code }),
         });
         const data = (await response.json()) as CheckInResponse;
-
+        next = toCheckInResult(data);
         if (data.ok) {
-          setResult({
-            tone: "success",
-            message: "Pode entrar",
-            detail: `${data.buyerName} · ${data.typeLabel ?? ticketKindLabels[data.kind]}`,
-            sessionLine: data.sessionLine ?? "",
-          });
           setManualCode("");
           router.refresh();
-        } else {
-          setResult({ tone: "error", message: data.message });
         }
-        // Pausa após qualquer resposta para não reler o mesmo QR em loop
-        pauseForNext();
       } catch {
-        setResult({
-          tone: "error",
-          message: "Falha de conexão. Tente novamente.",
-        });
-        pauseForNext();
+        next = { tone: "error", message: "Falha de conexão. Tente novamente." };
       }
+      setResult(next);
+      setMeia(
+        meiaFeatureRef.current && next.tone === "meia" && next.ticketId
+          ? { enabled: true, mark: null, busy: false, error: null, diffCents: next.meiaDiffCents ?? null }
+          : null,
+      );
+      playFeedback(feedbackTone(next));
+      // Pausa após qualquer resposta para não reler o mesmo QR em loop
+      pauseForNext();
     },
     [eventId, sessionId, pauseForNext, router],
   );
+
+  async function markMeia(mark: MeiaResult) {
+    if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
+    if (mark === "recusado" && !window.confirm(MEIA_REFUSE_CONFIRM)) return;
+    setMeia({ ...meia, busy: true, error: null });
+    try {
+      const response = await fetch("/api/check-in/meia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, ticketId: result.ticketId, result: mark }),
+      });
+      const data = (await response.json()) as MeiaMarkResponse;
+      if (data.ok) {
+        setMeia({
+          ...meia,
+          busy: false,
+          error: null,
+          mark: data.result,
+          diffCents: data.diffCents ?? meia.diffCents,
+        });
+        playFeedback(data.result === "recusado" ? "error" : "success");
+        router.refresh();
+      } else if (data.unavailable) {
+        // Banco ainda sem a migration: some com os botões, a entrada continua valendo.
+        meiaFeatureRef.current = false;
+        setMeia(null);
+        setCameraError(data.message);
+      } else {
+        setMeia({ ...meia, busy: false, error: data.message });
+      }
+    } catch {
+      setMeia({ ...meia, busy: false, error: "Falha de conexão. Tente de novo." });
+    }
+  }
+
+  /** "Foi engano" depois de recusar: dá entrada de novo pela mesma função do check-in. */
+  async function redoEntry() {
+    if (result.tone !== "meia" || !result.ticketId || !meia || meia.busy) return;
+    setMeia({ ...meia, busy: true, error: null });
+    try {
+      const response = await fetch("/api/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, sessionId, ticketId: result.ticketId }),
+      });
+      const data = (await response.json()) as CheckInResponse;
+      if (data.ok) {
+        setResult(toCheckInResult(data));
+        setMeia({ ...meia, busy: false, error: null, mark: null });
+        playFeedback("meia");
+        router.refresh();
+      } else {
+        setMeia({ ...meia, busy: false, error: data.message });
+      }
+    } catch {
+      setMeia({ ...meia, busy: false, error: "Falha de conexão. Tente de novo." });
+    }
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -165,8 +230,10 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
   }
 
   function scanNextTicket() {
+    if (meia?.enabled && meia.mark === null && !window.confirm(MEIA_SKIP_CONFIRM)) return;
+    setMeia(null);
     setAwaitingNext(false);
-    setResult({ tone: "idle", message: "Aponte a câmera para o QR Code" });
+    setResult({ tone: "idle" });
     processingRef.current = false;
     try {
       scannerRef.current?.resume();
@@ -177,53 +244,35 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
     }
   }
 
-  const ResultIcon = resultIcons[result.tone];
   const idle = result.tone === "idle";
+  const positive = result.tone === "success" || result.tone === "meia";
 
   return (
     <div className="space-y-4">
-      <section className="relative overflow-hidden rounded-2xl bg-zinc-950 p-2 shadow-lg sm:p-3">
+      <section className="grid overflow-hidden rounded-2xl bg-zinc-950 p-2 shadow-lg sm:p-3">
         <div
           aria-label="Leitor de QR Code"
-          className="mx-auto aspect-square max-h-[60dvh] w-full max-w-xl overflow-hidden rounded-xl"
+          className="col-start-1 row-start-1 mx-auto aspect-square max-h-[60dvh] w-full max-w-xl overflow-hidden rounded-xl"
           id="check-in-reader"
         />
 
-        <div
-          aria-live="assertive"
-          className={cx(
-            "flex items-center justify-center text-center",
-            idle ? "gap-2" : "flex-col gap-2 p-6",
-            resultStyles[result.tone],
-          )}
-        >
-          <ResultIcon
-            aria-hidden
-            className={cx(
-              "shrink-0",
-              idle ? "h-5 w-5" : "h-16 w-16",
-              result.tone === "loading" && "animate-spin motion-reduce:animate-none",
-            )}
-          />
-          <p className={idle ? "text-base font-medium" : "text-3xl font-bold"}>
-            {result.message}
-          </p>
-          {"detail" in result ? (
-            <p className="text-lg font-semibold">{result.detail}</p>
-          ) : null}
-          {"sessionLine" in result && result.sessionLine ? (
-            <p className="text-base">{result.sessionLine}</p>
-          ) : null}
-          {awaitingNext ? (
-            <button
-              className="mt-3 min-h-12 rounded-xl bg-white px-6 text-base font-semibold text-zinc-900 transition hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              onClick={scanNextTicket}
-              type="button"
-            >
-              Próximo ingresso
-            </button>
-          ) : null}
-        </div>
+        <CheckInResultCard
+          action={
+            awaitingNext ? (
+              <button
+                className="mt-2 min-h-12 rounded-xl bg-white px-6 text-base font-semibold text-zinc-900 shadow transition hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                onClick={scanNextTicket}
+                type="button"
+              >
+                Próximo ingresso
+              </button>
+            ) : null
+          }
+          meia={meia ?? undefined}
+          onMeiaMark={(mark) => void markMeia(mark)}
+          onRedoEntry={() => void redoEntry()}
+          result={result}
+        />
       </section>
 
       {cameraError ? <Notice tone="warning">{cameraError}</Notice> : null}
@@ -258,19 +307,15 @@ export function CheckInScanner({ eventId, sessionId }: { eventId: string; sessio
           <p
             aria-hidden
             className={cx(
-              "mt-3 flex items-center gap-2 text-base font-semibold",
+              "mt-3 text-base font-semibold",
               result.tone === "success" && "text-byla-success",
-              result.tone === "error" && "text-byla-danger",
+              result.tone === "meia" && "text-byla-warning",
+              !positive && result.tone !== "loading" && "text-byla-danger",
               result.tone === "loading" && "text-byla-muted",
             )}
           >
-            <ResultIcon
-              className={cx(
-                "h-5 w-5 shrink-0",
-                result.tone === "loading" && "animate-spin motion-reduce:animate-none",
-              )}
-            />
-            {result.message}
+            {resultSummary(result)}
+            {meia?.enabled && meia.mark === null ? " · conferência da meia pendente" : ""}
           </p>
         ) : null}
       </form>
