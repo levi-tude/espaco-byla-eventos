@@ -112,7 +112,7 @@ describe("contador grande da portaria", () => {
   it("mostra presentes, vendidos, capacidade e meias", () => {
     const markup = renderToStaticMarkup(
       createElement(CheckInCounter, {
-        counts: { present: 23, sold: 36, capacity: 70, meiaPresent: 12, meiaSold: 20 },
+        counts: { present: 23, sold: 36, outsideCapacity: 0, capacity: 70, meiaPresent: 12, meiaSold: 20 },
       }),
     );
     expect(markup).toContain(">23<");

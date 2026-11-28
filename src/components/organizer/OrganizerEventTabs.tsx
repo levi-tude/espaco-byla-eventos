@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { cx } from "@/components/ui/cx";
-import { ORGANIZER_EVENT_TABS, type OrganizerEventTabId } from "@/lib/organizer/event-tabs";
+import { ORGANIZER_EVENT_TABS, organizerReportHref, type OrganizerEventTabId } from "@/lib/organizer/event-tabs";
 
 const tabClass =
   "inline-flex min-h-11 items-center whitespace-nowrap rounded-lg border px-4 text-base font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-byla-blue";
@@ -54,16 +54,26 @@ export function OrganizerEventTabs({
         <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
           {ORGANIZER_EVENT_TABS.map((item) => {
             const current = item.id === tab;
+            const className = cx(
+              tabClass,
+              current
+                ? "border-byla-action bg-byla-action text-white"
+                : "border-byla-border text-foreground hover:bg-byla-overlay",
+            );
+            if (item.id === "relatorio") {
+              return (
+                <li className="shrink-0" key={item.id}>
+                  <a className={className} href={organizerReportHref(eventId)}>
+                    {item.label}
+                  </a>
+                </li>
+              );
+            }
             return (
               <li className="shrink-0" key={item.id}>
                 <button
                   aria-current={current ? "page" : undefined}
-                  className={cx(
-                    tabClass,
-                    current
-                      ? "border-byla-action bg-byla-action text-white"
-                      : "border-byla-border text-foreground hover:bg-byla-overlay",
-                  )}
+                  className={className}
                   onClick={() => selectTab(item.id)}
                   type="button"
                 >

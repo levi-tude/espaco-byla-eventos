@@ -6,6 +6,7 @@
 export const ORGANIZER_EVENT_TABS = [
   { id: "evento", label: "Evento" },
   { id: "vendas", label: "Vendas" },
+  { id: "relatorio", label: "Relatório" },
   { id: "pedidos", label: "Pedidos" },
   { id: "portaria", label: "Portaria" },
   { id: "pedidos-equipe", label: "Pedidos à equipe" },
@@ -13,3 +14,7 @@ export const ORGANIZER_EVENT_TABS = [
 ] as const;
 
 export type OrganizerEventTabId = (typeof ORGANIZER_EVENT_TABS)[number]["id"];
+
+export function organizerReportHref(eventId: string): string {
+  return `/organizador/eventos/${eventId}/relatorio`;
+}

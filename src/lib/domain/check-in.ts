@@ -163,26 +163,38 @@ export function successTone(kind: CheckInTicketKind | null | undefined): "succes
 
 export type CheckInCounts = {
   present: number;
+  /** Válidos na lotação (sem capacitação). */
   sold: number;
+  /** Capacitação: válida, mas fora da lotação. */
+  outsideCapacity: number;
   capacity: number | null;
   meiaPresent: number;
   meiaSold: number;
 };
 
-/** Contador da sessão: só ingressos válidos (pago ou com entrada) contam como vendidos. */
+/**
+ * Contador da sessão. Vendidos é a lotação: pagos ou com entrada, sem o tipo de
+ * código (capacitação). Se `outsideCapacity` não vier, o ingresso conta na lotação
+ * — assim a portaria não muda o número quando a consulta do tipo falha.
+ */
 export function checkInCounts(
-  tickets: { kind: string; status: string }[],
+  tickets: { kind: string; status: string; outsideCapacity?: boolean }[],
   capacity: number | null | undefined,
 ): CheckInCounts {
   let present = 0;
   let sold = 0;
+  let outsideCapacity = 0;
   let meiaPresent = 0;
   let meiaSold = 0;
   for (const ticket of tickets) {
     if (ticket.status !== "pago" && ticket.status !== "check_in") continue;
     const entered = ticket.status === "check_in";
-    sold += 1;
     if (entered) present += 1;
+    if (ticket.outsideCapacity) {
+      outsideCapacity += 1;
+    } else {
+      sold += 1;
+    }
     if (ticket.kind === "meia") {
       meiaSold += 1;
       if (entered) meiaPresent += 1;
@@ -191,6 +203,7 @@ export function checkInCounts(
   return {
     present,
     sold,
+    outsideCapacity,
     capacity: typeof capacity === "number" && capacity > 0 ? capacity : null,
     meiaPresent,
     meiaSold,

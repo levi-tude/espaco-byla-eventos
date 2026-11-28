@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { EventSharePanel } from "@/components/events/EventSharePanel";
 import { EventForm } from "@/components/equipe/EventForm";
@@ -113,6 +113,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
     return <OrganizerNoAccess areaEnabled={await organizerAreaEnabled()} />;
   }
   if (access?.access !== "dono") notFound();
+  if (query.aba === "relatorio") redirect(`/organizador/eventos/${id}/relatorio`);
 
   const supabase = await createServerClient();
   const { data: rawEvent, error: eventQueryError } = await supabase
@@ -333,6 +334,13 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
         ]
       : [],
   );
+  const unlockTypeIds = new Set(
+    ticketTypes.flatMap((type) =>
+      "unlock_code_hash" in type && typeof type.unlock_code_hash === "string" && type.unlock_code_hash
+        ? [type.id]
+        : [],
+    ),
+  );
   const salesSessions: OrganizerSalesSession[] = sessions.map((session) => {
     const sale = summaryById.get(session.id);
     const sessionAvailability = availabilityBySession.get(session.id) ?? null;
@@ -347,6 +355,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
       selling: sale?.selling ?? false,
       soldOut: sale?.soldOut ?? false,
       sold: sessionAvailability?.sold ?? null,
+      outsideCapacity: sessionSold.filter((ticket) => unlockTypeIds.has(ticket.ticket_type_id)).length,
       remaining: sale?.remaining ?? sessionAvailability?.remaining ?? null,
       held: sessionAvailability?.held ?? null,
       revenueCents: types.reduce((total, type) => total + type.revenueCents, 0),
@@ -356,6 +365,7 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
   const allAvailability = sumAvailability(availabilities);
   const salesTotals = buildEventTotals({
     sold: allAvailability?.sold ?? null,
+    outsideCapacity: soldTickets.filter((ticket) => unlockTypeIds.has(ticket.ticket_type_id)).length,
     remaining: allAvailability?.remaining ?? null,
     held: allAvailability?.held ?? null,
     types: mergeTypeRows(salesSessions, typeMeta),
@@ -409,6 +419,9 @@ export default async function EventoOrganizadorPage({ params, searchParams }: Pr
             {event.name}
           </h1>
           <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          <ButtonLink href={`/organizador/eventos/${event.id}/relatorio`} variant="secondary">
+            Relatório
+          </ButtonLink>
         </div>
         <div className="mt-4">
           <ApprovalBanner

@@ -54,12 +54,26 @@ export default async function CheckInPage({
   const { data: validTickets } = current
     ? await supabase
         .from("tickets")
-        .select("kind, status")
+        .select("kind, status, ticket_type_id")
         .eq("session_id", current.id)
         .in("status", ["pago", "check_in"])
     : { data: [] };
+  // Se esta consulta falhar, a capacitação continua dentro de "Vendidos" (como antes).
+  const { data: unlockTypes, error: unlockError } = await supabase
+    .from("ticket_types")
+    .select("id")
+    .eq("event_id", event.id)
+    .not("unlock_code_hash", "is", null);
+  const unlockTypeIds = unlockError ? null : new Set((unlockTypes ?? []).map((type) => type.id));
   const capacity = (rows ?? []).find((row) => row.id === current?.id)?.capacity ?? null;
-  const counts = checkInCounts(validTickets ?? [], capacity);
+  const counts = checkInCounts(
+    (validTickets ?? []).map((ticket) => ({
+      kind: ticket.kind,
+      status: ticket.status,
+      outsideCapacity: unlockTypeIds !== null && unlockTypeIds.has(ticket.ticket_type_id),
+    })),
+    capacity,
+  );
   // Conferência de meia com a sessão do próprio usuário; sem a migration, fica desligada.
   const meia = current
     ? await loadMeiaSummary(supabase, event.id, current.id)

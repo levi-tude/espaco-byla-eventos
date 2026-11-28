@@ -39,7 +39,8 @@ export function CheckInCounter({
   /** Conferência de meia da sessão (null = banco sem a migration ou indisponível). */
   meia?: MeiaSummary | null;
 }) {
-  const percent = counts.sold > 0 ? Math.round((counts.present / counts.sold) * 100) : 0;
+  const expected = counts.sold + counts.outsideCapacity;
+  const percent = expected > 0 ? Math.round((counts.present / expected) * 100) : 0;
   return (
     <section aria-label="Contador da sessão" aria-live="polite" className="mb-4 grid gap-2">
       <div className="grid grid-cols-3 gap-2">
@@ -47,6 +48,12 @@ export function CheckInCounter({
         <Stat label="Vendidos" value={counts.sold} />
         <Stat label="Capacidade" value={counts.capacity ?? "—"} />
       </div>
+      <p className="text-center text-sm text-byla-muted">
+        Vendidos é a lotação, com cortesias.
+        {counts.outsideCapacity > 0
+          ? ` Capacitação: ${counts.outsideCapacity} (fora da lotação).`
+          : ""}
+      </p>
       <div
         aria-hidden
         className="h-2 w-full overflow-hidden rounded-full bg-byla-border"
@@ -58,7 +65,7 @@ export function CheckInCounter({
         Meias que entraram:{" "}
         <span className="font-bold tabular-nums">{counts.meiaPresent}</span> de{" "}
         <span className="tabular-nums">{counts.meiaSold}</span>
-        <span className="text-byla-muted"> · faltam {Math.max(counts.sold - counts.present, 0)} pessoas</span>
+        <span className="text-byla-muted"> · faltam {Math.max(expected - counts.present, 0)} pessoas</span>
       </p>
       {meia ? <MeiaCheckSummary summary={meia} /> : null}
     </section>

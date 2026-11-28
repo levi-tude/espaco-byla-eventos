@@ -118,6 +118,7 @@ export function buildEventTotals(input: {
   sold: number | null;
   remaining: number | null;
   held: number | null;
+  outsideCapacity?: number;
   types: OrganizerSalesTypeRow[];
 }): OrganizerSalesTotals {
   return {
@@ -126,5 +127,6 @@ export function buildEventTotals(input: {
     held: input.held,
     revenueCents: sumTypeRevenue(input.types),
     types: input.types,
+    outsideCapacity: input.outsideCapacity,
   };
 }
