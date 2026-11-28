@@ -63,7 +63,22 @@ describe("contador da sessão", () => {
         ],
         70,
       ),
-    ).toEqual({ present: 2, sold: 4, capacity: 70, meiaPresent: 1, meiaSold: 2 });
+    ).toEqual({ present: 2, sold: 4, outsideCapacity: 0, capacity: 70, meiaPresent: 1, meiaSold: 2 });
+  });
+
+  it("capacitação não entra em vendidos e continua nas pessoas que faltam", () => {
+    const counts = checkInCounts(
+      [
+        { kind: "inteira", status: "pago" },
+        { kind: "inteira", status: "check_in", outsideCapacity: true },
+        { kind: "cortesia", status: "pago" },
+      ],
+      70,
+    );
+    expect(counts.sold).toBe(2);
+    expect(counts.outsideCapacity).toBe(1);
+    expect(counts.present).toBe(1);
+    expect(counts.sold + counts.outsideCapacity - counts.present).toBe(2);
   });
 
   it("sem capacidade válida mostra vazio", () => {

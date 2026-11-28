@@ -35,8 +35,10 @@ export type OrganizerSalesSession = {
   salesOpen: boolean;
   selling: boolean;
   soldOut: boolean;
-  /** Pessoas com ingresso (inclui cortesias); `null` = não foi possível contar. */
+  /** Pessoas na lotação (inclui cortesias, sem capacitação); `null` = não foi possível contar. */
   sold: number | null;
+  /** Capacitação: pessoas válidas fora da lotação. */
+  outsideCapacity?: number;
   /** Lugares livres; `null` = não foi possível contar. */
   remaining: number | null;
   /** Reservas aguardando pagamento. */
@@ -49,6 +51,7 @@ export type OrganizerSalesTotals = {
   sold: number | null;
   remaining: number | null;
   held: number | null;
+  outsideCapacity?: number;
   revenueCents: number;
   types: OrganizerSalesTypeRow[];
 };
@@ -208,7 +211,11 @@ export function OrganizerSalesPanel({
         <h3 className="text-base font-semibold text-foreground">Resumo do evento</h3>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            hint="inclui cortesias"
+            hint={
+              totals.outsideCapacity
+                ? `na lotação · inclui cortesias · ${totals.outsideCapacity} de capacitação fora`
+                : "na lotação · inclui cortesias"
+            }
             label="Vendidos"
             value={totals.sold ?? "—"}
           />
@@ -249,6 +256,11 @@ export function OrganizerSalesPanel({
                   <dd className="text-2xl font-semibold tabular-nums text-foreground">
                     {session.sold ?? "—"}
                   </dd>
+                  {session.outsideCapacity ? (
+                    <dd className="text-sm text-byla-muted">
+                      na lotação · {session.outsideCapacity} de capacitação fora
+                    </dd>
+                  ) : null}
                 </div>
                 <div>
                   <dt className="text-sm text-byla-muted">Disponíveis</dt>
@@ -288,9 +300,9 @@ export function OrganizerSalesPanel({
         })}
       </ul>
       <p className="text-sm text-byla-muted">
-        Vendidos inclui cortesias. Casadinha e pacote família contam como unidades; cada unidade
-        gera vários ingressos (pessoas). A venda de cada sessão fecha sozinha 5 minutos depois do
-        início.
+        Vendidos é a lotação: inclui cortesias e não inclui capacitação (ingresso com código).
+        Casadinha e pacote família contam as pessoas. A venda de cada sessão fecha sozinha 5
+        minutos depois do início.
       </p>
     </div>
   );

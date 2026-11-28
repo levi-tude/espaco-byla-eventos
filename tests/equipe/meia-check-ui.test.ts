@@ -86,7 +86,7 @@ describe("tela da meia com conferência", () => {
 
 describe("resumo da conferência", () => {
   it("contador mostra o resumo da sessão quando existe", () => {
-    const counts = { present: 23, sold: 36, capacity: 70, meiaPresent: 12, meiaSold: 20 };
+    const counts = { present: 23, sold: 36, outsideCapacity: 0, capacity: 70, meiaPresent: 12, meiaSold: 20 };
     const html = renderToStaticMarkup(
       createElement(CheckInCounter, {
         counts,

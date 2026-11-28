@@ -161,7 +161,7 @@ export default async function EventoEquipePage({
       supabase
         .from("tickets")
         .select(
-          "id, order_id, session_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
+          "id, order_id, session_id, ticket_type_id, buyer_name, kind, status, price_cents, checked_in_at, order_items(name), orders!inner(buyer_email, paid_at, public_token, status, decision_reason, total_cents, payment_provider)",
         )
         .eq("event_id", id)
         .order("created_at", { ascending: false })
@@ -353,7 +353,16 @@ export default async function EventoEquipePage({
   const capacity = selected
     ? selected.capacity
     : sessions.reduce((total, session) => total + session.capacity, 0) || event.capacity;
-  const soldCount = availability?.sold ?? validTickets.length;
+  const unlockTypeIds = new Set(
+    (ticketTypes ?? []).filter((type) => type.unlock_code_hash).map((type) => type.id),
+  );
+  const trainingCount = (tickets ?? []).filter(
+    (ticket) =>
+      inScope(ticket.session_id) &&
+      (ticket.status === "pago" || ticket.status === "check_in") &&
+      unlockTypeIds.has(ticket.ticket_type_id),
+  ).length;
+  const soldCount = availability?.sold ?? Math.max(validTickets.length - trainingCount, 0);
   const remaining = availability?.remaining ?? Math.max(capacity - soldCount, 0);
   const state = salesState(
     event.sales_open && (selected ? selected.sales_open : true),
@@ -386,7 +395,7 @@ export default async function EventoEquipePage({
         value: validTickets.filter((ticket) => ticket.kind === kind).length,
       }));
   const stats: Stat[] = [
-    { label: "Vendidos", value: soldCount, hint: "inclui cortesias" },
+    { label: "Vendidos", value: soldCount, hint: "na lotação · inclui cortesias" },
     {
       label: "Reservados agora",
       value: availability ? availability.held : "—",
@@ -399,6 +408,9 @@ export default async function EventoEquipePage({
       label: "Cortesias",
       value: validTickets.filter(({ kind }) => kind === "cortesia").length,
     },
+    ...(trainingCount > 0
+      ? [{ label: "Capacitação", value: trainingCount, hint: "fora da lotação" }]
+      : []),
     ...(finance ? [{ label: "Total vendido", value: currency.format(revenueCents / 100) }] : []),
   ];
 
@@ -496,6 +508,9 @@ export default async function EventoEquipePage({
           <ButtonLink className="col-span-2" href={checkInHref}>
             <ScanLine aria-hidden className="h-5 w-5" />
             {multi && selected ? "Check-in desta sessão" : "Abrir check-in"}
+          </ButtonLink>
+          <ButtonLink href={`/equipe/eventos/${event.id}/relatorio`} variant="secondary">
+            Relatório
           </ButtonLink>
           {approvalBadge || event.deleted_at ? null : (
             <>

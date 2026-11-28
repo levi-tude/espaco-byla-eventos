@@ -931,6 +931,22 @@ export type Database = {
         Args: { p_event_id: string; p_staff_user_id: string };
         Returns: Json;
       };
+      event_report: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: Json;
+      };
+      event_report_finance: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: Json;
+      };
+      event_report_organizer: {
+        Args: { p_actor: string; p_event_id: string };
+        Returns: Json;
+      };
+      log_event_report_export: {
+        Args: { p_actor: string; p_event_id: string; p_format: string };
+        Returns: undefined;
+      };
       service_fee_overview: {
         Args: { p_from: string; p_staff_user_id: string; p_to: string };
         Returns: Json;
