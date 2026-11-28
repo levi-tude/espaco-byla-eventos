@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { ArrivalChart, DailyChart, DonutChart, StackedBar } from "@/components/reports/Charts";
 import { PrintButton } from "@/components/reports/PrintButton";
+import { Retrospective } from "@/components/reports/Retrospective";
 import { BackLink } from "@/components/ui/BackLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
@@ -110,6 +111,7 @@ export function EventReportScreen({
           </p>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
+          {printMode ? null : <Retrospective eventName={eventName} view={view} whenLabel={whenLabel} />}
           {printMode ? <PrintButton label="Salvar PDF" /> : <ButtonLink href={printHref} variant="secondary">PDF</ButtonLink>}
           <ButtonLink href={csvHref} variant="secondary">
             CSV
